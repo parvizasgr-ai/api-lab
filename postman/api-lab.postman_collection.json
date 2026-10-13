@@ -2705,7 +2705,7 @@
       "name": "BFF",
       "item": [
         {
-          "name": "GET /bff/dashboard — Bank dashboard — 1 sorğuda hesablar + kartlar + son 5 əməliyyat + məzənnələr",
+          "name": "GET /bff/dashboard — Bank dashboard — 1 sorğuda hesablar + kartlar + son 5 əməliyyat + AZN/USD/EUR məzənnələri",
           "request": {
             "method": "GET",
             "auth": {
@@ -2730,15 +2730,21 @@
               "query": [],
               "variable": []
             },
-            "description": "BFF eyni service layer-i birbaşa çağırır (HTTP-yə yenidən çıxmır). `meta.calls` hər daxili çağırışın müddətini göstərir."
+            "description": "BFF eyni service layer-i birbaşa çağırır (HTTP-yə yenidən çıxmır). Daxili çağırışlar paralel işləyir,\n`meta.calls` hər birinin adını, statusunu və müddətini göstərir. Portal birbaşa API ilə 4 sorğu əvəzinə 1 sorğu göndərir.\n"
           }
         },
         {
-          "name": "GET /bff/travel/search — Reys + otel paralel axtarışı (partial failure nümunəsi)",
+          "name": "GET /bff/travel/search — Reys + otel paralel axtarışı (partial failure → 207)",
           "request": {
             "method": "GET",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
             },
             "header": [],
             "url": {
@@ -2776,11 +2782,16 @@
                   "key": "nights",
                   "value": "",
                   "disabled": true
+                },
+                {
+                  "key": "adults",
+                  "value": "",
+                  "disabled": true
                 }
               ],
               "variable": []
             },
-            "description": "Reys və otel axtarışı `Promise.all` ilə paralel işləyir. Biri uğursuz olarsa digərinin nəticəsi yenə qaytarılır:\nHTTP **207 Multi-Status**, uğursuz bölmədə `{error: {...}}`, `meta.partial = true`. Hər ikisi uğurlu → 200.\n"
+            "description": "Reys və otel axtarışı `Promise.all` ilə paralel işləyir; hər daxili çağırışın **3 saniyə** limiti var.\nHər bölmə öz statusunu daşıyır: `{status: 200, data}` və ya `{status: 503|504|..., error}` (vahid Error formatı, öz `traceId`-si ilə).\nHər iki bölmə uğurlu → **200**. Ən azı biri uğursuz → **207 Multi-Status** və `meta.partial = true`.\n\n**Hissəvi xətanı yaratmaq:** `X-Simulate: hotels:503` (və ya `flights:500`, `hotels:timeout`, `hotels:slow`) — simulyator yalnız həmin bölməyə tətbiq olunur.\nAdi `X-Simulate: 503` isə bütün sorğunu dayandırır — fərqi müqayisə edin.\n"
           }
         },
         {
@@ -2819,7 +2830,7 @@
       "name": "SQL Playground",
       "item": [
         {
-          "name": "GET /api/v1/_db/schema — DB sxemi — cədvəllər, view-lar, sütunlar, FK-lar",
+          "name": "GET /api/v1/_db/schema — DB sxemi — cədvəllər, view-lar, sütunlar (tip, PK, gizli), FK-lar, index-lər",
           "request": {
             "method": "GET",
             "auth": {
@@ -2840,15 +2851,21 @@
               "query": [],
               "variable": []
             },
-            "description": "DB sxemi — cədvəllər, view-lar, sütunlar, FK-lar"
+            "description": "DB sxemi — cədvəllər, view-lar, sütunlar (tip, PK, gizli), FK-lar, index-lər"
           }
         },
         {
-          "name": "POST /api/v1/_db/query — SQL sorğusu icra et (YALNIZ SELECT)",
+          "name": "POST /api/v1/_db/query — SQL sorğusu icra et (YALNIZ SELECT / WITH ... SELECT)",
           "request": {
             "method": "POST",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
             },
             "header": [
               {
@@ -2871,7 +2888,7 @@
               "query": [],
               "variable": []
             },
-            "description": "* Read-only DB bağlantısı; yalnız 1 SELECT (və ya `WITH ... SELECT`) ifadəsi.\n* `INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/ATTACH/PRAGMA/...` → **422 SQL_NOT_ALLOWED**.\n* Maksimum **200 sətir** (`truncated: true`), **2 saniyə** timeout → **422 SQL_TIMEOUT**.\n* `password_hash`, `token_hash`, `key_hash`, `client_secret_hash` sütunları gizlidir.\n",
+            "description": "Qorunma qatları:\n1. **Tokenizer** — şərhlər (`--`, `/* */`) və string-lər nəzərə alınır; yalnız **1 statement**, birinci açar söz `SELECT` və ya `WITH`;\n   `INSERT, UPDATE, DELETE, REPLACE, DROP, ALTER, CREATE, ATTACH, DETACH, PRAGMA, VACUUM, REINDEX, ANALYZE, BEGIN, COMMIT, ROLLBACK, SAVEPOINT, RELEASE`\n   açar sözləri (string daxilində deyilsə) → **422 SQL_NOT_ALLOWED**.\n2. **Read-only bağlantı** (`readonly: true`) — DB-nin surəti üzərində, ayrıca prosesdə.\n3. **LIMIT 200** — yoxdursa əlavə olunur, böyükdürsə 200-ə endirilir (`executedSql`-də görünür), `truncated: true`.\n4. **2 saniyə timeout** — proses dayandırılır → **422 SQL_TIMEOUT**. Nəticə ölçüsü maks. 1 MB.\n5. **Gizli sütunlar** (`password_hash`, `token_hash`, `key_hash`, `client_secret_hash`, `oauth_codes.code`) — surətdə dəyərlər `[hidden]` ilə əvəz olunub,\n   birbaşa seçilən gizli sütunlar nəticədən çıxarılır və `hiddenColumns`-da göstərilir.\n6. Rate limit — bu endpoint üçün **20 sorğu/dəqiqə** (`x-rate-limit`). Hər sorğu `audit_log`-a yazılır.\n",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"sql\": \"SELECT * FROM card_status_history ORDER BY changed_at DESC\"\n}",

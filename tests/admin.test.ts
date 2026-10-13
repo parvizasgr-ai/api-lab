@@ -5,7 +5,7 @@ import { createTestApp, expectMatchesSpec, bearer } from './helpers.js';
 describe('health + openapi', () => {
   const t = createTestApp();
   it('spec-dəki hər endpoint-in handler-i var (yalnız növbəti mərhələlərin endpoint-ləri gözləyir)', () => {
-    const pending = ['bffDashboard', 'bffTravelSearch', 'bffMusicHome', 'dbSchema', 'dbQuery']; // (e) BFF, (f) SQL Playground
+    const pending = ['dbSchema', 'dbQuery']; // (f) SQL Playground
     expect(t.app.locals.unimplemented).toEqual(pending);
   });
   it('GET /health', async () => {

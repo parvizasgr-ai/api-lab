@@ -12,6 +12,7 @@ export interface HotelRow {
   currency: string;
   rating: number;
   description: string;
+  price_azn_minor: number | null;
   available_rooms: number | null;
 }
 
@@ -61,11 +62,17 @@ export interface HotelSearch {
   maxPrice: number | null;
 }
 
+// Otelin qiyməti AZN-ə çevrilir: 1 AZN = rate X → X məbləği / rate = AZN (exchange_rates-in ən son tarixi).
+const PRICE_AZN = `(CASE h.currency WHEN 'AZN' THEN h.price_per_night_minor
+  ELSE CAST(ROUND(h.price_per_night_minor / (
+    SELECT x.rate FROM exchange_rates x WHERE x.base = 'AZN' AND x.quote = h.currency ORDER BY x.rate_date DESC LIMIT 1
+  )) AS INTEGER) END)`;
+
 const SEARCH_WHERE = `
   WHERE h.city = @city
     AND (@stars IS NULL OR h.stars >= @stars)
-    AND (@minPrice IS NULL OR h.price_per_night_minor >= @minPrice)
-    AND (@maxPrice IS NULL OR h.price_per_night_minor <= @maxPrice)
+    AND (@minPrice IS NULL OR ${PRICE_AZN} >= @minPrice)
+    AND (@maxPrice IS NULL OR ${PRICE_AZN} <= @maxPrice)
     AND EXISTS (SELECT 1 FROM hotel_rooms r WHERE r.hotel_id = h.id AND ${ROOM_FITS})`;
 
 const BOOKING_SELECT = `
@@ -81,7 +88,7 @@ export const hotelsRepo = {
   search: (db: DB, s: HotelSearch, orderBy: string, limit: number, offset: number) =>
     db
       .prepare(
-        `SELECT h.*,
+        `SELECT h.*, ${PRICE_AZN} AS price_azn_minor,
                 CASE WHEN @checkIn IS NULL THEN NULL
                      ELSE (SELECT COUNT(*) FROM hotel_rooms r WHERE r.hotel_id = h.id AND ${ROOM_FITS}) END AS available_rooms
          FROM hotels h ${SEARCH_WHERE}
@@ -89,7 +96,8 @@ export const hotelsRepo = {
       )
       .all({ ...s, limit, offset }) as HotelRow[],
 
-  getHotel: (db: DB, id: number) => db.prepare(`SELECT h.*, NULL AS available_rooms FROM hotels h WHERE id = ?`).get(id) as HotelRow | undefined,
+  getHotel: (db: DB, id: number) =>
+    db.prepare(`SELECT h.*, ${PRICE_AZN} AS price_azn_minor, NULL AS available_rooms FROM hotels h WHERE id = ?`).get(id) as HotelRow | undefined,
 
   amenities: (db: DB, hotelId: number) =>
     db.prepare(`SELECT amenity FROM hotel_amenities WHERE hotel_id = ? ORDER BY amenity`).pluck().all(hotelId) as string[],

@@ -27,6 +27,7 @@ import { hotelsHandlers } from './modules/hotels/routes.js';
 import { booksHandlers } from './modules/books/routes.js';
 import { musicHandlers } from './modules/music/routes.js';
 import { adminHandlers } from './modules/admin/routes.js';
+import { bffHandlers } from './modules/bff/routes.js';
 
 export interface AppContext {
   db: DB;
@@ -66,6 +67,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...booksHandlers(ctx),
     ...musicHandlers(ctx),
     ...adminHandlers(ctx),
+    ...bffHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 

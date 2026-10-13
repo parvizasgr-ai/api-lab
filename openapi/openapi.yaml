@@ -28,10 +28,12 @@ info:
     ## Tədris simulyatorları
     İstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):
     `500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.
+    BFF-də simulyatoru bir bölməyə yönəltmək olar: `X-Simulate: hotels:503` → yalnız otel bölməsi xəta verir (207 Multi-Status).
 
     ## Extension-lar
     * `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).
     * `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.
+    * `x-rate-limit` — endpoint-ə xas, ümumidən sərt limit (sorğu/dəqiqə), məs. SQL Playground: 20.
     * `x-error-format: oauth2` — həmin endpoint-in xətaları RFC 6749 formatındadır (`{error, error_description}`), validation xətası → 400 `invalid_request`.
     * `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).
 
@@ -1220,12 +1222,15 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 5 }
         - name: minPrice
           in: query
+          description: Minimum qiymət AZN ilə (EUR/USD otellər exchange_rates ilə AZN-ə çevrilib müqayisə olunur)
           schema: { $ref: '#/components/schemas/MoneyInput' }
         - name: maxPrice
           in: query
+          description: Maksimum qiymət AZN ilə
           schema: { $ref: '#/components/schemas/MoneyInput' }
         - name: sort
           in: query
+          description: '`price` — AZN ekvivalentinə görə'
           schema: { type: string, enum: [price, -price, rating, -rating, stars, -stars], default: price }
         - { $ref: '#/components/parameters/Page' }
         - { $ref: '#/components/parameters/Size' }
@@ -1237,7 +1242,7 @@ paths:
               schema: { $ref: '#/components/schemas/HotelPage' }
               example:
                 items:
-                  - { id: 5, name: Bulvar Inn, city: Bakı, stars: 2, rating: 7.6, pricePerNightFrom: 55.00, currency: AZN, amenities: [Wi-Fi], availableRooms: 3 }
+                  - { id: 5, name: Bulvar Inn, city: Bakı, stars: 2, rating: 7.6, pricePerNightFrom: 55.00, currency: AZN, pricePerNightFromAzn: 55.00, amenities: [Wi-Fi], availableRooms: 3 }
                 page: 1
                 size: 20
                 total: 1
@@ -1269,7 +1274,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/HotelDetail' }
-              example: { id: 1, name: Xəzər Sahil Hotel, city: Bakı, stars: 5, rating: 9.1, pricePerNightFrom: 280.00, currency: AZN, amenities: [Fitness, Hovuz, Parkinq, Spa, Səhər yeməyi, Wi-Fi], description: 'Bulvarın üzərində, dəniz mənzərəli otaqlar və açıq hovuz.', roomCount: 4 }
+              example: { id: 1, name: Xəzər Sahil Hotel, city: Bakı, stars: 5, rating: 9.1, pricePerNightFrom: 280.00, currency: AZN, pricePerNightFromAzn: 280.00, amenities: [Fitness, Hovuz, Parkinq, Spa, Səhər yeməyi, Wi-Fi], description: 'Bulvarın üzərində, dəniz mənzərəli otaqlar və açıq hovuz.', roomCount: 4 }
         '404': { $ref: '#/components/responses/HotelNotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -2231,8 +2236,10 @@ paths:
     get:
       tags: [BFF]
       operationId: bffDashboard
-      summary: Bank dashboard — 1 sorğuda hesablar + kartlar + son 5 əməliyyat + məzənnələr
-      description: BFF eyni service layer-i birbaşa çağırır (HTTP-yə yenidən çıxmır). `meta.calls` hər daxili çağırışın müddətini göstərir.
+      summary: Bank dashboard — 1 sorğuda hesablar + kartlar + son 5 əməliyyat + AZN/USD/EUR məzənnələri
+      description: |
+        BFF eyni service layer-i birbaşa çağırır (HTTP-yə yenidən çıxmır). Daxili çağırışlar paralel işləyir,
+        `meta.calls` hər birinin adını, statusunu və müddətini göstərir. Portal birbaşa API ilə 4 sorğu əvəzinə 1 sorğu göndərir.
       security:
         - bearerAuth: []
       x-required-scopes: [accounts:read, cards:read]
@@ -2251,7 +2258,7 @@ paths:
                 cards: [{ id: 1, accountId: AZ21NABZ0001, maskedNumber: '**** **** **** 4169', last4: '4169', brand: VISA, status: ACTIVE, statusReason: null, dailyLimit: 2000.00, currency: AZN, expiresAt: '2029-09-30' }]
                 recentTransactions: [{ id: 40, accountId: AZ21NABZ0001, type: DEBIT, amount: 7.80, currency: AZN, description: Bolt — taksi, transferId: null, createdAt: '2026-10-12T19:00:00Z' }]
                 rates: { base: AZN, date: '2026-10-13', rates: { USD: 0.588235, EUR: 0.506329 } }
-                meta: { totalMs: 4, partial: false, calls: [{ service: accounts.list, durationMs: 1, status: ok }, { service: cards.list, durationMs: 1, status: ok }, { service: transactions.recent, durationMs: 1, status: ok }, { service: currencies.rates, durationMs: 1, status: ok }] }
+                meta: { totalMs: 3, partial: false, calls: [{ name: accounts.list, status: 200, durationMs: 1 }, { name: cards.list, status: 200, durationMs: 1 }, { name: transactions.recent, status: 200, durationMs: 1 }, { name: currencies.rates, status: 200, durationMs: 1 }] }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -2261,12 +2268,19 @@ paths:
     get:
       tags: [BFF]
       operationId: bffTravelSearch
-      summary: Reys + otel paralel axtarışı (partial failure nümunəsi)
+      summary: Reys + otel paralel axtarışı (partial failure → 207)
       description: |
-        Reys və otel axtarışı `Promise.all` ilə paralel işləyir. Biri uğursuz olarsa digərinin nəticəsi yenə qaytarılır:
-        HTTP **207 Multi-Status**, uğursuz bölmədə `{error: {...}}`, `meta.partial = true`. Hər ikisi uğurlu → 200.
+        Reys və otel axtarışı `Promise.all` ilə paralel işləyir; hər daxili çağırışın **3 saniyə** limiti var.
+        Hər bölmə öz statusunu daşıyır: `{status: 200, data}` və ya `{status: 503|504|..., error}` (vahid Error formatı, öz `traceId`-si ilə).
+        Hər iki bölmə uğurlu → **200**. Ən azı biri uğursuz → **207 Multi-Status** və `meta.partial = true`.
+
+        **Hissəvi xətanı yaratmaq:** `X-Simulate: hotels:503` (və ya `flights:500`, `hotels:timeout`, `hotels:slow`) — simulyator yalnız həmin bölməyə tətbiq olunur.
+        Adi `X-Simulate: 503` isə bütün sorğunu dayandırır — fərqi müqayisə edin.
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:read]
       x-db-impact:
-        reads: [flights, airports, hotels, hotel_rooms, hotel_bookings]
+        reads: [flights, airports, hotels, hotel_rooms, hotel_bookings, hotel_amenities, exchange_rates]
         writes: []
       parameters:
         - name: from
@@ -2282,6 +2296,7 @@ paths:
         - name: date
           in: query
           required: true
+          description: Uçuş və check-in tarixi
           schema: { type: string, format: date }
           example: '2026-10-20'
         - name: city
@@ -2291,6 +2306,9 @@ paths:
         - name: nights
           in: query
           schema: { type: integer, minimum: 1, maximum: 30, default: 3 }
+        - name: adults
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 6, default: 1 }
       responses:
         '200':
           description: Hər iki axtarış uğurlu
@@ -2298,18 +2316,29 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/BffTravel' }
               example:
-                flights: { items: [{ id: 17, flightNo: J2 071, airline: { code: J2, name: Azerbaijan Airlines }, from: { code: GYD, city: Bakı }, to: { code: IST, city: İstanbul }, departAt: '2026-10-20T05:00:00Z', arriveAt: '2026-10-20T08:40:00Z', durationMin: 220, stops: 0, price: 340.00, currency: AZN, seatsLeft: 12 }], total: 1 }
-                hotels: { items: [{ id: 11, name: Sultanahmet Garden, city: İstanbul, stars: 3, rating: 8.6, pricePerNightFrom: 75.00, currency: EUR, amenities: [Wi-Fi, Səhər yeməyi], availableRooms: 3 }], total: 1 }
-                meta: { totalMs: 6, partial: false, calls: [{ service: flights.search, durationMs: 4, status: ok }, { service: hotels.search, durationMs: 5, status: ok }] }
+                flights: { status: 200, data: { items: [{ id: 17, flightNo: J2 071, airline: { code: J2, name: Azerbaijan Airlines }, from: { code: GYD, city: Bakı }, to: { code: IST, city: İstanbul }, departAt: '2026-10-20T05:00:00Z', arriveAt: '2026-10-20T08:40:00Z', durationMin: 220, stops: 0, price: 340.00, currency: AZN, seatsLeft: 12 }], total: 1 } }
+                hotels: { status: 200, data: { items: [{ id: 11, name: Sultanahmet Garden, city: İstanbul, stars: 3, rating: 8.6, pricePerNightFrom: 75.00, currency: EUR, pricePerNightFromAzn: 148.13, amenities: [Wi-Fi, Səhər yeməyi], availableRooms: 3 }], total: 1 } }
+                meta: { totalMs: 5, partial: false, calls: [{ name: flights.search, status: 200, durationMs: 4 }, { name: hotels.search, status: 200, durationMs: 5 }] }
         '207':
-          description: Hissəvi uğur — bir bölmə xəta verdi
+          description: Hissəvi uğur — bir və ya hər iki bölmə xəta verdi
           content:
             application/json:
               schema: { $ref: '#/components/schemas/BffTravel' }
-              example:
-                flights: { items: [], total: 0 }
-                hotels: { error: { timestamp: '2026-10-13T09:00:00Z', status: 503, code: SERVICE_UNAVAILABLE, message: Otel servisi cavab vermir, details: [], traceId: req_7f2c9a } }
-                meta: { totalMs: 3, partial: true, calls: [{ service: flights.search, durationMs: 2, status: ok }, { service: hotels.search, durationMs: 1, status: error }] }
+              examples:
+                hotelsUnavailable:
+                  summary: 'X-Simulate: hotels:503'
+                  value:
+                    flights: { status: 200, data: { items: [], total: 0 } }
+                    hotels: { status: 503, error: { timestamp: '2026-10-13T09:00:00Z', status: 503, code: SERVICE_UNAVAILABLE, message: 'Otel servisi müvəqqəti əlçatan deyil (X-Simulate: hotels:503)', details: [], traceId: req_7f2c9a.hotels } }
+                    meta: { totalMs: 2, partial: true, calls: [{ name: flights.search, status: 200, durationMs: 2 }, { name: hotels.search, status: 503, durationMs: 0 }] }
+                hotelsTimeout:
+                  summary: 'X-Simulate: hotels:timeout (3 san limit)'
+                  value:
+                    flights: { status: 200, data: { items: [], total: 0 } }
+                    hotels: { status: 504, error: { timestamp: '2026-10-13T09:00:03Z', status: 504, code: GATEWAY_TIMEOUT, message: hotels.search 3000 ms ərzində cavab vermədi, details: [], traceId: req_7f2c9a.hotels } }
+                    meta: { totalMs: 3001, partial: true, calls: [{ name: flights.search, status: 200, durationMs: 2 }, { name: hotels.search, status: 504, durationMs: 3000 }] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -2321,6 +2350,7 @@ paths:
       summary: Musiqi ana səhifəsi — populyar treklər + mənim playlist-lərim
       security:
         - bearerAuth: []
+      x-required-scopes: [music:read]
       x-db-impact:
         reads: [play_history, tracks, playlists, playlist_tracks]
         writes: []
@@ -2333,8 +2363,9 @@ paths:
               example:
                 popular: [{ id: 24, youtubeId: 4NRXx6U8ABQ, title: Blinding Lights, artist: The Weeknd, genre: Pop, durationSec: 261, thumbnailUrl: 'https://i.ytimg.com/vi/4NRXx6U8ABQ/hqdefault.jpg', playCount: 5 }]
                 playlists: [{ id: 1, name: Eurovision Azərbaycan, createdAt: '2026-08-24T20:00:00Z', tracks: [] }]
-                meta: { totalMs: 2, partial: false, calls: [{ service: music.popular, durationMs: 1, status: ok }, { service: music.playlists, durationMs: 1, status: ok }] }
+                meta: { totalMs: 2, partial: false, calls: [{ name: music.popular, status: 200, durationMs: 1 }, { name: music.playlists, status: 200, durationMs: 1 }] }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -2345,9 +2376,9 @@ paths:
     get:
       tags: [SQL Playground]
       operationId: dbSchema
-      summary: DB sxemi — cədvəllər, view-lar, sütunlar, FK-lar
+      summary: DB sxemi — cədvəllər, view-lar, sütunlar (tip, PK, gizli), FK-lar, index-lər
       x-db-impact:
-        reads: [sqlite_master, pragma_table_info, pragma_foreign_key_list]
+        reads: [sqlite_master, pragma_table_info, pragma_foreign_key_list, pragma_index_list]
         writes: []
       responses:
         '200':
@@ -2357,14 +2388,21 @@ paths:
               schema: { $ref: '#/components/schemas/DbSchema' }
               example:
                 tables:
-                  - name: cards
+                  - name: users
                     type: table
-                    rowCount: 7
+                    rowCount: 3
                     columns:
                       - { name: id, type: INTEGER, notNull: false, primaryKey: true, hidden: false }
-                      - { name: status, type: TEXT, notNull: true, primaryKey: false, hidden: false }
-                    foreignKeys:
-                      - { column: account_id, refTable: accounts, refColumn: id }
+                      - { name: password_hash, type: TEXT, notNull: true, primaryKey: false, hidden: true }
+                    foreignKeys: []
+                    indexes: [{ name: sqlite_autoindex_users_1, columns: [username], unique: true }]
+                  - name: v_card_overview
+                    type: view
+                    rowCount: null
+                    columns:
+                      - { name: card_id, type: INTEGER, notNull: false, primaryKey: false, hidden: false }
+                    foreignKeys: []
+                    indexes: []
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -2372,15 +2410,25 @@ paths:
     post:
       tags: [SQL Playground]
       operationId: dbQuery
-      summary: SQL sorğusu icra et (YALNIZ SELECT)
+      summary: SQL sorğusu icra et (YALNIZ SELECT / WITH ... SELECT)
       description: |
-        * Read-only DB bağlantısı; yalnız 1 SELECT (və ya `WITH ... SELECT`) ifadəsi.
-        * `INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/ATTACH/PRAGMA/...` → **422 SQL_NOT_ALLOWED**.
-        * Maksimum **200 sətir** (`truncated: true`), **2 saniyə** timeout → **422 SQL_TIMEOUT**.
-        * `password_hash`, `token_hash`, `key_hash`, `client_secret_hash` sütunları gizlidir.
+        Qorunma qatları:
+        1. **Tokenizer** — şərhlər (`--`, `/* */`) və string-lər nəzərə alınır; yalnız **1 statement**, birinci açar söz `SELECT` və ya `WITH`;
+           `INSERT, UPDATE, DELETE, REPLACE, DROP, ALTER, CREATE, ATTACH, DETACH, PRAGMA, VACUUM, REINDEX, ANALYZE, BEGIN, COMMIT, ROLLBACK, SAVEPOINT, RELEASE`
+           açar sözləri (string daxilində deyilsə) → **422 SQL_NOT_ALLOWED**.
+        2. **Read-only bağlantı** (`readonly: true`) — DB-nin surəti üzərində, ayrıca prosesdə.
+        3. **LIMIT 200** — yoxdursa əlavə olunur, böyükdürsə 200-ə endirilir (`executedSql`-də görünür), `truncated: true`.
+        4. **2 saniyə timeout** — proses dayandırılır → **422 SQL_TIMEOUT**. Nəticə ölçüsü maks. 1 MB.
+        5. **Gizli sütunlar** (`password_hash`, `token_hash`, `key_hash`, `client_secret_hash`, `oauth_codes.code`) — surətdə dəyərlər `[hidden]` ilə əvəz olunub,
+           birbaşa seçilən gizli sütunlar nəticədən çıxarılır və `hiddenColumns`-da göstərilir.
+        6. Rate limit — bu endpoint üçün **20 sorğu/dəqiqə** (`x-rate-limit`). Hər sorğu `audit_log`-a yazılır.
+      security:
+        - {}
+        - bearerAuth: []
+      x-rate-limit: 20
       x-db-impact:
-        reads: ['* (istənilən cədvəl/view, read-only)']
-        writes: []
+        reads: ['* (istənilən cədvəl/view, read-only surət)']
+        writes: [INSERT audit_log]
       requestBody:
         required: true
         content:
@@ -2402,21 +2450,19 @@ paths:
                 truncated: false
                 durationMs: 1
                 hiddenColumns: []
-        '400':
-          description: SQL sintaksis xətası
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-              example: { timestamp: '2026-10-13T09:00:00Z', status: 400, code: SQL_SYNTAX_ERROR, message: 'near "FORM": syntax error', details: [], traceId: req_7f2c9a }
+                executedSql: SELECT * FROM card_status_history ORDER BY changed_at DESC LIMIT 201
         '422':
-          description: İcazəsiz və ya çox uzun sürən sorğu
+          description: İcazəsiz, sintaksis xətalı və ya çox uzun sürən sorğu
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               examples:
                 notAllowed: { summary: SELECT deyil, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SQL_NOT_ALLOWED, message: Yalnız SELECT sorğularına icazə verilir, details: [{ field: sql, message: 'Qadağan olunmuş açar söz: DROP' }], traceId: req_7f2c9a } }
-                timeout: { summary: 2 saniyədən çox, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SQL_TIMEOUT, message: Sorğu 2 saniyədən çox çəkdi, details: [], traceId: req_7f2c9a } }
-                hidden: { summary: Gizli sütun, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SQL_NOT_ALLOWED, message: 'Bu sütun gizlidir: password_hash', details: [], traceId: req_7f2c9a } }
+                multiple: { summary: Bir neçə statement, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SQL_NOT_ALLOWED, message: Yalnız 1 SQL statement göndərilə bilər, details: [], traceId: req_7f2c9a } }
+                syntax: { summary: Sintaksis xətası, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SQL_SYNTAX_ERROR, message: 'near "FORM": syntax error', details: [], traceId: req_7f2c9a } }
+                timeout: { summary: 2 saniyədən çox, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SQL_TIMEOUT, message: Sorğu 2000 ms-dən çox çəkdi və dayandırıldı, details: [], traceId: req_7f2c9a } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -3416,7 +3462,7 @@ components:
     # ---------------------------------------------------------------- hotels
     HotelSummary:
       type: object
-      required: [id, name, city, stars, rating, pricePerNightFrom, currency, amenities]
+      required: [id, name, city, stars, rating, pricePerNightFrom, currency, pricePerNightFromAzn, amenities]
       properties:
         id: { type: integer }
         name: { type: string }
@@ -3425,6 +3471,7 @@ components:
         rating: { type: number }
         pricePerNightFrom: { $ref: '#/components/schemas/Money' }
         currency: { $ref: '#/components/schemas/CurrencyCode' }
+        pricePerNightFromAzn: { $ref: '#/components/schemas/Money' }
         amenities: { type: array, items: { type: string } }
         availableRooms: { type: integer, description: 'Yalnız checkIn/checkOut verildikdə' }
     HotelPage:
@@ -3713,23 +3760,50 @@ components:
     # ---------------------------------------------------------------- bff
     BffCall:
       type: object
-      required: [service, durationMs, status]
+      required: [name, status, durationMs]
       properties:
-        service: { type: string, description: Daxili service funksiyası }
+        name: { type: string, description: Daxili service funksiyası (məs. hotels.search) }
+        status: { type: integer, description: 'Həmin çağırışın HTTP-ekvivalent statusu (200, 503, 504...)' }
         durationMs: { type: number }
-        status: { type: string, enum: [ok, error] }
     BffMeta:
       type: object
       required: [calls, totalMs, partial]
       properties:
         calls: { type: array, items: { $ref: '#/components/schemas/BffCall' } }
-        totalMs: { type: number, description: 'Paralel çağırışlarda totalMs < calls cəmi' }
+        totalMs: { type: number, description: 'Paralel çağırışlarda totalMs < calls[].durationMs cəmi' }
         partial: { type: boolean, description: 'true — ən azı bir bölmə xəta verib (207)' }
     BffSectionError:
       type: object
-      required: [error]
+      required: [status, error]
       properties:
+        status: { type: integer, minimum: 400 }
         error: { $ref: '#/components/schemas/Error' }
+    BffFlightsSection:
+      oneOf:
+        - type: object
+          required: [status, data]
+          properties:
+            status: { type: integer, enum: [200] }
+            data:
+              type: object
+              required: [items, total]
+              properties:
+                items: { type: array, items: { $ref: '#/components/schemas/Flight' } }
+                total: { type: integer }
+        - { $ref: '#/components/schemas/BffSectionError' }
+    BffHotelsSection:
+      oneOf:
+        - type: object
+          required: [status, data]
+          properties:
+            status: { type: integer, enum: [200] }
+            data:
+              type: object
+              required: [items, total]
+              properties:
+                items: { type: array, items: { $ref: '#/components/schemas/HotelSummary' } }
+                total: { type: integer }
+        - { $ref: '#/components/schemas/BffSectionError' }
     BffDashboard:
       type: object
       required: [user, accounts, cards, recentTransactions, rates, meta]
@@ -3750,22 +3824,8 @@ components:
       type: object
       required: [flights, hotels, meta]
       properties:
-        flights:
-          oneOf:
-            - type: object
-              required: [items, total]
-              properties:
-                items: { type: array, items: { $ref: '#/components/schemas/Flight' } }
-                total: { type: integer }
-            - { $ref: '#/components/schemas/BffSectionError' }
-        hotels:
-          oneOf:
-            - type: object
-              required: [items, total]
-              properties:
-                items: { type: array, items: { $ref: '#/components/schemas/HotelSummary' } }
-                total: { type: integer }
-            - { $ref: '#/components/schemas/BffSectionError' }
+        flights: { $ref: '#/components/schemas/BffFlightsSection' }
+        hotels: { $ref: '#/components/schemas/BffHotelsSection' }
         meta: { $ref: '#/components/schemas/BffMeta' }
     BffMusicHome:
       type: object
@@ -3784,11 +3844,11 @@ components:
           type: array
           items:
             type: object
-            required: [name, type, columns, foreignKeys]
+            required: [name, type, rowCount, columns, foreignKeys, indexes]
             properties:
               name: { type: string }
               type: { type: string, enum: [table, view] }
-              rowCount: { type: integer, nullable: true }
+              rowCount: { type: integer, nullable: true, description: 'View-lar üçün null' }
               columns:
                 type: array
                 items:
@@ -3799,7 +3859,7 @@ components:
                     type: { type: string }
                     notNull: { type: boolean }
                     primaryKey: { type: boolean }
-                    hidden: { type: boolean, description: 'true — Playground-da gizlidir (hash sütunları)' }
+                    hidden: { type: boolean, description: 'true — Playground-da dəyəri gizlidir (hash/sirr sütunları)' }
               foreignKeys:
                 type: array
                 items:
@@ -3809,6 +3869,15 @@ components:
                     column: { type: string }
                     refTable: { type: string }
                     refColumn: { type: string }
+              indexes:
+                type: array
+                items:
+                  type: object
+                  required: [name, columns, unique]
+                  properties:
+                    name: { type: string }
+                    columns: { type: array, items: { type: string } }
+                    unique: { type: boolean }
     SqlQueryRequest:
       type: object
       additionalProperties: false
@@ -3817,14 +3886,15 @@ components:
         sql: { type: string, minLength: 1, maxLength: 5000 }
     SqlQueryResult:
       type: object
-      required: [columns, rows, rowCount, truncated, durationMs, hiddenColumns]
+      required: [columns, rows, rowCount, truncated, durationMs, hiddenColumns, executedSql]
       properties:
         columns: { type: array, items: { type: string } }
         rows: { type: array, items: { type: object, additionalProperties: true } }
         rowCount: { type: integer }
-        truncated: { type: boolean, description: 'true — 200 sətir limiti tətbiq olundu' }
+        truncated: { type: boolean, description: 'true — 200 sətir və ya 1 MB limiti tətbiq olundu' }
         durationMs: { type: number }
-        hiddenColumns: { type: array, items: { type: string } }
+        hiddenColumns: { type: array, items: { type: string }, description: 'Nəticədən çıxarılmış gizli sütunlar (cədvəl.sütun)' }
+        executedSql: { type: string, description: 'Real icra olunan SQL (LIMIT əlavə olunmuş və ya endirilmiş)' }
 
     # ---------------------------------------------------------------- admin / meta
     ResetResponse:

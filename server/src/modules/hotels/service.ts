@@ -12,7 +12,8 @@ import type { AuthContext } from '../../types.js';
 import { hotelsRepo, type HotelBookingRow, type HotelRow, type RoomRow } from './repo.js';
 
 const MAX_NIGHTS = 30;
-const SORT = { price: 'h.price_per_night_minor', rating: 'h.rating', stars: 'h.stars' };
+// price — AZN ekvivalentinə görə (fərqli valyutalı otellər düzgün müqayisə olunsun)
+const SORT = { price: 'price_azn_minor', rating: 'h.rating', stars: 'h.stars' };
 const nightsBetween = (checkIn: string, checkOut: string) => Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000);
 
 export class HotelsService {
@@ -46,6 +47,7 @@ export class HotelsService {
       rating: h.rating,
       pricePerNightFrom: fromMinor(h.price_per_night_minor),
       currency: h.currency,
+      pricePerNightFromAzn: h.price_azn_minor === null ? null : fromMinor(h.price_azn_minor),
       amenities: hotelsRepo.amenities(this.db, h.id),
       ...(h.available_rooms === null ? {} : { availableRooms: h.available_rooms }),
     };

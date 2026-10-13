@@ -25,7 +25,7 @@ FROM users u
 JOIN (
   SELECT 'accounts:read' AS scope UNION ALL SELECT 'cards:read' UNION ALL SELECT 'cards:write'
   UNION ALL SELECT 'transfers:write' UNION ALL SELECT 'bookings:read' UNION ALL SELECT 'bookings:write'
-  UNION ALL SELECT 'books:write' UNION ALL SELECT 'music:write'
+  UNION ALL SELECT 'books:write' UNION ALL SELECT 'music:read' UNION ALL SELECT 'music:write'
 ) s
 WHERE u.username IN ('student', 'admin') OR (u.username = 'rauf' AND s.scope <> 'cards:write');
 

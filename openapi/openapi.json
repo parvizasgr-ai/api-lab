@@ -11,7 +11,7 @@
       "name": "MIT (yalnız tədris məqsədli)",
       "url": "https://opensource.org/licenses/MIT"
     },
-    "description": "**API Lab** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.\nBu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.\n\n## Konvensiyalar\n| Mövzu | Qayda |\n|---|---|\n| **Pul** | API-də **JSON number**, maksimum 2 onluq rəqəm (`multipleOf: 0.01`), məs. `125.50`. DB-də `*_minor INTEGER` (qəpik): `12550`. Çevirmə yalnız serverdə olur. |\n| **Vaxt** | ISO-8601 UTC: `2026-10-13T09:30:00Z`. Tarix: `2026-10-13`. |\n| **Sahə adları** | JSON-da `camelCase`. İstisna: OAuth2 token cavabları (`access_token`) — RFC 6749 standartına görə `snake_case`. |\n| **Validation** | Hər request body/query/path/header bu sxemə qarşı yoxlanılır (ajv). Bilinməyən sahə, səhv tip, enum xaricində dəyər → **422 VALIDATION_ERROR**. JSON parse olunmursa → **400 MALFORMED_JSON**. |\n| **Xəta formatı** | Bütün xətalar `Error` sxemindədir: `{timestamp, status, code, message, details[], traceId}`. Stack trace heç vaxt qaytarılmır. İstisna: `POST /oauth/token` RFC 6749 formatı (`{error, error_description}`). |\n| **Pagination** | `page` (1-dən) və `size` (1–100, default 20). Cavab: `{items, page, size, total, totalPages}`. Kitablar üçün əlavə **cursor** nümunəsi: `GET /api/v1/books`. |\n| **Rate limit** | Subyekt (token / API key / IP) başına **60 sorğu/dəqiqə**. Hər cavabda `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; limit keçiləndə **429** + `Retry-After`. |\n| **Request ID** | Hər cavabda `X-Request-Id`. Xətada `traceId` ilə eynidir. Sorğuda `X-Request-Id` göndərsəniz, server onu istifadə edir. |\n| **Versioning** | `/api/v1`. `/api/v2/customers` — breaking change nümunəsi (`firstName`+`lastName` → `fullName`). v1 customers cavablarında `Deprecation`, `Sunset`, `Link` başlıqları. |\n\n## Tədris simulyatorları\nİstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):\n`500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.\n\n## Extension-lar\n* `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).\n* `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.\n* `x-error-format: oauth2` — həmin endpoint-in xətaları RFC 6749 formatındadır (`{error, error_description}`), validation xətası → 400 `invalid_request`.\n* `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).\n\n## Demo istifadəçilər\n`student/student123` (bütün scope-lar), `rauf/rauf123` (`cards:write` yoxdur), `admin/admin123` (ADMIN). API Key: `apilab-demo-key-2026`.\n"
+    "description": "**API Lab** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.\nBu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.\n\n## Konvensiyalar\n| Mövzu | Qayda |\n|---|---|\n| **Pul** | API-də **JSON number**, maksimum 2 onluq rəqəm (`multipleOf: 0.01`), məs. `125.50`. DB-də `*_minor INTEGER` (qəpik): `12550`. Çevirmə yalnız serverdə olur. |\n| **Vaxt** | ISO-8601 UTC: `2026-10-13T09:30:00Z`. Tarix: `2026-10-13`. |\n| **Sahə adları** | JSON-da `camelCase`. İstisna: OAuth2 token cavabları (`access_token`) — RFC 6749 standartına görə `snake_case`. |\n| **Validation** | Hər request body/query/path/header bu sxemə qarşı yoxlanılır (ajv). Bilinməyən sahə, səhv tip, enum xaricində dəyər → **422 VALIDATION_ERROR**. JSON parse olunmursa → **400 MALFORMED_JSON**. |\n| **Xəta formatı** | Bütün xətalar `Error` sxemindədir: `{timestamp, status, code, message, details[], traceId}`. Stack trace heç vaxt qaytarılmır. İstisna: `POST /oauth/token` RFC 6749 formatı (`{error, error_description}`). |\n| **Pagination** | `page` (1-dən) və `size` (1–100, default 20). Cavab: `{items, page, size, total, totalPages}`. Kitablar üçün əlavə **cursor** nümunəsi: `GET /api/v1/books`. |\n| **Rate limit** | Subyekt (token / API key / IP) başına **60 sorğu/dəqiqə**. Hər cavabda `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; limit keçiləndə **429** + `Retry-After`. |\n| **Request ID** | Hər cavabda `X-Request-Id`. Xətada `traceId` ilə eynidir. Sorğuda `X-Request-Id` göndərsəniz, server onu istifadə edir. |\n| **Versioning** | `/api/v1`. `/api/v2/customers` — breaking change nümunəsi (`firstName`+`lastName` → `fullName`). v1 customers cavablarında `Deprecation`, `Sunset`, `Link` başlıqları. |\n\n## Tədris simulyatorları\nİstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):\n`500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.\nBFF-də simulyatoru bir bölməyə yönəltmək olar: `X-Simulate: hotels:503` → yalnız otel bölməsi xəta verir (207 Multi-Status).\n\n## Extension-lar\n* `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).\n* `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.\n* `x-rate-limit` — endpoint-ə xas, ümumidən sərt limit (sorğu/dəqiqə), məs. SQL Playground: 20.\n* `x-error-format: oauth2` — həmin endpoint-in xətaları RFC 6749 formatındadır (`{error, error_description}`), validation xətası → 400 `invalid_request`.\n* `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).\n\n## Demo istifadəçilər\n`student/student123` (bütün scope-lar), `rauf/rauf123` (`cards:write` yoxdur), `admin/admin123` (ADMIN). API Key: `apilab-demo-key-2026`.\n"
   },
   "servers": [
     {
@@ -3021,6 +3021,7 @@
           {
             "name": "minPrice",
             "in": "query",
+            "description": "Minimum qiymət AZN ilə (EUR/USD otellər exchange_rates ilə AZN-ə çevrilib müqayisə olunur)",
             "schema": {
               "$ref": "#/components/schemas/MoneyInput"
             }
@@ -3028,6 +3029,7 @@
           {
             "name": "maxPrice",
             "in": "query",
+            "description": "Maksimum qiymət AZN ilə",
             "schema": {
               "$ref": "#/components/schemas/MoneyInput"
             }
@@ -3035,6 +3037,7 @@
           {
             "name": "sort",
             "in": "query",
+            "description": "`price` — AZN ekvivalentinə görə",
             "schema": {
               "type": "string",
               "enum": [
@@ -3073,6 +3076,7 @@
                       "rating": 7.6,
                       "pricePerNightFrom": 55,
                       "currency": "AZN",
+                      "pricePerNightFromAzn": 55,
                       "amenities": [
                         "Wi-Fi"
                       ],
@@ -3171,6 +3175,7 @@
                   "rating": 9.1,
                   "pricePerNightFrom": 280,
                   "currency": "AZN",
+                  "pricePerNightFromAzn": 280,
                   "amenities": [
                     "Fitness",
                     "Hovuz",
@@ -5653,8 +5658,8 @@
           "BFF"
         ],
         "operationId": "bffDashboard",
-        "summary": "Bank dashboard — 1 sorğuda hesablar + kartlar + son 5 əməliyyat + məzənnələr",
-        "description": "BFF eyni service layer-i birbaşa çağırır (HTTP-yə yenidən çıxmır). `meta.calls` hər daxili çağırışın müddətini göstərir.",
+        "summary": "Bank dashboard — 1 sorğuda hesablar + kartlar + son 5 əməliyyat + AZN/USD/EUR məzənnələri",
+        "description": "BFF eyni service layer-i birbaşa çağırır (HTTP-yə yenidən çıxmır). Daxili çağırışlar paralel işləyir,\n`meta.calls` hər birinin adını, statusunu və müddətini göstərir. Portal birbaşa API ilə 4 sorğu əvəzinə 1 sorğu göndərir.\n",
         "security": [
           {
             "bearerAuth": []
@@ -5731,28 +5736,28 @@
                     }
                   },
                   "meta": {
-                    "totalMs": 4,
+                    "totalMs": 3,
                     "partial": false,
                     "calls": [
                       {
-                        "service": "accounts.list",
-                        "durationMs": 1,
-                        "status": "ok"
+                        "name": "accounts.list",
+                        "status": 200,
+                        "durationMs": 1
                       },
                       {
-                        "service": "cards.list",
-                        "durationMs": 1,
-                        "status": "ok"
+                        "name": "cards.list",
+                        "status": 200,
+                        "durationMs": 1
                       },
                       {
-                        "service": "transactions.recent",
-                        "durationMs": 1,
-                        "status": "ok"
+                        "name": "transactions.recent",
+                        "status": 200,
+                        "durationMs": 1
                       },
                       {
-                        "service": "currencies.rates",
-                        "durationMs": 1,
-                        "status": "ok"
+                        "name": "currencies.rates",
+                        "status": 200,
+                        "durationMs": 1
                       }
                     ]
                   }
@@ -5781,15 +5786,25 @@
           "BFF"
         ],
         "operationId": "bffTravelSearch",
-        "summary": "Reys + otel paralel axtarışı (partial failure nümunəsi)",
-        "description": "Reys və otel axtarışı `Promise.all` ilə paralel işləyir. Biri uğursuz olarsa digərinin nəticəsi yenə qaytarılır:\nHTTP **207 Multi-Status**, uğursuz bölmədə `{error: {...}}`, `meta.partial = true`. Hər ikisi uğurlu → 200.\n",
+        "summary": "Reys + otel paralel axtarışı (partial failure → 207)",
+        "description": "Reys və otel axtarışı `Promise.all` ilə paralel işləyir; hər daxili çağırışın **3 saniyə** limiti var.\nHər bölmə öz statusunu daşıyır: `{status: 200, data}` və ya `{status: 503|504|..., error}` (vahid Error formatı, öz `traceId`-si ilə).\nHər iki bölmə uğurlu → **200**. Ən azı biri uğursuz → **207 Multi-Status** və `meta.partial = true`.\n\n**Hissəvi xətanı yaratmaq:** `X-Simulate: hotels:503` (və ya `flights:500`, `hotels:timeout`, `hotels:slow`) — simulyator yalnız həmin bölməyə tətbiq olunur.\nAdi `X-Simulate: 503` isə bütün sorğunu dayandırır — fərqi müqayisə edin.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "bookings:read"
+        ],
         "x-db-impact": {
           "reads": [
             "flights",
             "airports",
             "hotels",
             "hotel_rooms",
-            "hotel_bookings"
+            "hotel_bookings",
+            "hotel_amenities",
+            "exchange_rates"
           ],
           "writes": []
         },
@@ -5816,6 +5831,7 @@
             "name": "date",
             "in": "query",
             "required": true,
+            "description": "Uçuş və check-in tarixi",
             "schema": {
               "type": "string",
               "format": "date"
@@ -5841,6 +5857,16 @@
               "maximum": 30,
               "default": 3
             }
+          },
+          {
+            "name": "adults",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6,
+              "default": 1
+            }
           }
         ],
         "responses": {
@@ -5853,65 +5879,72 @@
                 },
                 "example": {
                   "flights": {
-                    "items": [
-                      {
-                        "id": 17,
-                        "flightNo": "J2 071",
-                        "airline": {
-                          "code": "J2",
-                          "name": "Azerbaijan Airlines"
-                        },
-                        "from": {
-                          "code": "GYD",
-                          "city": "Bakı"
-                        },
-                        "to": {
-                          "code": "IST",
-                          "city": "İstanbul"
-                        },
-                        "departAt": "2026-10-20T05:00:00Z",
-                        "arriveAt": "2026-10-20T08:40:00Z",
-                        "durationMin": 220,
-                        "stops": 0,
-                        "price": 340,
-                        "currency": "AZN",
-                        "seatsLeft": 12
-                      }
-                    ],
-                    "total": 1
+                    "status": 200,
+                    "data": {
+                      "items": [
+                        {
+                          "id": 17,
+                          "flightNo": "J2 071",
+                          "airline": {
+                            "code": "J2",
+                            "name": "Azerbaijan Airlines"
+                          },
+                          "from": {
+                            "code": "GYD",
+                            "city": "Bakı"
+                          },
+                          "to": {
+                            "code": "IST",
+                            "city": "İstanbul"
+                          },
+                          "departAt": "2026-10-20T05:00:00Z",
+                          "arriveAt": "2026-10-20T08:40:00Z",
+                          "durationMin": 220,
+                          "stops": 0,
+                          "price": 340,
+                          "currency": "AZN",
+                          "seatsLeft": 12
+                        }
+                      ],
+                      "total": 1
+                    }
                   },
                   "hotels": {
-                    "items": [
-                      {
-                        "id": 11,
-                        "name": "Sultanahmet Garden",
-                        "city": "İstanbul",
-                        "stars": 3,
-                        "rating": 8.6,
-                        "pricePerNightFrom": 75,
-                        "currency": "EUR",
-                        "amenities": [
-                          "Wi-Fi",
-                          "Səhər yeməyi"
-                        ],
-                        "availableRooms": 3
-                      }
-                    ],
-                    "total": 1
+                    "status": 200,
+                    "data": {
+                      "items": [
+                        {
+                          "id": 11,
+                          "name": "Sultanahmet Garden",
+                          "city": "İstanbul",
+                          "stars": 3,
+                          "rating": 8.6,
+                          "pricePerNightFrom": 75,
+                          "currency": "EUR",
+                          "pricePerNightFromAzn": 148.13,
+                          "amenities": [
+                            "Wi-Fi",
+                            "Səhər yeməyi"
+                          ],
+                          "availableRooms": 3
+                        }
+                      ],
+                      "total": 1
+                    }
                   },
                   "meta": {
-                    "totalMs": 6,
+                    "totalMs": 5,
                     "partial": false,
                     "calls": [
                       {
-                        "service": "flights.search",
-                        "durationMs": 4,
-                        "status": "ok"
+                        "name": "flights.search",
+                        "status": 200,
+                        "durationMs": 4
                       },
                       {
-                        "service": "hotels.search",
-                        "durationMs": 5,
-                        "status": "ok"
+                        "name": "hotels.search",
+                        "status": 200,
+                        "durationMs": 5
                       }
                     ]
                   }
@@ -5920,46 +5953,100 @@
             }
           },
           "207": {
-            "description": "Hissəvi uğur — bir bölmə xəta verdi",
+            "description": "Hissəvi uğur — bir və ya hər iki bölmə xəta verdi",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BffTravel"
                 },
-                "example": {
-                  "flights": {
-                    "items": [],
-                    "total": 0
-                  },
-                  "hotels": {
-                    "error": {
-                      "timestamp": "2026-10-13T09:00:00Z",
-                      "status": 503,
-                      "code": "SERVICE_UNAVAILABLE",
-                      "message": "Otel servisi cavab vermir",
-                      "details": [],
-                      "traceId": "req_7f2c9a"
+                "examples": {
+                  "hotelsUnavailable": {
+                    "summary": "X-Simulate: hotels:503",
+                    "value": {
+                      "flights": {
+                        "status": 200,
+                        "data": {
+                          "items": [],
+                          "total": 0
+                        }
+                      },
+                      "hotels": {
+                        "status": 503,
+                        "error": {
+                          "timestamp": "2026-10-13T09:00:00Z",
+                          "status": 503,
+                          "code": "SERVICE_UNAVAILABLE",
+                          "message": "Otel servisi müvəqqəti əlçatan deyil (X-Simulate: hotels:503)",
+                          "details": [],
+                          "traceId": "req_7f2c9a.hotels"
+                        }
+                      },
+                      "meta": {
+                        "totalMs": 2,
+                        "partial": true,
+                        "calls": [
+                          {
+                            "name": "flights.search",
+                            "status": 200,
+                            "durationMs": 2
+                          },
+                          {
+                            "name": "hotels.search",
+                            "status": 503,
+                            "durationMs": 0
+                          }
+                        ]
+                      }
                     }
                   },
-                  "meta": {
-                    "totalMs": 3,
-                    "partial": true,
-                    "calls": [
-                      {
-                        "service": "flights.search",
-                        "durationMs": 2,
-                        "status": "ok"
+                  "hotelsTimeout": {
+                    "summary": "X-Simulate: hotels:timeout (3 san limit)",
+                    "value": {
+                      "flights": {
+                        "status": 200,
+                        "data": {
+                          "items": [],
+                          "total": 0
+                        }
                       },
-                      {
-                        "service": "hotels.search",
-                        "durationMs": 1,
-                        "status": "error"
+                      "hotels": {
+                        "status": 504,
+                        "error": {
+                          "timestamp": "2026-10-13T09:00:03Z",
+                          "status": 504,
+                          "code": "GATEWAY_TIMEOUT",
+                          "message": "hotels.search 3000 ms ərzində cavab vermədi",
+                          "details": [],
+                          "traceId": "req_7f2c9a.hotels"
+                        }
+                      },
+                      "meta": {
+                        "totalMs": 3001,
+                        "partial": true,
+                        "calls": [
+                          {
+                            "name": "flights.search",
+                            "status": 200,
+                            "durationMs": 2
+                          },
+                          {
+                            "name": "hotels.search",
+                            "status": 504,
+                            "durationMs": 3000
+                          }
+                        ]
                       }
-                    ]
+                    }
                   }
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "422": {
             "$ref": "#/components/responses/ValidationError"
@@ -5984,6 +6071,9 @@
           {
             "bearerAuth": []
           }
+        ],
+        "x-required-scopes": [
+          "music:read"
         ],
         "x-db-impact": {
           "reads": [
@@ -6028,14 +6118,14 @@
                     "partial": false,
                     "calls": [
                       {
-                        "service": "music.popular",
-                        "durationMs": 1,
-                        "status": "ok"
+                        "name": "music.popular",
+                        "status": 200,
+                        "durationMs": 1
                       },
                       {
-                        "service": "music.playlists",
-                        "durationMs": 1,
-                        "status": "ok"
+                        "name": "music.playlists",
+                        "status": 200,
+                        "durationMs": 1
                       }
                     ]
                   }
@@ -6045,6 +6135,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -6061,12 +6154,13 @@
           "SQL Playground"
         ],
         "operationId": "dbSchema",
-        "summary": "DB sxemi — cədvəllər, view-lar, sütunlar, FK-lar",
+        "summary": "DB sxemi — cədvəllər, view-lar, sütunlar (tip, PK, gizli), FK-lar, index-lər",
         "x-db-impact": {
           "reads": [
             "sqlite_master",
             "pragma_table_info",
-            "pragma_foreign_key_list"
+            "pragma_foreign_key_list",
+            "pragma_index_list"
           ],
           "writes": []
         },
@@ -6081,9 +6175,9 @@
                 "example": {
                   "tables": [
                     {
-                      "name": "cards",
+                      "name": "users",
                       "type": "table",
-                      "rowCount": 7,
+                      "rowCount": 3,
                       "columns": [
                         {
                           "name": "id",
@@ -6093,20 +6187,39 @@
                           "hidden": false
                         },
                         {
-                          "name": "status",
+                          "name": "password_hash",
                           "type": "TEXT",
                           "notNull": true,
+                          "primaryKey": false,
+                          "hidden": true
+                        }
+                      ],
+                      "foreignKeys": [],
+                      "indexes": [
+                        {
+                          "name": "sqlite_autoindex_users_1",
+                          "columns": [
+                            "username"
+                          ],
+                          "unique": true
+                        }
+                      ]
+                    },
+                    {
+                      "name": "v_card_overview",
+                      "type": "view",
+                      "rowCount": null,
+                      "columns": [
+                        {
+                          "name": "card_id",
+                          "type": "INTEGER",
+                          "notNull": false,
                           "primaryKey": false,
                           "hidden": false
                         }
                       ],
-                      "foreignKeys": [
-                        {
-                          "column": "account_id",
-                          "refTable": "accounts",
-                          "refColumn": "id"
-                        }
-                      ]
+                      "foreignKeys": [],
+                      "indexes": []
                     }
                   ]
                 }
@@ -6128,13 +6241,22 @@
           "SQL Playground"
         ],
         "operationId": "dbQuery",
-        "summary": "SQL sorğusu icra et (YALNIZ SELECT)",
-        "description": "* Read-only DB bağlantısı; yalnız 1 SELECT (və ya `WITH ... SELECT`) ifadəsi.\n* `INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/ATTACH/PRAGMA/...` → **422 SQL_NOT_ALLOWED**.\n* Maksimum **200 sətir** (`truncated: true`), **2 saniyə** timeout → **422 SQL_TIMEOUT**.\n* `password_hash`, `token_hash`, `key_hash`, `client_secret_hash` sütunları gizlidir.\n",
+        "summary": "SQL sorğusu icra et (YALNIZ SELECT / WITH ... SELECT)",
+        "description": "Qorunma qatları:\n1. **Tokenizer** — şərhlər (`--`, `/* */`) və string-lər nəzərə alınır; yalnız **1 statement**, birinci açar söz `SELECT` və ya `WITH`;\n   `INSERT, UPDATE, DELETE, REPLACE, DROP, ALTER, CREATE, ATTACH, DETACH, PRAGMA, VACUUM, REINDEX, ANALYZE, BEGIN, COMMIT, ROLLBACK, SAVEPOINT, RELEASE`\n   açar sözləri (string daxilində deyilsə) → **422 SQL_NOT_ALLOWED**.\n2. **Read-only bağlantı** (`readonly: true`) — DB-nin surəti üzərində, ayrıca prosesdə.\n3. **LIMIT 200** — yoxdursa əlavə olunur, böyükdürsə 200-ə endirilir (`executedSql`-də görünür), `truncated: true`.\n4. **2 saniyə timeout** — proses dayandırılır → **422 SQL_TIMEOUT**. Nəticə ölçüsü maks. 1 MB.\n5. **Gizli sütunlar** (`password_hash`, `token_hash`, `key_hash`, `client_secret_hash`, `oauth_codes.code`) — surətdə dəyərlər `[hidden]` ilə əvəz olunub,\n   birbaşa seçilən gizli sütunlar nəticədən çıxarılır və `hiddenColumns`-da göstərilir.\n6. Rate limit — bu endpoint üçün **20 sorğu/dəqiqə** (`x-rate-limit`). Hər sorğu `audit_log`-a yazılır.\n",
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit": 20,
         "x-db-impact": {
           "reads": [
-            "* (istənilən cədvəl/view, read-only)"
+            "* (istənilən cədvəl/view, read-only surət)"
           ],
-          "writes": []
+          "writes": [
+            "INSERT audit_log"
+          ]
         },
         "requestBody": {
           "required": true,
@@ -6192,34 +6314,23 @@
                   "rowCount": 1,
                   "truncated": false,
                   "durationMs": 1,
-                  "hiddenColumns": []
+                  "hiddenColumns": [],
+                  "executedSql": "SELECT * FROM card_status_history ORDER BY changed_at DESC LIMIT 201"
                 }
               }
             }
           },
           "400": {
-            "description": "SQL sintaksis xətası",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "timestamp": "2026-10-13T09:00:00Z",
-                  "status": 400,
-                  "code": "SQL_SYNTAX_ERROR",
-                  "message": "near \"FORM\": syntax error",
-                  "details": [],
-                  "traceId": "req_7f2c9a"
-                }
-              }
-            }
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "422": {
-            "description": "İcazəsiz və ya çox uzun sürən sorğu",
+            "description": "İcazəsiz, sintaksis xətalı və ya çox uzun sürən sorğu",
             "content": {
               "application/json": {
                 "schema": {
@@ -6242,24 +6353,35 @@
                       "traceId": "req_7f2c9a"
                     }
                   },
+                  "multiple": {
+                    "summary": "Bir neçə statement",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 422,
+                      "code": "SQL_NOT_ALLOWED",
+                      "message": "Yalnız 1 SQL statement göndərilə bilər",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "syntax": {
+                    "summary": "Sintaksis xətası",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 422,
+                      "code": "SQL_SYNTAX_ERROR",
+                      "message": "near \"FORM\": syntax error",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
                   "timeout": {
                     "summary": "2 saniyədən çox",
                     "value": {
                       "timestamp": "2026-10-13T09:00:00Z",
                       "status": 422,
                       "code": "SQL_TIMEOUT",
-                      "message": "Sorğu 2 saniyədən çox çəkdi",
-                      "details": [],
-                      "traceId": "req_7f2c9a"
-                    }
-                  },
-                  "hidden": {
-                    "summary": "Gizli sütun",
-                    "value": {
-                      "timestamp": "2026-10-13T09:00:00Z",
-                      "status": 422,
-                      "code": "SQL_NOT_ALLOWED",
-                      "message": "Bu sütun gizlidir: password_hash",
+                      "message": "Sorğu 2000 ms-dən çox çəkdi və dayandırıldı",
                       "details": [],
                       "traceId": "req_7f2c9a"
                     }
@@ -8834,6 +8956,7 @@
           "rating",
           "pricePerNightFrom",
           "currency",
+          "pricePerNightFromAzn",
           "amenities"
         ],
         "properties": {
@@ -8859,6 +8982,9 @@
           },
           "currency": {
             "$ref": "#/components/schemas/CurrencyCode"
+          },
+          "pricePerNightFromAzn": {
+            "$ref": "#/components/schemas/Money"
           },
           "amenities": {
             "type": "array",
@@ -9722,24 +9848,21 @@
       "BffCall": {
         "type": "object",
         "required": [
-          "service",
-          "durationMs",
-          "status"
+          "name",
+          "status",
+          "durationMs"
         ],
         "properties": {
-          "service": {
+          "name": {
             "type": "string",
-            "description": "Daxili service funksiyası"
+            "description": "Daxili service funksiyası (məs. hotels.search)"
+          },
+          "status": {
+            "type": "integer",
+            "description": "Həmin çağırışın HTTP-ekvivalent statusu (200, 503, 504...)"
           },
           "durationMs": {
             "type": "number"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "ok",
-              "error"
-            ]
           }
         }
       },
@@ -9759,7 +9882,7 @@
           },
           "totalMs": {
             "type": "number",
-            "description": "Paralel çağırışlarda totalMs < calls cəmi"
+            "description": "Paralel çağırışlarda totalMs < calls[].durationMs cəmi"
           },
           "partial": {
             "type": "boolean",
@@ -9770,13 +9893,98 @@
       "BffSectionError": {
         "type": "object",
         "required": [
+          "status",
           "error"
         ],
         "properties": {
+          "status": {
+            "type": "integer",
+            "minimum": 400
+          },
           "error": {
             "$ref": "#/components/schemas/Error"
           }
         }
+      },
+      "BffFlightsSection": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "data"
+            ],
+            "properties": {
+              "status": {
+                "type": "integer",
+                "enum": [
+                  200
+                ]
+              },
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Flight"
+                    }
+                  },
+                  "total": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/BffSectionError"
+          }
+        ]
+      },
+      "BffHotelsSection": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "data"
+            ],
+            "properties": {
+              "status": {
+                "type": "integer",
+                "enum": [
+                  200
+                ]
+              },
+              "data": {
+                "type": "object",
+                "required": [
+                  "items",
+                  "total"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/HotelSummary"
+                    }
+                  },
+                  "total": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "$ref": "#/components/schemas/BffSectionError"
+          }
+        ]
       },
       "BffDashboard": {
         "type": "object",
@@ -9844,54 +10052,10 @@
         ],
         "properties": {
           "flights": {
-            "oneOf": [
-              {
-                "type": "object",
-                "required": [
-                  "items",
-                  "total"
-                ],
-                "properties": {
-                  "items": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/Flight"
-                    }
-                  },
-                  "total": {
-                    "type": "integer"
-                  }
-                }
-              },
-              {
-                "$ref": "#/components/schemas/BffSectionError"
-              }
-            ]
+            "$ref": "#/components/schemas/BffFlightsSection"
           },
           "hotels": {
-            "oneOf": [
-              {
-                "type": "object",
-                "required": [
-                  "items",
-                  "total"
-                ],
-                "properties": {
-                  "items": {
-                    "type": "array",
-                    "items": {
-                      "$ref": "#/components/schemas/HotelSummary"
-                    }
-                  },
-                  "total": {
-                    "type": "integer"
-                  }
-                }
-              },
-              {
-                "$ref": "#/components/schemas/BffSectionError"
-              }
-            ]
+            "$ref": "#/components/schemas/BffHotelsSection"
           },
           "meta": {
             "$ref": "#/components/schemas/BffMeta"
@@ -9936,8 +10100,10 @@
               "required": [
                 "name",
                 "type",
+                "rowCount",
                 "columns",
-                "foreignKeys"
+                "foreignKeys",
+                "indexes"
               ],
               "properties": {
                 "name": {
@@ -9952,7 +10118,8 @@
                 },
                 "rowCount": {
                   "type": "integer",
-                  "nullable": true
+                  "nullable": true,
+                  "description": "View-lar üçün null"
                 },
                 "columns": {
                   "type": "array",
@@ -9980,7 +10147,7 @@
                       },
                       "hidden": {
                         "type": "boolean",
-                        "description": "true — Playground-da gizlidir (hash sütunları)"
+                        "description": "true — Playground-da dəyəri gizlidir (hash/sirr sütunları)"
                       }
                     }
                   }
@@ -10003,6 +10170,31 @@
                       },
                       "refColumn": {
                         "type": "string"
+                      }
+                    }
+                  }
+                },
+                "indexes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "columns",
+                      "unique"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "unique": {
+                        "type": "boolean"
                       }
                     }
                   }
@@ -10034,7 +10226,8 @@
           "rowCount",
           "truncated",
           "durationMs",
-          "hiddenColumns"
+          "hiddenColumns",
+          "executedSql"
         ],
         "properties": {
           "columns": {
@@ -10055,7 +10248,7 @@
           },
           "truncated": {
             "type": "boolean",
-            "description": "true — 200 sətir limiti tətbiq olundu"
+            "description": "true — 200 sətir və ya 1 MB limiti tətbiq olundu"
           },
           "durationMs": {
             "type": "number"
@@ -10064,7 +10257,12 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Nəticədən çıxarılmış gizli sütunlar (cədvəl.sütun)"
+          },
+          "executedSql": {
+            "type": "string",
+            "description": "Real icra olunan SQL (LIMIT əlavə olunmuş və ya endirilmiş)"
           }
         }
       },

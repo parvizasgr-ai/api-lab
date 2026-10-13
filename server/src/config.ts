@@ -31,6 +31,9 @@ export const config = {
   rateLimit: { limit: Number(env.RATE_LIMIT_PER_MIN ?? 60), windowSec: 60 },
   idempotencyTtlSec: 24 * 60 * 60,
 
+  // BFF-in hər daxili çağırışı üçün limit
+  bffCallTimeoutMs: 3000,
+
   // X-Simulate tədris simulyatoru
   simulate: { enabled: env.SIMULATE_ENABLED !== 'false', slowMs: 3000, timeoutMs: 5000 },
 

@@ -135,3 +135,20 @@ describe('hotel bookings', () => {
     expect(again.body.code).toBe('BOOKING_ALREADY_CANCELLED');
   });
 });
+
+describe('hotel qiymətləri AZN ilə', () => {
+  it('minPrice/maxPrice AZN-dir: 75 EUR (~148 AZN) ≤ 200 AZN, 110 EUR (~217 AZN) > 200 AZN; cavabda həm orijinal, həm AZN', async () => {
+    const t = createTestApp();
+    const eurRate = t.db.prepare(`SELECT rate FROM exchange_rates WHERE quote = 'EUR' ORDER BY rate_date DESC LIMIT 1`).pluck().get() as number;
+    const res = await t.api().get('/api/v1/hotels/search').query({ city: 'İstanbul', maxPrice: 200 });
+    expect(res.status).toBe(200);
+    expectMatchesSpec(res, 'searchHotels');
+    expect(res.body.items.map((h: { name: string }) => h.name)).toEqual(['Sultanahmet Garden']);
+    expect(res.body.items[0]).toMatchObject({ pricePerNightFrom: 75, currency: 'EUR', pricePerNightFromAzn: Math.round(7500 / eurRate) / 100 });
+
+    const min = await t.api().get('/api/v1/hotels/search').query({ city: 'İstanbul', minPrice: 200, sort: '-price' });
+    expect(min.body.items.map((h: { name: string }) => h.name)).toEqual(['Bosphorus Pearl Hotel', 'Taksim Loft']);
+    const baku = await t.api().get('/api/v1/hotels/1');
+    expect(baku.body).toMatchObject({ pricePerNightFrom: 280, pricePerNightFromAzn: 280 });
+  });
+});

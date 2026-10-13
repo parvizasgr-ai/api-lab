@@ -21,6 +21,9 @@ export const config = {
   refreshTokenTtlSec: 7 * 24 * 60 * 60,
   oauthCodeTtlSec: 60,
 
+  // Dərs 2-də customers tokensiz işləyir; Dərs 3-də AUTH_CUSTOMERS=true → Bearer tələb olunur.
+  authCustomers: env.AUTH_CUSTOMERS === 'true',
+
   rateLimit: { limit: Number(env.RATE_LIMIT_PER_MIN ?? 60), windowSec: 60 },
   idempotencyTtlSec: 24 * 60 * 60,
 

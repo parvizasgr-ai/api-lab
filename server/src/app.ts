@@ -21,6 +21,7 @@ import { oauthHandlers } from './modules/oauth/routes.js';
 import { metaHandlers } from './modules/meta/routes.js';
 import { bankHandlers } from './modules/bank/routes.js';
 import { currencyHandlers } from './modules/currency/routes.js';
+import { customersHandlers } from './modules/customers/routes.js';
 
 export interface AppContext {
   db: DB;
@@ -31,9 +32,21 @@ export interface AppContext {
 
 const API_PREFIXES = ['/api', '/oauth', '/bff'];
 
+// Runtime parametrlərinə görə spec-in nüsxəsi dəyişdirilir — /api/openapi.json və Swagger da bunu göstərir.
+function applyRuntimeOptions(spec: OpenApiDoc, config: Config): OpenApiDoc {
+  if (!config.authCustomers) return spec;
+  const copy: OpenApiDoc = structuredClone(spec);
+  for (const item of Object.values(copy.paths)) {
+    for (const [method, op] of Object.entries<any>(item)) {
+      if (op?.tags?.includes('Customers') && method !== 'options') op.security = [{ bearerAuth: [] }];
+    }
+  }
+  return copy;
+}
+
 export function createApp(options: { db: DB; config?: Partial<Config>; handlers?: Handlers }) {
   const config: Config = { ...defaultConfig, ...options.config };
-  const spec = loadOpenApi();
+  const spec = applyRuntimeOptions(loadOpenApi(), config);
   const ctx: AppContext = { db: options.db, config, spec, auth: new AuthService(options.db, config) };
 
   const handlers: Handlers = {
@@ -42,12 +55,14 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...metaHandlers(ctx),
     ...bankHandlers(ctx),
     ...currencyHandlers(ctx),
+    ...customersHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 
   const app = express();
   app.set('trust proxy', 'loopback');
   app.set('json spaces', 2);
+  app.set('etag', false); // ETag-ları özümüz idarə edirik (customers) — Express-in avtomatik ETag-ı söndürülür
 
   app.use(requestId);
   app.use(API_PREFIXES, requestLog(ctx.db, config));

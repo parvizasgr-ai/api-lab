@@ -18,7 +18,8 @@
     "test": "vitest run",
     "openapi:lint": "spectral lint openapi/openapi.yaml --fail-severity=warn",
     "openapi:bundle": "tsx scripts/openapi-bundle.ts",
-    "lint": "eslint . && npm run -s openapi:lint"
+    "lint": "eslint . && npm run -s openapi:lint",
+    "rates:refresh": "tsx scripts/rates-refresh.ts"
   },
   "dependencies": {
     "ajv": "^8.20.0",

@@ -20,6 +20,7 @@ import { authHandlers } from './modules/auth/routes.js';
 import { oauthHandlers } from './modules/oauth/routes.js';
 import { metaHandlers } from './modules/meta/routes.js';
 import { bankHandlers } from './modules/bank/routes.js';
+import { currencyHandlers } from './modules/currency/routes.js';
 
 export interface AppContext {
   db: DB;
@@ -40,6 +41,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...oauthHandlers(ctx),
     ...metaHandlers(ctx),
     ...bankHandlers(ctx),
+    ...currencyHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 

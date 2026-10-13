@@ -4,8 +4,8 @@ import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
 export default tseslint.config(
-  // web-design/ — ayrıca UI dizayn layihəsi (server kodu deyil)
-  { ignores: ['node_modules', 'data', 'web/dist', 'web-design', 'dist', 'coverage'] },
+  // web-design/ — ayrıca UI layihəsi (öz tsconfig/build-i var), import/ — xam Figma Make export-u
+  { ignores: ['node_modules', 'data', 'web/dist', 'web-design', 'import', 'dist', 'coverage'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

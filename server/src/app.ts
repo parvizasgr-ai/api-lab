@@ -22,6 +22,7 @@ import { metaHandlers } from './modules/meta/routes.js';
 import { bankHandlers } from './modules/bank/routes.js';
 import { currencyHandlers } from './modules/currency/routes.js';
 import { customersHandlers } from './modules/customers/routes.js';
+import { flightsHandlers } from './modules/flights/routes.js';
 
 export interface AppContext {
   db: DB;
@@ -56,6 +57,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...bankHandlers(ctx),
     ...currencyHandlers(ctx),
     ...customersHandlers(ctx),
+    ...flightsHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 

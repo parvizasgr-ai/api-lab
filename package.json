@@ -13,17 +13,21 @@
     "db:reset": "tsx scripts/db-reset.ts",
     "db:shell": "sqlite3 data/apilab.db",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "openapi:lint": "spectral lint openapi/openapi.yaml --fail-severity=warn",
+    "openapi:bundle": "tsx scripts/openapi-bundle.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3"
   },
   "devDependencies": {
+    "@stoplight/spectral-cli": "^6.17.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.6.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.4"
+    "vitest": "^5.0.4",
+    "yaml": "^2.9.1"
   },
   "allowScripts": {
     "better-sqlite3@13.0.3": true,

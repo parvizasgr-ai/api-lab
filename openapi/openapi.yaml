@@ -1,0 +1,3854 @@
+openapi: 3.0.3
+info:
+  title: API Lab
+  version: 1.0.0
+  contact:
+    name: API Lab — Div Academy / UNEC
+    email: parviz.asgr@gmail.com
+  license:
+    name: MIT (yalnız tədris məqsədli)
+    url: https://opensource.org/licenses/MIT
+  description: |
+    **API Lab** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.
+    Bu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.
+
+    ## Konvensiyalar
+    | Mövzu | Qayda |
+    |---|---|
+    | **Pul** | API-də **JSON number**, maksimum 2 onluq rəqəm (`multipleOf: 0.01`), məs. `125.50`. DB-də `*_minor INTEGER` (qəpik): `12550`. Çevirmə yalnız serverdə olur. |
+    | **Vaxt** | ISO-8601 UTC: `2026-10-13T09:30:00Z`. Tarix: `2026-10-13`. |
+    | **Sahə adları** | JSON-da `camelCase`. İstisna: OAuth2 token cavabları (`access_token`) — RFC 6749 standartına görə `snake_case`. |
+    | **Validation** | Hər request body/query/path/header bu sxemə qarşı yoxlanılır (ajv). Bilinməyən sahə, səhv tip, enum xaricində dəyər → **422 VALIDATION_ERROR**. JSON parse olunmursa → **400 MALFORMED_JSON**. |
+    | **Xəta formatı** | Bütün xətalar `Error` sxemindədir: `{timestamp, status, code, message, details[], traceId}`. Stack trace heç vaxt qaytarılmır. İstisna: `POST /oauth/token` RFC 6749 formatı (`{error, error_description}`). |
+    | **Pagination** | `page` (1-dən) və `size` (1–100, default 20). Cavab: `{items, page, size, total, totalPages}`. Kitablar üçün əlavə **cursor** nümunəsi: `GET /api/v1/books`. |
+    | **Rate limit** | Subyekt (token / API key / IP) başına **60 sorğu/dəqiqə**. Hər cavabda `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; limit keçiləndə **429** + `Retry-After`. |
+    | **Request ID** | Hər cavabda `X-Request-Id`. Xətada `traceId` ilə eynidir. Sorğuda `X-Request-Id` göndərsəniz, server onu istifadə edir. |
+    | **Versioning** | `/api/v1`. `/api/v2/customers` — breaking change nümunəsi (`firstName`+`lastName` → `fullName`). v1 customers cavablarında `Deprecation`, `Sunset`, `Link` başlıqları. |
+
+    ## Tədris simulyatorları
+    İstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):
+    `500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.
+
+    ## Extension-lar
+    * `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).
+    * `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.
+    * `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).
+
+    ## Demo istifadəçilər
+    `student/student123` (bütün scope-lar), `rauf/rauf123` (`cards:write` yoxdur), `admin/admin123` (ADMIN). API Key: `apilab-demo-key-2026`.
+servers:
+  - url: http://localhost:3000
+    description: Lokal server
+tags:
+  - name: Auth
+    description: Login, JWT access/refresh token, Basic Auth nümunəsi
+  - name: OAuth2
+    description: Mock "Google" Authorization Server — Authorization Code flow
+  - name: Accounts
+    description: Bank hesabları və əməliyyatlar (Bearer)
+  - name: Cards
+    description: Kartlar, blok/unblock, Idempotency, BOLA nümunəsi (Bearer)
+  - name: Transfers
+    description: Hesablar arası köçürmə — atomik DB transaction, Idempotency-Key məcburi
+  - name: Currencies
+    description: Valyuta və məzənnələr (X-API-Key)
+  - name: Flights
+    description: Aviabilet axtarışı və bron
+  - name: Hotels
+    description: Otel axtarışı (availability SQL ilə) və bron
+  - name: Customers
+    description: Tam CRUD — Safe/Idempotent metodlar, ETag, HEAD/OPTIONS, JSON vs XML, versioning
+  - name: Books
+    description: Kitab axtarışı (X-API-Key), offset və cursor pagination, rəylər
+  - name: Music
+    description: Musiqi axtarışı, YouTube IFrame ilə oxutma, playlist-lər
+  - name: BFF
+    description: Backend-for-Frontend — UI üçün aqreqasiya, `meta.calls`, partial failure (207)
+  - name: SQL Playground
+    description: Tələbələrin DB-ni yalnız SELECT ilə yoxlaması
+  - name: Admin
+    description: Sistem əməliyyatları (DB reset, sorğu tarixçəsi)
+  - name: Meta
+    description: Health, OpenAPI sənədi, Postman collection
+
+paths:
+  # ==========================================================================
+  # AUTH
+  # ==========================================================================
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      operationId: authLogin
+      summary: Login — access və refresh token al
+      description: |
+        Username/parol yoxlanılır. Cavabda **access_token** (JWT, HS256, 15 dəqiqə; claim-lər: `sub`, `username`, `role`, `scope`, `iat`, `exp`)
+        və **refresh_token** (7 gün, DB-də yalnız SHA-256 hash-i saxlanır) qaytarılır.
+      x-db-impact:
+        reads: [users, user_scopes]
+        writes: [INSERT refresh_tokens, INSERT audit_log]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            examples:
+              student: { value: { username: student, password: student123 } }
+              rauf: { value: { username: rauf, password: rauf123 } }
+      responses:
+        '200':
+          description: Uğurlu login
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/X-Request-Id' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+              example:
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwic2NvcGUiOiJhY2NvdW50czpyZWFkIn0.sig
+                token_type: Bearer
+                expires_in: 900
+                refresh_token: rt_8f3a1c0e9b7d4f2a8c6e1b3d5f7a9c0e
+                scope: accounts:read cards:read cards:write transfers:write bookings:read bookings:write books:write music:write
+        '401':
+          description: Username və ya parol səhvdir
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: INVALID_CREDENTIALS, message: Username və ya parol səhvdir, details: [], traceId: req_7f2c9a }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: authRefresh
+      summary: Refresh token ilə yeni access token al (rotation)
+      description: Köhnə refresh token ləğv edilir (`revoked_at`), yenisi verilir — refresh token rotation.
+      x-db-impact:
+        reads: [refresh_tokens, users, user_scopes]
+        writes: [UPDATE refresh_tokens (revoked_at), INSERT refresh_tokens]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+            example: { refresh_token: rt_8f3a1c0e9b7d4f2a8c6e1b3d5f7a9c0e }
+      responses:
+        '200':
+          description: Yeni token cütü
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenResponse' }
+              example:
+                access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig
+                token_type: Bearer
+                expires_in: 900
+                refresh_token: rt_1b2c3d4e5f60718293a4b5c6d7e8f901
+                scope: accounts:read cards:read
+        '401':
+          description: Refresh token etibarsız, vaxtı keçmiş və ya ləğv edilib
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: INVALID_REFRESH_TOKEN, message: Refresh token etibarsızdır və ya ləğv edilib, details: [], traceId: req_7f2c9a }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      operationId: authLogout
+      summary: Logout — refresh token-i ləğv et
+      description: Access token (JWT) stateless-dir və vaxtı bitənə qədər etibarlı qalır; logout yalnız refresh token-i ləğv edir.
+      security:
+        - bearerAuth: []
+      x-db-impact:
+        reads: [refresh_tokens]
+        writes: [UPDATE refresh_tokens (revoked_at)]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+            example: { refresh_token: rt_8f3a1c0e9b7d4f2a8c6e1b3d5f7a9c0e }
+      responses:
+        '204':
+          description: Refresh token ləğv edildi (cavab gövdəsi yoxdur)
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      operationId: authMe
+      summary: Cari istifadəçi (token-in sahibi)
+      security:
+        - bearerAuth: []
+      x-db-impact:
+        reads: [users, user_scopes]
+        writes: []
+      responses:
+        '200':
+          description: İstifadəçi profili
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+              example: { id: 1, username: student, fullName: Aysel Məmmədova, email: student@apilab.az, role: USER, scopes: [accounts:read, cards:read, cards:write] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/auth/basic-demo:
+    get:
+      tags: [Auth]
+      operationId: authBasicDemo
+      summary: Basic Auth nümunəsi
+      description: '`Authorization: Basic base64(username:password)`. Base64 şifrələmə deyil — yalnız HTTPS ilə istifadə olunmalıdır.'
+      security:
+        - basicAuth: []
+      x-db-impact:
+        reads: [users]
+        writes: []
+      responses:
+        '200':
+          description: Basic Auth uğurlu
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BasicDemoResponse' }
+              example: { authScheme: Basic, username: student, message: 'Basic Auth uğurludur. Diqqət: base64 şifrələmə deyil!', decodedHeader: 'student:********' }
+        '401':
+          description: Basic credential yoxdur və ya səhvdir (`WWW-Authenticate` başlığı ilə)
+          headers:
+            WWW-Authenticate:
+              schema: { type: string }
+              example: Basic realm="API Lab"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: INVALID_CREDENTIALS, message: Basic credential səhvdir, details: [], traceId: req_7f2c9a }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # OAUTH2 (mock Google Authorization Server)
+  # ==========================================================================
+  /oauth/authorize:
+    get:
+      tags: [OAuth2]
+      operationId: oauthAuthorizePage
+      summary: Authorization endpoint — "Google ilə daxil ol" razılıq (consent) səhifəsi
+      description: |
+        Authorization Code flow-nun 1-ci addımı. Brauzer bu URL-ə yönləndirilir, istifadəçi hesab seçir və icazə verir.
+        `state` məcburidir (CSRF qoruması) — client geri qayıdan `state`-i özündəki ilə müqayisə etməlidir.
+      x-db-impact:
+        reads: [oauth_clients, users]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/OAuthResponseType' }
+        - { $ref: '#/components/parameters/OAuthClientId' }
+        - { $ref: '#/components/parameters/OAuthRedirectUri' }
+        - { $ref: '#/components/parameters/OAuthScope' }
+        - { $ref: '#/components/parameters/OAuthState' }
+      responses:
+        '200':
+          description: HTML consent səhifəsi (hesab seçimi + "İcazə ver" / "İmtina")
+          content:
+            text/html:
+              schema: { type: string }
+              example: '<!doctype html><html><body><h1>Google ilə daxil ol</h1>...</body></html>'
+        '400':
+          description: client_id və ya redirect_uri qeydiyyatda yoxdur (redirect edilmir — açıq redirect hücumunun qarşısı alınır)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 400, code: INVALID_REDIRECT_URI, message: redirect_uri bu client üçün qeydiyyatda deyil, details: [], traceId: req_7f2c9a }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [OAuth2]
+      operationId: oauthAuthorizeDecision
+      summary: Consent qərarı — authorization code yarat və redirect et
+      description: |
+        Consent formu buraya göndərilir. `decision=allow` → `302 Location: {redirect_uri}?code=...&state=...`.
+        `decision=deny` → `302 Location: {redirect_uri}?error=access_denied&state=...`. Code **birdəfəlikdir** və **60 saniyə** yaşayır.
+      x-db-impact:
+        reads: [oauth_clients, users]
+        writes: [INSERT oauth_codes]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/OAuthConsentForm' }
+            example: { client_id: apilab-portal, redirect_uri: 'http://localhost:5173/oauth/callback', scope: openid profile email, state: xyz-12345678, username: student, decision: allow }
+      responses:
+        '302':
+          description: redirect_uri-yə yönləndirmə (code və ya error ilə)
+          headers:
+            Location:
+              schema: { type: string, format: uri }
+              example: http://localhost:5173/oauth/callback?code=ac_5d1e2f3a4b5c6d7e&state=xyz-12345678
+        '400':
+          description: client_id/redirect_uri səhvdir
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 400, code: INVALID_REDIRECT_URI, message: redirect_uri bu client üçün qeydiyyatda deyil, details: [], traceId: req_7f2c9a }
+        '404':
+          description: Seçilmiş istifadəçi tapılmadı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: USER_NOT_FOUND, message: İstifadəçi tapılmadı, details: [], traceId: req_7f2c9a }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /oauth/token:
+    post:
+      tags: [OAuth2]
+      operationId: oauthToken
+      summary: Token endpoint — authorization code-u access token-ə dəyiş
+      description: |
+        Server-to-server (back channel) sorğu. Client özünü `client_id` + `client_secret` ilə (form sahələri və ya Basic Auth) təsdiq edir.
+        Xətalar **RFC 6749** formatındadır: `invalid_request`, `invalid_client`, `invalid_grant` (code vaxtı keçib / artıq istifadə olunub / redirect_uri uyğun deyil), `unsupported_grant_type`.
+      x-db-impact:
+        reads: [oauth_clients, oauth_codes, users, user_scopes]
+        writes: [UPDATE oauth_codes (used_at), INSERT audit_log]
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema: { $ref: '#/components/schemas/OAuthTokenForm' }
+            example: { grant_type: authorization_code, code: ac_5d1e2f3a4b5c6d7e, redirect_uri: 'http://localhost:5173/oauth/callback', client_id: apilab-portal, client_secret: apilab-portal-secret }
+      responses:
+        '200':
+          description: Access token
+          headers:
+            Cache-Control:
+              schema: { type: string }
+              example: no-store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OAuthTokenResponse' }
+              example: { access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig, token_type: Bearer, expires_in: 900, scope: openid profile email }
+        '400':
+          description: RFC 6749 xətası
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OAuthError' }
+              examples:
+                codeReused: { summary: Code ikinci dəfə istifadə olunub, value: { error: invalid_grant, error_description: Authorization code artıq istifadə olunub } }
+                codeExpired: { summary: Code-un 60 saniyəsi bitib, value: { error: invalid_grant, error_description: Authorization code-un vaxtı keçib } }
+                redirectMismatch: { summary: redirect_uri uyğun deyil, value: { error: invalid_grant, error_description: redirect_uri authorize addımındakı ilə eyni deyil } }
+                wrongGrant: { summary: Dəstəklənməyən grant_type, value: { error: unsupported_grant_type, error_description: Yalnız authorization_code dəstəklənir } }
+        '401':
+          description: Client autentifikasiyası uğursuz (RFC 6749 invalid_client)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OAuthError' }
+              example: { error: invalid_client, error_description: client_id və ya client_secret səhvdir }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /oauth/userinfo:
+    get:
+      tags: [OAuth2]
+      operationId: oauthUserinfo
+      summary: UserInfo endpoint — token-in sahibi haqqında (OpenID Connect üslubunda)
+      security:
+        - googleOAuth: [openid, profile, email]
+        - bearerAuth: []
+      x-db-impact:
+        reads: [users]
+        writes: []
+      responses:
+        '200':
+          description: İstifadəçi məlumatı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserInfo' }
+              example: { sub: '1', name: Aysel Məmmədova, preferred_username: student, email: student@apilab.az, email_verified: true, picture: 'https://ui-avatars.com/api/?name=Aysel+M%C9%99mm%C9%99dova' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # BANK — ACCOUNTS
+  # ==========================================================================
+  /api/v1/accounts:
+    get:
+      tags: [Accounts]
+      operationId: listAccounts
+      summary: Mənim hesablarım
+      security:
+        - bearerAuth: []
+      x-required-scopes: [accounts:read]
+      x-db-impact:
+        reads: [accounts]
+        writes: []
+      responses:
+        '200':
+          description: Hesablar siyahısı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountList' }
+              example:
+                items:
+                  - { id: AZ21NABZ0001, type: CURRENT, currency: AZN, balance: 4481.90, openedAt: '2025-09-28T10:00:00Z' }
+                  - { id: AZ21NABZ0002, type: SAVINGS, currency: USD, balance: 910.00, openedAt: '2025-12-17T11:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/accounts/{accountId}:
+    get:
+      tags: [Accounts]
+      operationId: getAccount
+      summary: Hesab detalları
+      description: Başqasının hesabı → **403** (BOLA — Broken Object Level Authorization qorunması).
+      security:
+        - bearerAuth: []
+      x-required-scopes: [accounts:read]
+      x-db-impact:
+        reads: [accounts]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+      responses:
+        '200':
+          description: Hesab
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+              example: { id: AZ21NABZ0001, type: CURRENT, currency: AZN, balance: 4481.90, openedAt: '2025-09-28T10:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Hesab tapılmadı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: ACCOUNT_NOT_FOUND, message: Hesab tapılmadı, details: [], traceId: req_7f2c9a }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/accounts/{accountId}/transactions:
+    get:
+      tags: [Accounts]
+      operationId: listAccountTransactions
+      summary: Hesabın əməliyyatları (filter, pagination, sort)
+      security:
+        - bearerAuth: []
+      x-required-scopes: [accounts:read]
+      x-db-impact:
+        reads: [accounts, transactions]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/AccountId' }
+        - name: from
+          in: query
+          description: Bu tarixdən (daxil)
+          schema: { type: string, format: date }
+          example: '2026-09-01'
+        - name: to
+          in: query
+          description: Bu tarixə qədər (daxil)
+          schema: { type: string, format: date }
+          example: '2026-10-13'
+        - name: type
+          in: query
+          schema: { type: string, enum: [DEBIT, CREDIT] }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+        - name: sort
+          in: query
+          description: '`-` prefiksi azalan sıra deməkdir'
+          schema: { type: string, enum: [createdAt, -createdAt, amount, -amount], default: -createdAt }
+      responses:
+        '200':
+          description: Əməliyyatlar səhifəsi
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TransactionPage' }
+              example:
+                items:
+                  - { id: 40, accountId: AZ21NABZ0001, type: DEBIT, amount: 7.80, currency: AZN, description: Bolt — taksi, transferId: null, createdAt: '2026-10-12T19:00:00Z' }
+                  - { id: 37, accountId: AZ21NABZ0001, type: DEBIT, amount: 50.00, currency: AZN, description: 'Köçürmə: AZ21NABZ0004 hesabına', transferId: 1, createdAt: '2026-10-10T12:30:00Z' }
+                page: 1
+                size: 20
+                total: 19
+                totalPages: 1
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Hesab tapılmadı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: ACCOUNT_NOT_FOUND, message: Hesab tapılmadı, details: [], traceId: req_7f2c9a }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # BANK — CARDS
+  # ==========================================================================
+  /api/v1/cards:
+    get:
+      tags: [Cards]
+      operationId: listCards
+      summary: Mənim kartlarım
+      security:
+        - bearerAuth: []
+      x-required-scopes: [cards:read]
+      x-db-impact:
+        reads: [cards, accounts]
+        writes: []
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [ACTIVE, BLOCKED, EXPIRED] }
+      responses:
+        '200':
+          description: Kartlar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardList' }
+              example:
+                items:
+                  - { id: 1, accountId: AZ21NABZ0001, maskedNumber: '**** **** **** 4169', last4: '4169', brand: VISA, status: ACTIVE, statusReason: null, dailyLimit: 2000.00, currency: AZN, expiresAt: '2029-09-30' }
+                  - { id: 3, accountId: AZ21NABZ0001, maskedNumber: '**** **** **** 7781', last4: '7781', brand: VISA, status: BLOCKED, statusReason: LOST, dailyLimit: 500.00, currency: AZN, expiresAt: '2030-09-30' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/cards/{cardId}:
+    get:
+      tags: [Cards]
+      operationId: getCard
+      summary: Kart detalları + status tarixçəsi
+      security:
+        - bearerAuth: []
+      x-required-scopes: [cards:read]
+      x-db-impact:
+        reads: [cards, accounts, card_status_history]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/CardId' }
+      responses:
+        '200':
+          description: Kart
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardDetail' }
+              example:
+                id: 3
+                accountId: AZ21NABZ0001
+                maskedNumber: '**** **** **** 7781'
+                last4: '7781'
+                brand: VISA
+                status: BLOCKED
+                statusReason: LOST
+                dailyLimit: 500.00
+                currency: AZN
+                expiresAt: '2030-09-30'
+                statusHistory:
+                  - { oldStatus: ACTIVE, newStatus: BLOCKED, reason: LOST, changedBy: student, changedAt: '2026-10-01T20:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404': { $ref: '#/components/responses/CardNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/cards/{cardId}/block:
+    post:
+      tags: [Cards]
+      operationId: blockCard
+      summary: Kartı blokla
+      description: |
+        **Tam nümunə endpoint** (Dərs 3).
+        * `reason` yalnız `LOST | STOLEN | SUSPECTED_FRAUD` — başqa dəyər (məs. `{"reason": "BROKEN"}`) → **422 INVALID_REASON**.
+        * `Idempotency-Key` (opsional, tövsiyə olunur): eyni açarla təkrar sorğu → ilk cavab təkrar qaytarılır (`Idempotent-Replayed: true`), əməliyyat ikinci dəfə icra olunmur.
+          Eyni açar fərqli body ilə → **422 IDEMPOTENCY_KEY_REUSED**.
+        * Açarsız ikinci blok cəhdi → **409 CARD_ALREADY_BLOCKED**.
+        * Başqasının kartı → **403 FORBIDDEN** (BOLA). Scope `cards:write` yoxdursa (məs. `rauf`) → **403 INSUFFICIENT_SCOPE**.
+        * DB-də: `cards.status = 'BLOCKED'`, trigger `card_status_history`-ə 1 sətir yazır. Yoxlama: `db/queries/04_card_block_check.sql`.
+      security:
+        - bearerAuth: []
+      x-required-scopes: [cards:write]
+      x-db-impact:
+        reads: [cards, idempotency_keys]
+        writes: [UPDATE cards, INSERT card_status_history (trigger), INSERT idempotency_keys, INSERT audit_log]
+      parameters:
+        - { $ref: '#/components/parameters/CardId' }
+        - { $ref: '#/components/parameters/IdempotencyKeyOptional' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BlockCardRequest' }
+            examples:
+              lost: { summary: Kart itib, value: { reason: LOST, comment: Metroda itirdim } }
+              stolen: { summary: Kart oğurlanıb (unblock mümkün deyil), value: { reason: STOLEN } }
+      responses:
+        '200':
+          description: Kart bloklandı
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/X-Request-Id' }
+            Idempotent-Replayed: { $ref: '#/components/headers/Idempotent-Replayed' }
+            X-RateLimit-Limit: { $ref: '#/components/headers/X-RateLimit-Limit' }
+            X-RateLimit-Remaining: { $ref: '#/components/headers/X-RateLimit-Remaining' }
+            X-RateLimit-Reset: { $ref: '#/components/headers/X-RateLimit-Reset' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardStatusChangeResponse' }
+              example: { cardId: 1, previousStatus: ACTIVE, status: BLOCKED, reason: LOST, comment: Metroda itirdim, changedAt: '2026-10-13T09:00:00Z', message: Kart bloklandı }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Başqasının kartı (BOLA) və ya `cards:write` scope-u yoxdur
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                bola: { summary: Başqasının kartı, value: { timestamp: '2026-10-13T09:00:00Z', status: 403, code: FORBIDDEN, message: Bu resursa giriş icazəniz yoxdur, details: [], traceId: req_7f2c9a } }
+                scope: { summary: Scope çatışmır, value: { timestamp: '2026-10-13T09:00:00Z', status: 403, code: INSUFFICIENT_SCOPE, message: 'Bu əməliyyat üçün cards:write scope-u lazımdır', details: [{ field: scope, message: 'Tələb olunur: cards:write' }], traceId: req_7f2c9a } }
+        '404': { $ref: '#/components/responses/CardNotFound' }
+        '409':
+          description: Kart artıq bloklanıb və ya müddəti bitib
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                alreadyBlocked: { summary: Artıq bloklanıb, value: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: CARD_ALREADY_BLOCKED, message: Kart artıq bloklanıb, details: [], traceId: req_7f2c9a } }
+                expired: { summary: Müddəti bitib, value: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: CARD_EXPIRED, message: Kartın müddəti bitib, details: [], traceId: req_7f2c9a } }
+        '422':
+          description: Validation xətası
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                invalidReason: { summary: Səhv reason, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: INVALID_REASON, message: Sorğu sxemə uyğun deyil, details: [{ field: /reason, message: 'must be equal to one of the allowed values: LOST, STOLEN, SUSPECTED_FRAUD' }], traceId: req_7f2c9a } }
+                unknownField: { summary: Bilinməyən sahə, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: VALIDATION_ERROR, message: Sorğu sxemə uyğun deyil, details: [{ field: /urgent, message: must NOT have additional properties }], traceId: req_7f2c9a } }
+                keyReused: { summary: Eyni Idempotency-Key fərqli body ilə, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: IDEMPOTENCY_KEY_REUSED, message: Bu Idempotency-Key fərqli sorğu ilə artıq istifadə olunub, details: [], traceId: req_7f2c9a } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/cards/{cardId}/unblock:
+    post:
+      tags: [Cards]
+      operationId: unblockCard
+      summary: Kartı blokdan çıxar
+      description: Yalnız `LOST` və ya `SUSPECTED_FRAUD` səbəbi ilə bloklanmış kartlar. `STOLEN` → **422 CARD_PERMANENTLY_BLOCKED**.
+      security:
+        - bearerAuth: []
+      x-required-scopes: [cards:write]
+      x-db-impact:
+        reads: [cards, idempotency_keys]
+        writes: [UPDATE cards, INSERT card_status_history (trigger), INSERT idempotency_keys, INSERT audit_log]
+      parameters:
+        - { $ref: '#/components/parameters/CardId' }
+        - { $ref: '#/components/parameters/IdempotencyKeyOptional' }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UnblockCardRequest' }
+            example: { comment: Kartı tapdım }
+      responses:
+        '200':
+          description: Kart aktivləşdi
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardStatusChangeResponse' }
+              example: { cardId: 3, previousStatus: BLOCKED, status: ACTIVE, reason: null, comment: Kartı tapdım, changedAt: '2026-10-13T09:05:00Z', message: Kart blokdan çıxarıldı }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404': { $ref: '#/components/responses/CardNotFound' }
+        '409':
+          description: Kart bloklu deyil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: CARD_NOT_BLOCKED, message: Kart bloklu deyil, details: [], traceId: req_7f2c9a }
+        '422':
+          description: STOLEN səbəbi ilə bloklanmış kart açıla bilməz və ya validation xətası
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                stolen: { summary: Oğurlanmış kart, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: CARD_PERMANENTLY_BLOCKED, message: Oğurlanmış kimi bloklanmış kart açıla bilməz — yeni kart sifariş edin, details: [], traceId: req_7f2c9a } }
+                validation: { summary: Bilinməyən sahə, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: VALIDATION_ERROR, message: Sorğu sxemə uyğun deyil, details: [{ field: /force, message: must NOT have additional properties }], traceId: req_7f2c9a } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # BANK — TRANSFERS
+  # ==========================================================================
+  /api/v1/transfers:
+    post:
+      tags: [Transfers]
+      operationId: createTransfer
+      summary: Köçürmə (atomik, Idempotency-Key məcburi)
+      description: |
+        Bir DB transaction (`BEGIN IMMEDIATE`) daxilində: göndərən hesabdan DEBIT, alan hesaba CREDIT, `transfers` sətri.
+        Hər hansı addım uğursuz olarsa **heç bir balans dəyişmir** (ROLLBACK).
+        * Göndərən hesab sizin olmalıdır (alan istənilən hesab ola bilər).
+        * Hər iki hesab və `currency` eyni valyutada olmalıdır → əks halda **422 CURRENCY_MISMATCH**.
+        * Balans yetərsizdir → **422 INSUFFICIENT_FUNDS**.
+        * `Idempotency-Key` yoxdursa → **422 IDEMPOTENCY_KEY_REQUIRED**. Eyni açarla təkrar → eyni cavab, yeni köçürmə yaranmır.
+      security:
+        - bearerAuth: []
+      x-required-scopes: [transfers:write]
+      x-db-impact:
+        reads: [accounts, idempotency_keys]
+        writes: [INSERT transfers, UPDATE accounts (2 sətir), INSERT transactions (DEBIT + CREDIT), INSERT audit_log (trigger), INSERT idempotency_keys]
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKeyRequired' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransferRequest' }
+            examples:
+              ok: { summary: Student → Rauf 25 AZN, value: { fromAccountId: AZ21NABZ0001, toAccountId: AZ21NABZ0004, amount: 25.00, currency: AZN } }
+              insufficient: { summary: Balans yetərsiz, value: { fromAccountId: AZ21NABZ0001, toAccountId: AZ21NABZ0004, amount: 999999.00, currency: AZN } }
+              mismatch: { summary: Valyuta uyğun deyil, value: { fromAccountId: AZ21NABZ0002, toAccountId: AZ21NABZ0004, amount: 10.00, currency: USD } }
+      responses:
+        '201':
+          description: Köçürmə tamamlandı
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+            Idempotent-Replayed: { $ref: '#/components/headers/Idempotent-Replayed' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transfer' }
+              example: { id: 2, fromAccountId: AZ21NABZ0001, toAccountId: AZ21NABZ0004, amount: 25.00, currency: AZN, status: COMPLETED, createdAt: '2026-10-13T09:10:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404':
+          description: Hesablardan biri tapılmadı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: ACCOUNT_NOT_FOUND, message: 'Hesab tapılmadı: AZ21NABZ9999', details: [], traceId: req_7f2c9a }
+        '422':
+          description: Biznes qaydası və ya validation xətası
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                insufficient: { summary: Balans yetərsiz, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: INSUFFICIENT_FUNDS, message: Hesabda kifayət qədər vəsait yoxdur, details: [{ field: amount, message: 'Mövcud balans: 4481.90 AZN' }], traceId: req_7f2c9a } }
+                mismatch: { summary: Valyuta uyğun deyil, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: CURRENCY_MISMATCH, message: Hesabların valyutası və köçürmə valyutası eyni olmalıdır, details: [], traceId: req_7f2c9a } }
+                sameAccount: { summary: Eyni hesab, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SAME_ACCOUNT, message: Göndərən və alan hesab eyni ola bilməz, details: [], traceId: req_7f2c9a } }
+                noKey: { summary: Idempotency-Key yoxdur, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: IDEMPOTENCY_KEY_REQUIRED, message: Sorğu sxemə uyğun deyil, details: [{ field: header Idempotency-Key, message: must have required property 'Idempotency-Key' }], traceId: req_7f2c9a } }
+                keyReused: { summary: Eyni açar fərqli body ilə, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: IDEMPOTENCY_KEY_REUSED, message: Bu Idempotency-Key fərqli sorğu ilə artıq istifadə olunub, details: [], traceId: req_7f2c9a } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/transfers/{transferId}:
+    get:
+      tags: [Transfers]
+      operationId: getTransfer
+      summary: Köçürmə detalları (201 cavabındakı Location bura göstərir)
+      security:
+        - bearerAuth: []
+      x-required-scopes: [accounts:read]
+      x-db-impact:
+        reads: [transfers, accounts]
+        writes: []
+      parameters:
+        - name: transferId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+          example: 1
+      responses:
+        '200':
+          description: Köçürmə
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Transfer' }
+              example: { id: 1, fromAccountId: AZ21NABZ0001, toAccountId: AZ21NABZ0004, amount: 50.00, currency: AZN, status: COMPLETED, createdAt: '2026-10-10T12:30:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404':
+          description: Köçürmə tapılmadı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: TRANSFER_NOT_FOUND, message: Köçürmə tapılmadı, details: [], traceId: req_7f2c9a }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # CURRENCIES (X-API-Key)
+  # ==========================================================================
+  /api/v1/currencies:
+    get:
+      tags: [Currencies]
+      operationId: listCurrencies
+      summary: Dəstəklənən valyutalar
+      security:
+        - apiKeyAuth: []
+      x-db-impact:
+        reads: [currencies]
+        writes: []
+      responses:
+        '200':
+          description: Valyutalar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrencyList' }
+              example:
+                items:
+                  - { code: AZN, name: Azərbaycan manatı, symbol: ₼ }
+                  - { code: USD, name: ABŞ dolları, symbol: $ }
+                  - { code: EUR, name: Avro, symbol: € }
+        '401': { $ref: '#/components/responses/UnauthorizedApiKey' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/currencies/rates:
+    get:
+      tags: [Currencies]
+      operationId: getRates
+      summary: Məzənnələr (base valyutaya görə)
+      description: Dərs 1 nümunəsi — Request/Response anatomiyası. DB-də yalnız `base=AZN` saxlanılır, digər base-lər çarpaz kursla hesablanır.
+      security:
+        - apiKeyAuth: []
+      x-db-impact:
+        reads: [exchange_rates]
+        writes: []
+      parameters:
+        - name: base
+          in: query
+          schema: { $ref: '#/components/schemas/CurrencyCode' }
+          example: AZN
+        - name: date
+          in: query
+          description: Tarix (default — ən son mövcud tarix)
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Məzənnələr
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RatesResponse' }
+              example: { base: AZN, date: '2026-10-13', rates: { USD: 0.588235, EUR: 0.506329, TRY: 24.339132, GBP: 0.436762, GEL: 1.594289, AED: 2.160294 } }
+        '401': { $ref: '#/components/responses/UnauthorizedApiKey' }
+        '404': { $ref: '#/components/responses/RateNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/currencies/convert:
+    get:
+      tags: [Currencies]
+      operationId: convertCurrency
+      summary: Valyuta çevirmə
+      security:
+        - apiKeyAuth: []
+      x-db-impact:
+        reads: [exchange_rates]
+        writes: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/CurrencyCode' }
+          example: USD
+        - name: to
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/CurrencyCode' }
+          example: AZN
+        - name: amount
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/MoneyInput' }
+          example: 100
+      responses:
+        '200':
+          description: Çevirmə nəticəsi
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConvertResponse' }
+              example: { from: USD, to: AZN, amount: 100, rate: 1.7, result: 170.00, date: '2026-10-13' }
+        '401': { $ref: '#/components/responses/UnauthorizedApiKey' }
+        '404': { $ref: '#/components/responses/RateNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/currencies/history:
+    get:
+      tags: [Currencies]
+      operationId: getRateHistory
+      summary: Məzənnə tarixçəsi (son N gün)
+      security:
+        - apiKeyAuth: []
+      x-db-impact:
+        reads: [exchange_rates]
+        writes: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/CurrencyCode' }
+          example: EUR
+        - name: to
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/CurrencyCode' }
+          example: AZN
+        - name: days
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 30, default: 7 }
+      responses:
+        '200':
+          description: Tarixçə
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RateHistoryResponse' }
+              example:
+                from: EUR
+                to: AZN
+                days: 3
+                points:
+                  - { date: '2026-10-11', rate: 1.9764 }
+                  - { date: '2026-10-12', rate: 1.9736 }
+                  - { date: '2026-10-13', rate: 1.975 }
+        '401': { $ref: '#/components/responses/UnauthorizedApiKey' }
+        '404': { $ref: '#/components/responses/RateNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # FLIGHTS
+  # ==========================================================================
+  /api/v1/airports:
+    get:
+      tags: [Flights]
+      operationId: listAirports
+      summary: Hava limanları (autocomplete üçün axtarış)
+      x-db-impact:
+        reads: [airports]
+        writes: []
+      parameters:
+        - name: q
+          in: query
+          description: Kod, şəhər və ya ad üzrə axtarış (məs. `bak`, `IST`)
+          schema: { type: string, minLength: 1, maxLength: 50 }
+      responses:
+        '200':
+          description: Hava limanları
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AirportList' }
+              example:
+                items:
+                  - { code: GYD, city: Bakı, country: Azərbaycan, name: Heydər Əliyev Beynəlxalq Hava Limanı }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/flights/search:
+    get:
+      tags: [Flights]
+      operationId: searchFlights
+      summary: Reys axtarışı
+      x-db-impact:
+        reads: [flights, airports]
+        writes: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/AirportCode' }
+          example: GYD
+        - name: to
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/AirportCode' }
+          example: IST
+        - name: date
+          in: query
+          description: Uçuş tarixi. Verilməsə — bütün gələcək reyslər.
+          schema: { type: string, format: date }
+        - name: adults
+          in: query
+          description: Sərnişin sayı — yalnız `seats_left >= adults` olan reyslər
+          schema: { type: integer, minimum: 1, maximum: 9, default: 1 }
+        - name: stops
+          in: query
+          description: Maksimum aktarma sayı (0 = yalnız birbaşa)
+          schema: { type: integer, minimum: 0, maximum: 2 }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [price, -price, duration, departAt], default: price }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200':
+          description: Reyslər
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlightPage' }
+              example:
+                items:
+                  - { id: 17, flightNo: J2 071, airline: { code: J2, name: Azerbaijan Airlines }, from: { code: GYD, city: Bakı }, to: { code: IST, city: İstanbul }, departAt: '2026-10-14T05:00:00Z', arriveAt: '2026-10-14T08:40:00Z', durationMin: 220, stops: 0, price: 340.00, currency: AZN, seatsLeft: 12 }
+                page: 1
+                size: 20
+                total: 1
+                totalPages: 1
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/flights/{flightId}:
+    get:
+      tags: [Flights]
+      operationId: getFlight
+      summary: Reys detalları
+      x-db-impact:
+        reads: [flights, airports]
+        writes: []
+      parameters:
+        - name: flightId
+          in: path
+          required: true
+          schema: { type: integer, minimum: 1 }
+          example: 17
+      responses:
+        '200':
+          description: Reys
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Flight' }
+              example: { id: 17, flightNo: J2 071, airline: { code: J2, name: Azerbaijan Airlines }, from: { code: GYD, city: Bakı }, to: { code: IST, city: İstanbul }, departAt: '2026-10-14T05:00:00Z', arriveAt: '2026-10-14T08:40:00Z', durationMin: 220, stops: 0, price: 340.00, currency: AZN, seatsLeft: 12 }
+        '404': { $ref: '#/components/responses/FlightNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/flights/bookings:
+    get:
+      tags: [Flights]
+      operationId: listFlightBookings
+      summary: Mənim aviabilet bronlarım
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:read]
+      x-db-impact:
+        reads: [flight_bookings, flight_passengers, flights]
+        writes: []
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [CONFIRMED, CANCELLED] }
+      responses:
+        '200':
+          description: Bronlar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlightBookingList' }
+              example:
+                items:
+                  - { id: 1, flightId: 120, flightNo: J2 071, route: GYD → IST, departAt: '2026-10-20T05:00:00Z', status: CONFIRMED, passengers: [{ firstName: Aysel, lastName: Məmmədova, passportNoMasked: 'C****4821' }], total: 680.00, currency: AZN, createdAt: '2026-10-08T14:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Flights]
+      operationId: createFlightBooking
+      summary: Aviabilet bron et
+      description: Transaction daxilində `seats_left` yoxlanılır və azaldılır. Yer çatmırsa → **409 SOLD_OUT**. Uğurda **201 + Location**.
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:write]
+      x-db-impact:
+        reads: [flights]
+        writes: [UPDATE flights (seats_left - N), INSERT flight_bookings, INSERT flight_passengers, INSERT audit_log]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FlightBookingRequest' }
+            example: { flightId: 17, passengers: [{ firstName: Aysel, lastName: Məmmədova, passportNo: C12344821 }] }
+      responses:
+        '201':
+          description: Bron yaradıldı
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlightBooking' }
+              example: { id: 4, flightId: 17, flightNo: J2 071, route: GYD → IST, departAt: '2026-10-14T05:00:00Z', status: CONFIRMED, passengers: [{ firstName: Aysel, lastName: Məmmədova, passportNoMasked: 'C****4821' }], total: 340.00, currency: AZN, createdAt: '2026-10-13T09:15:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/FlightNotFound' }
+        '409':
+          description: Kifayət qədər boş yer yoxdur
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: SOLD_OUT, message: 'Bu reysdə kifayət qədər boş yer yoxdur (qalıb: 0)', details: [], traceId: req_7f2c9a }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/flights/bookings/{bookingId}:
+    get:
+      tags: [Flights]
+      operationId: getFlightBooking
+      summary: Aviabilet bronu
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:read]
+      x-db-impact:
+        reads: [flight_bookings, flight_passengers, flights]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/BookingId' }
+      responses:
+        '200':
+          description: Bron
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlightBooking' }
+              example: { id: 1, flightId: 120, flightNo: J2 071, route: GYD → IST, departAt: '2026-10-20T05:00:00Z', status: CONFIRMED, passengers: [{ firstName: Aysel, lastName: Məmmədova, passportNoMasked: 'C****4821' }, { firstName: Elvin, lastName: Məmmədov, passportNoMasked: 'C****1937' }], total: 680.00, currency: AZN, createdAt: '2026-10-08T14:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404': { $ref: '#/components/responses/BookingNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Flights]
+      operationId: cancelFlightBooking
+      summary: Bronu ləğv et (soft delete — yerlər geri qaytarılır)
+      description: Sətir silinmir, `status = 'CANCELLED'` olur (soft delete) və `flights.seats_left` artırılır. Cavab — yenilənmiş bron (200).
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:write]
+      x-db-impact:
+        reads: [flight_bookings]
+        writes: [UPDATE flight_bookings (status = CANCELLED), UPDATE flights (seats_left + N), INSERT audit_log]
+      parameters:
+        - { $ref: '#/components/parameters/BookingId' }
+      responses:
+        '200':
+          description: Bron ləğv edildi
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlightBooking' }
+              example: { id: 1, flightId: 120, flightNo: J2 071, route: GYD → IST, departAt: '2026-10-20T05:00:00Z', status: CANCELLED, passengers: [{ firstName: Aysel, lastName: Məmmədova, passportNoMasked: 'C****4821' }], total: 680.00, currency: AZN, createdAt: '2026-10-08T14:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404': { $ref: '#/components/responses/BookingNotFound' }
+        '409': { $ref: '#/components/responses/BookingAlreadyCancelled' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # HOTELS
+  # ==========================================================================
+  /api/v1/hotels/search:
+    get:
+      tags: [Hotels]
+      operationId: searchHotels
+      summary: Otel axtarışı (availability SQL ilə)
+      description: |
+        `checkIn` + `checkOut` verilərsə, yalnız həmin tarixlərdə **ən azı bir boş otağı** olan otellər qaytarılır
+        (`NOT EXISTS` + tarix kəsişməsi SQL ilə). `guests` — otaq tutumu.
+      x-db-impact:
+        reads: [hotels, hotel_rooms, hotel_bookings, hotel_amenities]
+        writes: []
+      parameters:
+        - name: city
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 50 }
+          example: Bakı
+        - name: checkIn
+          in: query
+          schema: { type: string, format: date }
+        - name: checkOut
+          in: query
+          schema: { type: string, format: date }
+        - name: guests
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 6, default: 1 }
+        - name: stars
+          in: query
+          description: Minimum ulduz
+          schema: { type: integer, minimum: 1, maximum: 5 }
+        - name: minPrice
+          in: query
+          schema: { $ref: '#/components/schemas/MoneyInput' }
+        - name: maxPrice
+          in: query
+          schema: { $ref: '#/components/schemas/MoneyInput' }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [price, -price, rating, -rating, stars, -stars], default: price }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200':
+          description: Otellər
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelPage' }
+              example:
+                items:
+                  - { id: 5, name: Bulvar Inn, city: Bakı, stars: 2, rating: 7.6, pricePerNightFrom: 55.00, currency: AZN, amenities: [Wi-Fi], availableRooms: 3 }
+                page: 1
+                size: 20
+                total: 1
+                totalPages: 1
+        '422':
+          description: Validation xətası (məs. checkOut ≤ checkIn)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                dateRange: { summary: Tarix aralığı səhvdir, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: INVALID_DATE_RANGE, message: checkOut checkIn-dən sonra olmalıdır, details: [], traceId: req_7f2c9a } }
+                validation: { summary: Məcburi parametr yoxdur, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: VALIDATION_ERROR, message: Sorğu sxemə uyğun deyil, details: [{ field: query city, message: must have required property 'city' }], traceId: req_7f2c9a } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/hotels/{hotelId}:
+    get:
+      tags: [Hotels]
+      operationId: getHotel
+      summary: Otel detalları
+      x-db-impact:
+        reads: [hotels, hotel_amenities, hotel_rooms]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/HotelId' }
+      responses:
+        '200':
+          description: Otel
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelDetail' }
+              example: { id: 1, name: Xəzər Sahil Hotel, city: Bakı, stars: 5, rating: 9.1, pricePerNightFrom: 280.00, currency: AZN, amenities: [Fitness, Hovuz, Parkinq, Spa, Səhər yeməyi, Wi-Fi], description: 'Bulvarın üzərində, dəniz mənzərəli otaqlar və açıq hovuz.', roomCount: 4 }
+        '404': { $ref: '#/components/responses/HotelNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/hotels/{hotelId}/rooms:
+    get:
+      tags: [Hotels]
+      operationId: listHotelRooms
+      summary: Otelin otaqları (tarix verilərsə — boş/dolu)
+      x-db-impact:
+        reads: [hotel_rooms, hotel_bookings]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/HotelId' }
+        - name: checkIn
+          in: query
+          schema: { type: string, format: date }
+        - name: checkOut
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Otaqlar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoomList' }
+              example:
+                items:
+                  - { id: 1, hotelId: 1, roomType: SINGLE, capacity: 1, pricePerNight: 280.00, currency: AZN, available: false }
+                  - { id: 2, hotelId: 1, roomType: DOUBLE, capacity: 2, pricePerNight: 378.00, currency: AZN, available: true }
+        '404': { $ref: '#/components/responses/HotelNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/hotels/bookings:
+    get:
+      tags: [Hotels]
+      operationId: listHotelBookings
+      summary: Mənim otel bronlarım
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:read]
+      x-db-impact:
+        reads: [hotel_bookings, hotel_rooms, hotels]
+        writes: []
+      responses:
+        '200':
+          description: Bronlar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelBookingList' }
+              example:
+                items:
+                  - { id: 2, roomId: 2, hotelId: 1, hotelName: Xəzər Sahil Hotel, roomType: DOUBLE, checkIn: '2026-10-23', checkOut: '2026-10-25', nights: 2, guests: 2, status: CONFIRMED, total: 756.00, currency: AZN, createdAt: '2026-10-10T11:00:00Z', updatedAt: '2026-10-10T11:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Hotels]
+      operationId: createHotelBooking
+      summary: Otel bron et
+      description: |
+        Transaction (`BEGIN IMMEDIATE`) daxilində eyni otaq üçün kəsişən CONFIRMED bron yoxlanılır:
+        `yeni.checkIn < mövcud.checkOut AND yeni.checkOut > mövcud.checkIn` → **409 ROOM_NOT_AVAILABLE**.
+        Yoxlama: `db/queries/10_hotel_overlap.sql`.
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:write]
+      x-db-impact:
+        reads: [hotel_rooms, hotel_bookings]
+        writes: [INSERT hotel_bookings, INSERT audit_log]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HotelBookingRequest' }
+            example: { roomId: 4, checkIn: '2026-10-20', checkOut: '2026-10-23', guests: 2 }
+      responses:
+        '201':
+          description: Bron yaradıldı
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelBooking' }
+              example: { id: 5, roomId: 4, hotelId: 1, hotelName: Xəzər Sahil Hotel, roomType: SUITE, checkIn: '2026-10-20', checkOut: '2026-10-23', nights: 3, guests: 2, status: CONFIRMED, total: 2016.00, currency: AZN, createdAt: '2026-10-13T09:20:00Z', updatedAt: '2026-10-13T09:20:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404':
+          description: Otaq tapılmadı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: ROOM_NOT_FOUND, message: Otaq tapılmadı, details: [], traceId: req_7f2c9a }
+        '409': { $ref: '#/components/responses/RoomNotAvailable' }
+        '422': { $ref: '#/components/responses/HotelBookingInvalid' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/hotels/bookings/{bookingId}:
+    get:
+      tags: [Hotels]
+      operationId: getHotelBooking
+      summary: Otel bronu
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:read]
+      x-db-impact:
+        reads: [hotel_bookings, hotel_rooms, hotels]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/BookingId' }
+      responses:
+        '200':
+          description: Bron
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelBooking' }
+              example: { id: 2, roomId: 2, hotelId: 1, hotelName: Xəzər Sahil Hotel, roomType: DOUBLE, checkIn: '2026-10-23', checkOut: '2026-10-25', nights: 2, guests: 2, status: CONFIRMED, total: 756.00, currency: AZN, createdAt: '2026-10-10T11:00:00Z', updatedAt: '2026-10-10T11:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404': { $ref: '#/components/responses/BookingNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [Hotels]
+      operationId: updateHotelBooking
+      summary: Bronun tarixini / qonaq sayını dəyiş (qismən yeniləmə)
+      description: Yalnız göndərilən sahələr dəyişir. Yeni tarixlər üçün availability yenidən yoxlanılır (bronun özü istisna olmaqla).
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:write]
+      x-db-impact:
+        reads: [hotel_bookings, hotel_rooms]
+        writes: [UPDATE hotel_bookings, INSERT audit_log]
+      parameters:
+        - { $ref: '#/components/parameters/BookingId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HotelBookingPatch' }
+            example: { checkOut: '2026-10-26' }
+      responses:
+        '200':
+          description: Yenilənmiş bron
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelBooking' }
+              example: { id: 2, roomId: 2, hotelId: 1, hotelName: Xəzər Sahil Hotel, roomType: DOUBLE, checkIn: '2026-10-23', checkOut: '2026-10-26', nights: 3, guests: 2, status: CONFIRMED, total: 1134.00, currency: AZN, createdAt: '2026-10-10T11:00:00Z', updatedAt: '2026-10-13T09:25:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404': { $ref: '#/components/responses/BookingNotFound' }
+        '409': { $ref: '#/components/responses/RoomNotAvailable' }
+        '422': { $ref: '#/components/responses/HotelBookingInvalid' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Hotels]
+      operationId: cancelHotelBooking
+      summary: Otel bronunu ləğv et (soft delete)
+      security:
+        - bearerAuth: []
+      x-required-scopes: [bookings:write]
+      x-db-impact:
+        reads: [hotel_bookings]
+        writes: [UPDATE hotel_bookings (status = CANCELLED), INSERT audit_log]
+      parameters:
+        - { $ref: '#/components/parameters/BookingId' }
+      responses:
+        '200':
+          description: Bron ləğv edildi
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelBooking' }
+              example: { id: 2, roomId: 2, hotelId: 1, hotelName: Xəzər Sahil Hotel, roomType: DOUBLE, checkIn: '2026-10-23', checkOut: '2026-10-25', nights: 2, guests: 2, status: CANCELLED, total: 756.00, currency: AZN, createdAt: '2026-10-10T11:00:00Z', updatedAt: '2026-10-13T09:30:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404': { $ref: '#/components/responses/BookingNotFound' }
+        '409': { $ref: '#/components/responses/BookingAlreadyCancelled' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # CUSTOMERS (CRUD, ETag, HEAD/OPTIONS, XML, versioning) — auth tələb etmir
+  # ==========================================================================
+  /api/v1/customers:
+    get:
+      tags: [Customers]
+      operationId: listCustomers
+      summary: Müştərilər siyahısı (Safe + Idempotent)
+      description: '`Accept: application/xml` göndərsəniz cavab XML olur. Dəstəklənməyən Accept (məs. `text/csv`) → **406**.'
+      x-db-impact:
+        reads: [customers]
+        writes: []
+      parameters:
+        - name: city
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 50 }
+          example: Bakı
+        - name: active
+          in: query
+          schema: { type: boolean }
+        - name: q
+          in: query
+          description: Ad, soyad və ya email üzrə axtarış
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [id, -id, lastName, -lastName, city, -city, createdAt, -createdAt], default: id }
+      responses:
+        '200':
+          description: Müştərilər
+          headers:
+            Deprecation: { $ref: '#/components/headers/Deprecation' }
+            Sunset: { $ref: '#/components/headers/Sunset' }
+            Link: { $ref: '#/components/headers/LinkSuccessor' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerPage' }
+              example:
+                items:
+                  - { id: 1, firstName: Nigar, lastName: Əliyeva, email: nigar.aliyeva@example.az, phone: '+994501234501', city: Bakı, active: true, createdAt: '2026-04-06T09:13:00Z', updatedAt: '2026-04-06T09:13:00Z' }
+                page: 1
+                size: 20
+                total: 25
+                totalPages: 2
+            application/xml:
+              schema: { type: string, description: CustomerPage-in XML təqdimatı }
+              example: '<customerPage><items><customer><id>1</id><firstName>Nigar</firstName><lastName>Əliyeva</lastName><email>nigar.aliyeva@example.az</email></customer></items><page>1</page><size>20</size><total>25</total><totalPages>2</totalPages></customerPage>'
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Customers]
+      operationId: createCustomer
+      summary: Yeni müştəri (Not safe, Not idempotent)
+      description: 'Uğurda **201 Created** + `Location: /api/v1/customers/{id}`. Eyni email → **409 EMAIL_EXISTS**. Səhv nümunə üçün: `{"email": "rena-at-example", "age": 25}` → **422** (format + bilinməyən sahə).'
+      x-db-impact:
+        reads: [customers]
+        writes: [INSERT customers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerCreate' }
+            examples:
+              ok: { summary: Düzgün sorğu, value: { firstName: Rəna, lastName: Quliyeva, email: rena.quliyeva@example.az, phone: '+994501112233', city: Gəncə } }
+              duplicate: { summary: 'Mövcud email → 409', value: { firstName: Nigar, lastName: Əliyeva, email: nigar.aliyeva@example.az } }
+      responses:
+        '201':
+          description: Müştəri yaradıldı
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+              example: { id: 26, firstName: Rəna, lastName: Quliyeva, email: rena.quliyeva@example.az, phone: '+994501112233', city: Gəncə, active: true, createdAt: '2026-10-13T09:40:00Z', updatedAt: '2026-10-13T09:40:00Z' }
+        '409': { $ref: '#/components/responses/EmailExists' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    options:
+      tags: [Customers]
+      operationId: optionsCustomers
+      summary: Dəstəklənən metodlar (OPTIONS)
+      x-db-impact:
+        reads: []
+        writes: []
+      responses:
+        '204':
+          description: '`Allow` başlığında metodlar'
+          headers:
+            Allow: { $ref: '#/components/headers/Allow' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/customers/{customerId}:
+    get:
+      tags: [Customers]
+      operationId: getCustomer
+      summary: Müştəri (ETag + If-None-Match → 304)
+      description: |
+        Cavabda `ETag` başlığı var. Növbəti sorğuda `If-None-Match: <etag>` göndərin — data dəyişməyibsə **304 Not Modified** (gövdəsiz) qayıdır.
+      x-db-impact:
+        reads: [customers]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/CustomerId' }
+        - { $ref: '#/components/parameters/IfNoneMatch' }
+      responses:
+        '200':
+          description: Müştəri
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+            Deprecation: { $ref: '#/components/headers/Deprecation' }
+            Sunset: { $ref: '#/components/headers/Sunset' }
+            Link: { $ref: '#/components/headers/LinkSuccessor' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+              example: { id: 1, firstName: Nigar, lastName: Əliyeva, email: nigar.aliyeva@example.az, phone: '+994501234501', city: Bakı, active: true, createdAt: '2026-04-06T09:13:00Z', updatedAt: '2026-04-06T09:13:00Z' }
+            application/xml:
+              schema: { type: string, description: Customer-in XML təqdimatı }
+              example: '<customer><id>1</id><firstName>Nigar</firstName><lastName>Əliyeva</lastName><email>nigar.aliyeva@example.az</email><phone>+994501234501</phone><city>Bakı</city><active>true</active></customer>'
+        '304':
+          description: Dəyişiklik yoxdur (If-None-Match ETag ilə üst-üstə düşdü)
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+        '404': { $ref: '#/components/responses/CustomerNotFound' }
+        '406': { $ref: '#/components/responses/NotAcceptable' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    head:
+      tags: [Customers]
+      operationId: headCustomer
+      summary: Müştəri mövcuddurmu? (HEAD — yalnız başlıqlar)
+      x-db-impact:
+        reads: [customers]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/CustomerId' }
+      responses:
+        '200':
+          description: Mövcuddur (gövdə yoxdur)
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+        '404':
+          description: Tapılmadı (gövdə yoxdur)
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    put:
+      tags: [Customers]
+      operationId: replaceCustomer
+      summary: Müştərini tam əvəz et (PUT — Idempotent)
+      description: Bütün sahələr məcburidir. Eyni sorğunu N dəfə göndərmək eyni nəticəni verir.
+      x-db-impact:
+        reads: [customers]
+        writes: [UPDATE customers]
+      parameters:
+        - { $ref: '#/components/parameters/CustomerId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerReplace' }
+            example: { firstName: Nigar, lastName: Əliyeva-Həsənova, email: nigar.aliyeva@example.az, phone: '+994501234501', city: Bakı, active: true }
+      responses:
+        '200':
+          description: Yenilənmiş müştəri
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+              example: { id: 1, firstName: Nigar, lastName: Əliyeva-Həsənova, email: nigar.aliyeva@example.az, phone: '+994501234501', city: Bakı, active: true, createdAt: '2026-04-06T09:13:00Z', updatedAt: '2026-10-13T09:45:00Z' }
+        '404': { $ref: '#/components/responses/CustomerNotFound' }
+        '409': { $ref: '#/components/responses/EmailExists' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      tags: [Customers]
+      operationId: patchCustomer
+      summary: Müştərini qismən yenilə (PATCH)
+      description: Yalnız göndərilən sahələr dəyişir. Boş obyekt `{}` → 422.
+      x-db-impact:
+        reads: [customers]
+        writes: [UPDATE customers]
+      parameters:
+        - { $ref: '#/components/parameters/CustomerId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CustomerPatch' }
+            example: { city: Sumqayıt, active: false }
+      responses:
+        '200':
+          description: Yenilənmiş müştəri
+          headers:
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Customer' }
+              example: { id: 1, firstName: Nigar, lastName: Əliyeva, email: nigar.aliyeva@example.az, phone: '+994501234501', city: Sumqayıt, active: false, createdAt: '2026-04-06T09:13:00Z', updatedAt: '2026-10-13T09:50:00Z' }
+        '404': { $ref: '#/components/responses/CustomerNotFound' }
+        '409': { $ref: '#/components/responses/EmailExists' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Customers]
+      operationId: deleteCustomer
+      summary: Müştərini sil (204 No Content)
+      description: Hard delete. İkinci DELETE → 404 (resurs artıq yoxdur, amma server vəziyyəti eynidir — DELETE idempotentdir).
+      x-db-impact:
+        reads: [customers]
+        writes: [DELETE customers]
+      parameters:
+        - { $ref: '#/components/parameters/CustomerId' }
+      responses:
+        '204':
+          description: Silindi (gövdə yoxdur)
+        '404': { $ref: '#/components/responses/CustomerNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    options:
+      tags: [Customers]
+      operationId: optionsCustomer
+      summary: Bu resurs üçün dəstəklənən metodlar (OPTIONS)
+      x-db-impact:
+        reads: []
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/CustomerId' }
+      responses:
+        '204':
+          description: '`Allow` başlığında metodlar'
+          headers:
+            Allow: { $ref: '#/components/headers/Allow' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v2/customers:
+    get:
+      tags: [Customers]
+      operationId: listCustomersV2
+      summary: Müştərilər — v2 (breaking change — fullName)
+      description: v2-də `firstName` + `lastName` əvəzinə tək `fullName` sahəsi var. Köhnə client-lər v1-də qalır, v1 isə `Sunset` tarixinə qədər işləyir.
+      x-db-impact:
+        reads: [customers]
+        writes: []
+      parameters:
+        - name: city
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 50 }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200':
+          description: Müştərilər (v2)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerV2Page' }
+              example:
+                items:
+                  - { id: 1, fullName: Nigar Əliyeva, email: nigar.aliyeva@example.az, phone: '+994501234501', city: Bakı, active: true, createdAt: '2026-04-06T09:13:00Z', updatedAt: '2026-04-06T09:13:00Z' }
+                page: 1
+                size: 20
+                total: 25
+                totalPages: 2
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v2/customers/{customerId}:
+    get:
+      tags: [Customers]
+      operationId: getCustomerV2
+      summary: Müştəri — v2
+      x-db-impact:
+        reads: [customers]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/CustomerId' }
+      responses:
+        '200':
+          description: Müştəri (v2)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomerV2' }
+              example: { id: 1, fullName: Nigar Əliyeva, email: nigar.aliyeva@example.az, phone: '+994501234501', city: Bakı, active: true, createdAt: '2026-04-06T09:13:00Z', updatedAt: '2026-04-06T09:13:00Z' }
+        '404': { $ref: '#/components/responses/CustomerNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # BOOKS (X-API-Key)
+  # ==========================================================================
+  /api/v1/books:
+    get:
+      tags: [Books]
+      operationId: listBooksCursor
+      summary: Kitablar — cursor pagination nümunəsi
+      description: |
+        Offset (`page`) əvəzinə **cursor**: cavabdakı `nextCursor`-u növbəti sorğuda `cursor` kimi göndərin.
+        `nextCursor = null` → son səhifə. Üstünlüyü: siyahıya yeni sətir əlavə olunanda səhifələr "sürüşmür".
+      security:
+        - apiKeyAuth: []
+      x-db-impact:
+        reads: [books]
+        writes: []
+      parameters:
+        - name: cursor
+          in: query
+          description: Əvvəlki cavabın `nextCursor` dəyəri (opaque string)
+          schema: { type: string, maxLength: 100, pattern: '^[A-Za-z0-9_-]+$' }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+      responses:
+        '200':
+          description: Kitablar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookCursorPage' }
+              example:
+                items:
+                  - { id: 1, title: Kitabi-Dədə Qorqud, author: Anonim, genre: Dastan, year: null, description: Oğuz türklərinin qəhrəmanlıq dastanları toplusu., rating: 4.8, pages: 320 }
+                limit: 1
+                nextCursor: aWQ6MQ
+        '401': { $ref: '#/components/responses/UnauthorizedApiKey' }
+        '422':
+          description: Validation xətası və ya etibarsız cursor
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                badCursor: { summary: Cursor etibarsızdır, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: INVALID_CURSOR, message: Cursor etibarsızdır, details: [], traceId: req_7f2c9a } }
+                validation: { summary: limit > 100, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: VALIDATION_ERROR, message: Sorğu sxemə uyğun deyil, details: [{ field: query limit, message: must be <= 100 }], traceId: req_7f2c9a } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/books/search:
+    get:
+      tags: [Books]
+      operationId: searchBooks
+      summary: Kitab axtarışı (offset pagination)
+      security:
+        - apiKeyAuth: []
+      x-db-impact:
+        reads: [books]
+        writes: []
+      parameters:
+        - name: q
+          in: query
+          description: Ad, müəllif və ya təsvir üzrə
+          schema: { type: string, minLength: 1, maxLength: 100 }
+          example: Nizami
+        - name: author
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: genre
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 50 }
+          example: Roman
+        - name: year
+          in: query
+          schema: { type: integer, minimum: 1000, maximum: 2100 }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [title, -title, year, -year, rating, -rating], default: title }
+      responses:
+        '200':
+          description: Kitablar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookPage' }
+              example:
+                items:
+                  - { id: 3, title: Xosrov və Şirin, author: Nizami Gəncəvi, genre: Poema, year: 1180, description: Sasani şahı Xosrov və erməni şahzadəsi Şirinin məhəbbət dastanı., rating: 4.7, pages: 410 }
+                page: 1
+                size: 20
+                total: 1
+                totalPages: 1
+        '401': { $ref: '#/components/responses/UnauthorizedApiKey' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/books/{bookId}:
+    get:
+      tags: [Books]
+      operationId: getBook
+      summary: Kitab
+      security:
+        - apiKeyAuth: []
+      x-db-impact:
+        reads: [books]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/BookId' }
+      responses:
+        '200':
+          description: Kitab
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Book' }
+              example: { id: 12, title: Əli və Nino, author: Qurban Səid, genre: Roman, year: 1937, description: Bakılı Əli xan və gürcü Ninonun sevgi hekayəsi., rating: 4.7, pages: 288 }
+        '401': { $ref: '#/components/responses/UnauthorizedApiKey' }
+        '404': { $ref: '#/components/responses/BookNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/books/{bookId}/reviews:
+    get:
+      tags: [Books]
+      operationId: listBookReviews
+      summary: Kitabın rəyləri
+      security:
+        - apiKeyAuth: []
+      x-db-impact:
+        reads: [book_reviews, users]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/BookId' }
+      responses:
+        '200':
+          description: Rəylər
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReviewList' }
+              example:
+                items:
+                  - { id: 1, bookId: 12, author: student, rating: 5, comment: Bakının XX əsr əvvəlindəki atmosferi çox canlıdır., createdAt: '2026-08-14T20:00:00Z' }
+                averageRating: 4.5
+        '401': { $ref: '#/components/responses/UnauthorizedApiKey' }
+        '404': { $ref: '#/components/responses/BookNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Books]
+      operationId: createBookReview
+      summary: Rəy yaz (Bearer)
+      description: Bir istifadəçi bir kitaba yalnız 1 rəy yaza bilər → təkrar **409 REVIEW_EXISTS** (DB UNIQUE constraint).
+      security:
+        - bearerAuth: []
+      x-required-scopes: [books:write]
+      x-db-impact:
+        reads: [books]
+        writes: [INSERT book_reviews]
+      parameters:
+        - { $ref: '#/components/parameters/BookId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewCreate' }
+            example: { rating: 5, comment: Mütləq oxuyun! }
+      responses:
+        '201':
+          description: Rəy yaradıldı
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Review' }
+              example: { id: 11, bookId: 1, author: student, rating: 5, comment: Mütləq oxuyun!, createdAt: '2026-10-13T10:00:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/BookNotFound' }
+        '409':
+          description: Bu kitaba artıq rəy yazmısınız
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: REVIEW_EXISTS, message: Bu kitaba artıq rəy yazmısınız, details: [], traceId: req_7f2c9a }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # MUSIC
+  # ==========================================================================
+  /api/v1/music/search:
+    get:
+      tags: [Music]
+      operationId: searchMusic
+      summary: Musiqi axtarışı
+      description: |
+        Default — `tracks` cədvəlində axtarış (`source: db`). Serverdə `YOUTUBE_API_KEY` təyin olunubsa və `q` verilibsə,
+        YouTube Data API v3 `search.list` çağırılır, nəticələr `tracks`-ə cache olunur (`source: youtube`).
+      x-db-impact:
+        reads: [tracks]
+        writes: [INSERT tracks (yalnız YouTube cache, opsional)]
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+          example: Eurovision
+        - name: artist
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: genre
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 50 }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200':
+          description: Treklər
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TrackPage' }
+              example:
+                items:
+                  - { id: 1, youtubeId: _0tlQUW5X0U, title: Running Scared, artist: Ell & Nikki, genre: Pop, durationSec: 183, thumbnailUrl: 'https://i.ytimg.com/vi/_0tlQUW5X0U/hqdefault.jpg' }
+                page: 1
+                size: 20
+                total: 1
+                totalPages: 1
+                source: db
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '502':
+          description: YouTube API xətası (yalnız real axtarış rejimində)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 502, code: BAD_GATEWAY, message: YouTube API cavab vermədi, details: [], traceId: req_7f2c9a }
+
+  /api/v1/music/tracks/{trackId}:
+    get:
+      tags: [Music]
+      operationId: getTrack
+      summary: Trek
+      x-db-impact:
+        reads: [tracks]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/TrackId' }
+      responses:
+        '200':
+          description: Trek
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Track' }
+              example: { id: 1, youtubeId: _0tlQUW5X0U, title: Running Scared, artist: Ell & Nikki, genre: Pop, durationSec: 183, thumbnailUrl: 'https://i.ytimg.com/vi/_0tlQUW5X0U/hqdefault.jpg' }
+        '404': { $ref: '#/components/responses/TrackNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/music/tracks/{trackId}/play:
+    post:
+      tags: [Music]
+      operationId: playTrack
+      summary: Treki oxut — embed URL al və dinləmə tarixçəsinə yaz
+      description: Backend yalnız mənbəni həll edir (YouTube embed URL). Video faylı yüklənmir/axın edilmir — oxutma frontend-də YouTube IFrame Player API ilə olur.
+      security:
+        - bearerAuth: []
+      x-required-scopes: [music:write]
+      x-db-impact:
+        reads: [tracks]
+        writes: [INSERT play_history]
+      parameters:
+        - { $ref: '#/components/parameters/TrackId' }
+      responses:
+        '200':
+          description: Oxutma məlumatı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlayResponse' }
+              example: { trackId: 1, youtubeId: _0tlQUW5X0U, embedUrl: 'https://www.youtube.com/embed/_0tlQUW5X0U', startedAt: '2026-10-13T10:05:00Z' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/TrackNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/music/playlists:
+    get:
+      tags: [Music]
+      operationId: listPlaylists
+      summary: Mənim playlist-lərim
+      security:
+        - bearerAuth: []
+      x-db-impact:
+        reads: [playlists, playlist_tracks, tracks]
+        writes: []
+      responses:
+        '200':
+          description: Playlist-lər
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlaylistList' }
+              example:
+                items:
+                  - { id: 1, name: Eurovision Azərbaycan, createdAt: '2026-08-24T20:00:00Z', tracks: [{ position: 1, track: { id: 1, youtubeId: _0tlQUW5X0U, title: Running Scared, artist: Ell & Nikki, genre: Pop, durationSec: 183, thumbnailUrl: 'https://i.ytimg.com/vi/_0tlQUW5X0U/hqdefault.jpg' } }] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Music]
+      operationId: createPlaylist
+      summary: Playlist yarat
+      security:
+        - bearerAuth: []
+      x-required-scopes: [music:write]
+      x-db-impact:
+        reads: []
+        writes: [INSERT playlists]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlaylistCreate' }
+            example: { name: Səhər qaçışı }
+      responses:
+        '201':
+          description: Playlist yaradıldı
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Playlist' }
+              example: { id: 4, name: Səhər qaçışı, createdAt: '2026-10-13T10:10:00Z', tracks: [] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/music/playlists/{playlistId}:
+    get:
+      tags: [Music]
+      operationId: getPlaylist
+      summary: Playlist
+      security:
+        - bearerAuth: []
+      x-db-impact:
+        reads: [playlists, playlist_tracks, tracks]
+        writes: []
+      parameters:
+        - { $ref: '#/components/parameters/PlaylistId' }
+      responses:
+        '200':
+          description: Playlist
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Playlist' }
+              example: { id: 1, name: Eurovision Azərbaycan, createdAt: '2026-08-24T20:00:00Z', tracks: [{ position: 1, track: { id: 1, youtubeId: _0tlQUW5X0U, title: Running Scared, artist: Ell & Nikki, genre: Pop, durationSec: 183, thumbnailUrl: 'https://i.ytimg.com/vi/_0tlQUW5X0U/hqdefault.jpg' } }] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404': { $ref: '#/components/responses/PlaylistNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/music/playlists/{playlistId}/tracks:
+    post:
+      tags: [Music]
+      operationId: addPlaylistTrack
+      summary: Playlist-ə trek əlavə et
+      description: '`position` verilməsə — sona əlavə olunur. Eyni trek ikinci dəfə → **409 TRACK_ALREADY_IN_PLAYLIST** (kompozit PK).'
+      security:
+        - bearerAuth: []
+      x-required-scopes: [music:write]
+      x-db-impact:
+        reads: [playlists, tracks, playlist_tracks]
+        writes: [INSERT playlist_tracks]
+      parameters:
+        - { $ref: '#/components/parameters/PlaylistId' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlaylistAddTrack' }
+            example: { trackId: 24 }
+      responses:
+        '201':
+          description: Əlavə olundu — yenilənmiş playlist
+          headers:
+            Location: { $ref: '#/components/headers/Location' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Playlist' }
+              example: { id: 4, name: Səhər qaçışı, createdAt: '2026-10-13T10:10:00Z', tracks: [{ position: 1, track: { id: 24, youtubeId: 4NRXx6U8ABQ, title: Blinding Lights, artist: The Weeknd, genre: Pop, durationSec: 261, thumbnailUrl: 'https://i.ytimg.com/vi/4NRXx6U8ABQ/hqdefault.jpg' } }] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404':
+          description: Playlist və ya trek tapılmadı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                playlist: { summary: Playlist yoxdur, value: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: PLAYLIST_NOT_FOUND, message: Playlist tapılmadı, details: [], traceId: req_7f2c9a } }
+                track: { summary: Trek yoxdur, value: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: TRACK_NOT_FOUND, message: Trek tapılmadı, details: [], traceId: req_7f2c9a } }
+        '409':
+          description: Trek artıq playlist-dədir
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: TRACK_ALREADY_IN_PLAYLIST, message: Bu trek artıq playlist-dədir, details: [], traceId: req_7f2c9a }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/music/playlists/{playlistId}/tracks/{trackId}:
+    delete:
+      tags: [Music]
+      operationId: removePlaylistTrack
+      summary: Playlist-dən treki çıxar
+      security:
+        - bearerAuth: []
+      x-required-scopes: [music:write]
+      x-db-impact:
+        reads: [playlists, playlist_tracks]
+        writes: [DELETE playlist_tracks]
+      parameters:
+        - { $ref: '#/components/parameters/PlaylistId' }
+        - { $ref: '#/components/parameters/TrackId' }
+      responses:
+        '204':
+          description: Çıxarıldı
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/ForbiddenBola' }
+        '404':
+          description: Playlist tapılmadı və ya trek playlist-də deyil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                playlist: { summary: Playlist yoxdur, value: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: PLAYLIST_NOT_FOUND, message: Playlist tapılmadı, details: [], traceId: req_7f2c9a } }
+                notInPlaylist: { summary: Trek playlist-də deyil, value: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: TRACK_NOT_IN_PLAYLIST, message: Trek bu playlist-də deyil, details: [], traceId: req_7f2c9a } }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # BFF (Backend-for-Frontend)
+  # ==========================================================================
+  /bff/dashboard:
+    get:
+      tags: [BFF]
+      operationId: bffDashboard
+      summary: Bank dashboard — 1 sorğuda hesablar + kartlar + son 5 əməliyyat + məzənnələr
+      description: BFF eyni service layer-i birbaşa çağırır (HTTP-yə yenidən çıxmır). `meta.calls` hər daxili çağırışın müddətini göstərir.
+      security:
+        - bearerAuth: []
+      x-required-scopes: [accounts:read, cards:read]
+      x-db-impact:
+        reads: [accounts, cards, transactions, exchange_rates]
+        writes: []
+      responses:
+        '200':
+          description: Dashboard
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BffDashboard' }
+              example:
+                user: { id: 1, username: student, fullName: Aysel Məmmədova }
+                accounts: [{ id: AZ21NABZ0001, type: CURRENT, currency: AZN, balance: 4481.90, openedAt: '2025-09-28T10:00:00Z' }]
+                cards: [{ id: 1, accountId: AZ21NABZ0001, maskedNumber: '**** **** **** 4169', last4: '4169', brand: VISA, status: ACTIVE, statusReason: null, dailyLimit: 2000.00, currency: AZN, expiresAt: '2029-09-30' }]
+                recentTransactions: [{ id: 40, accountId: AZ21NABZ0001, type: DEBIT, amount: 7.80, currency: AZN, description: Bolt — taksi, transferId: null, createdAt: '2026-10-12T19:00:00Z' }]
+                rates: { base: AZN, date: '2026-10-13', rates: { USD: 0.588235, EUR: 0.506329 } }
+                meta: { totalMs: 4, partial: false, calls: [{ service: accounts.list, durationMs: 1, status: ok }, { service: cards.list, durationMs: 1, status: ok }, { service: transactions.recent, durationMs: 1, status: ok }, { service: currencies.rates, durationMs: 1, status: ok }] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /bff/travel/search:
+    get:
+      tags: [BFF]
+      operationId: bffTravelSearch
+      summary: Reys + otel paralel axtarışı (partial failure nümunəsi)
+      description: |
+        Reys və otel axtarışı `Promise.all` ilə paralel işləyir. Biri uğursuz olarsa digərinin nəticəsi yenə qaytarılır:
+        HTTP **207 Multi-Status**, uğursuz bölmədə `{error: {...}}`, `meta.partial = true`. Hər ikisi uğurlu → 200.
+      x-db-impact:
+        reads: [flights, airports, hotels, hotel_rooms, hotel_bookings]
+        writes: []
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/AirportCode' }
+          example: GYD
+        - name: to
+          in: query
+          required: true
+          schema: { $ref: '#/components/schemas/AirportCode' }
+          example: IST
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          example: '2026-10-20'
+        - name: city
+          in: query
+          description: Otel şəhəri (verilməsə — `to` hava limanının şəhəri)
+          schema: { type: string, minLength: 2, maxLength: 50 }
+        - name: nights
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 30, default: 3 }
+      responses:
+        '200':
+          description: Hər iki axtarış uğurlu
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BffTravel' }
+              example:
+                flights: { items: [{ id: 17, flightNo: J2 071, airline: { code: J2, name: Azerbaijan Airlines }, from: { code: GYD, city: Bakı }, to: { code: IST, city: İstanbul }, departAt: '2026-10-20T05:00:00Z', arriveAt: '2026-10-20T08:40:00Z', durationMin: 220, stops: 0, price: 340.00, currency: AZN, seatsLeft: 12 }], total: 1 }
+                hotels: { items: [{ id: 11, name: Sultanahmet Garden, city: İstanbul, stars: 3, rating: 8.6, pricePerNightFrom: 75.00, currency: EUR, amenities: [Wi-Fi, Səhər yeməyi], availableRooms: 3 }], total: 1 }
+                meta: { totalMs: 6, partial: false, calls: [{ service: flights.search, durationMs: 4, status: ok }, { service: hotels.search, durationMs: 5, status: ok }] }
+        '207':
+          description: Hissəvi uğur — bir bölmə xəta verdi
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BffTravel' }
+              example:
+                flights: { items: [], total: 0 }
+                hotels: { error: { timestamp: '2026-10-13T09:00:00Z', status: 503, code: SERVICE_UNAVAILABLE, message: Otel servisi cavab vermir, details: [], traceId: req_7f2c9a } }
+                meta: { totalMs: 3, partial: true, calls: [{ service: flights.search, durationMs: 2, status: ok }, { service: hotels.search, durationMs: 1, status: error }] }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /bff/music/home:
+    get:
+      tags: [BFF]
+      operationId: bffMusicHome
+      summary: Musiqi ana səhifəsi — populyar treklər + mənim playlist-lərim
+      security:
+        - bearerAuth: []
+      x-db-impact:
+        reads: [play_history, tracks, playlists, playlist_tracks]
+        writes: []
+      responses:
+        '200':
+          description: Musiqi ana səhifəsi
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BffMusicHome' }
+              example:
+                popular: [{ id: 24, youtubeId: 4NRXx6U8ABQ, title: Blinding Lights, artist: The Weeknd, genre: Pop, durationSec: 261, thumbnailUrl: 'https://i.ytimg.com/vi/4NRXx6U8ABQ/hqdefault.jpg', playCount: 5 }]
+                playlists: [{ id: 1, name: Eurovision Azərbaycan, createdAt: '2026-08-24T20:00:00Z', tracks: [] }]
+                meta: { totalMs: 2, partial: false, calls: [{ service: music.popular, durationMs: 1, status: ok }, { service: music.playlists, durationMs: 1, status: ok }] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # SQL PLAYGROUND
+  # ==========================================================================
+  /api/v1/_db/schema:
+    get:
+      tags: [SQL Playground]
+      operationId: dbSchema
+      summary: DB sxemi — cədvəllər, view-lar, sütunlar, FK-lar
+      x-db-impact:
+        reads: [sqlite_master, pragma_table_info, pragma_foreign_key_list]
+        writes: []
+      responses:
+        '200':
+          description: Sxem
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DbSchema' }
+              example:
+                tables:
+                  - name: cards
+                    type: table
+                    rowCount: 7
+                    columns:
+                      - { name: id, type: INTEGER, notNull: false, primaryKey: true, hidden: false }
+                      - { name: status, type: TEXT, notNull: true, primaryKey: false, hidden: false }
+                    foreignKeys:
+                      - { column: account_id, refTable: accounts, refColumn: id }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/_db/query:
+    post:
+      tags: [SQL Playground]
+      operationId: dbQuery
+      summary: SQL sorğusu icra et (YALNIZ SELECT)
+      description: |
+        * Read-only DB bağlantısı; yalnız 1 SELECT (və ya `WITH ... SELECT`) ifadəsi.
+        * `INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/ATTACH/PRAGMA/...` → **422 SQL_NOT_ALLOWED**.
+        * Maksimum **200 sətir** (`truncated: true`), **2 saniyə** timeout → **422 SQL_TIMEOUT**.
+        * `password_hash`, `token_hash`, `key_hash`, `client_secret_hash` sütunları gizlidir.
+      x-db-impact:
+        reads: ['* (istənilən cədvəl/view, read-only)']
+        writes: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SqlQueryRequest' }
+            examples:
+              select: { summary: Kart tarixçəsi, value: { sql: 'SELECT * FROM card_status_history ORDER BY changed_at DESC' } }
+              drop: { summary: 'Bloklanır → 422', value: { sql: DROP TABLE cards } }
+      responses:
+        '200':
+          description: Nəticə
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SqlQueryResult' }
+              example:
+                columns: [id, card_id, old_status, new_status, reason, changed_by, changed_at]
+                rows: [{ id: 1, card_id: 3, old_status: ACTIVE, new_status: BLOCKED, reason: LOST, changed_by: 1, changed_at: '2026-10-01T20:00:00Z' }]
+                rowCount: 1
+                truncated: false
+                durationMs: 1
+                hiddenColumns: []
+        '400':
+          description: SQL sintaksis xətası
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 400, code: SQL_SYNTAX_ERROR, message: 'near "FORM": syntax error', details: [], traceId: req_7f2c9a }
+        '422':
+          description: İcazəsiz və ya çox uzun sürən sorğu
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                notAllowed: { summary: SELECT deyil, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SQL_NOT_ALLOWED, message: Yalnız SELECT sorğularına icazə verilir, details: [{ field: sql, message: 'Qadağan olunmuş açar söz: DROP' }], traceId: req_7f2c9a } }
+                timeout: { summary: 2 saniyədən çox, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SQL_TIMEOUT, message: Sorğu 2 saniyədən çox çəkdi, details: [], traceId: req_7f2c9a } }
+                hidden: { summary: Gizli sütun, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: SQL_NOT_ALLOWED, message: 'Bu sütun gizlidir: password_hash', details: [], traceId: req_7f2c9a } }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # ADMIN
+  # ==========================================================================
+  /api/v1/_reset:
+    post:
+      tags: [Admin]
+      operationId: adminReset
+      summary: DB-ni seed vəziyyətinə qaytar (yalnız ADMIN)
+      description: Bütün cədvəllər silinir, migration-lar və seed yenidən icra olunur. Dərsi dayandırmadan "hər şeyi sıfırla".
+      security:
+        - bearerAuth: []
+      x-required-scopes: [admin]
+      x-db-impact:
+        reads: []
+        writes: ['DROP + CREATE bütün cədvəllər', INSERT seed data]
+      responses:
+        '200':
+          description: DB sıfırlandı
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResetResponse' }
+              example: { message: DB seed vəziyyətinə qaytarıldı, resetAt: '2026-10-13T10:30:00Z', tables: { users: 3, cards: 7, customers: 25 } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/_history:
+    get:
+      tags: [Admin]
+      operationId: requestHistory
+      summary: Sorğu tarixçəsi (API Explorer "History")
+      description: Token varsa — həmin istifadəçinin sorğuları; yoxdursa — IP üzrə. ADMIN `all=true` ilə hamısını görür.
+      security:
+        - {}
+        - bearerAuth: []
+      x-db-impact:
+        reads: [request_log]
+        writes: []
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: all
+          in: query
+          description: Yalnız ADMIN üçün
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Sorğular (ən yenisi birinci)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequestLogList' }
+              example:
+                items:
+                  - { id: 120, requestId: req_7f2c9a, method: POST, path: /api/v1/cards/1/block, route: '/api/v1/cards/{cardId}/block', status: 200, durationMs: 4, createdAt: '2026-10-13T09:00:00Z' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ==========================================================================
+  # META
+  # ==========================================================================
+  /api/v1/health:
+    get:
+      tags: [Meta]
+      operationId: health
+      summary: Server və DB vəziyyəti
+      x-db-impact:
+        reads: ['SELECT 1']
+        writes: []
+      responses:
+        '200':
+          description: Hər şey qaydasındadır
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: ok, db: ok, version: 1.0.0, uptimeSec: 120 }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '503':
+          description: DB əlçatan deyil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 503, code: SERVICE_UNAVAILABLE, message: DB əlçatan deyil, details: [], traceId: req_7f2c9a }
+
+  /api/openapi.json:
+    get:
+      tags: [Meta]
+      operationId: getOpenApi
+      summary: Bu OpenAPI sənədi (JSON)
+      x-db-impact:
+        reads: []
+        writes: []
+      responses:
+        '200':
+          description: OpenAPI 3.0.3 sənədi
+          content:
+            application/json:
+              schema: { type: object }
+              example: { openapi: 3.0.3, info: { title: API Lab, version: 1.0.0 } }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /api/postman/collection.json:
+    get:
+      tags: [Meta]
+      operationId: getPostmanCollection
+      summary: Postman Collection v2.1 (OpenAPI-dən yaradılır)
+      description: Login sorğusunun test script-i `token` və `refreshToken` environment dəyişənlərini avtomatik təyin edir.
+      x-db-impact:
+        reads: []
+        writes: []
+      responses:
+        '200':
+          description: Postman collection
+          content:
+            application/json:
+              schema: { type: object }
+              example: { info: { name: API Lab, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' }, item: [] }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /api/postman/environment.json:
+    get:
+      tags: [Meta]
+      operationId: getPostmanEnvironment
+      summary: Postman environment (baseUrl, token, apiKey)
+      x-db-impact:
+        reads: []
+        writes: []
+      responses:
+        '200':
+          description: Postman environment
+          content:
+            application/json:
+              schema: { type: object }
+              example: { name: API Lab — Local, values: [{ key: baseUrl, value: 'http://localhost:3000', enabled: true }] }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+# ============================================================================
+# COMPONENTS
+# ============================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: '`POST /api/v1/auth/login` cavabındakı `access_token`. Başlıq: `Authorization: Bearer <token>`.'
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: 'Demo açar: `apilab-demo-key-2026`.'
+    basicAuth:
+      type: http
+      scheme: basic
+      description: '`Authorization: Basic base64(username:password)` — yalnız `/api/v1/auth/basic-demo`.'
+    googleOAuth:
+      type: oauth2
+      description: Mock "Google" Authorization Server (lokal). Client — `apilab-portal` / `apilab-portal-secret`.
+      flows:
+        authorizationCode:
+          authorizationUrl: http://localhost:3000/oauth/authorize
+          tokenUrl: http://localhost:3000/oauth/token
+          scopes:
+            openid: İstifadəçi identifikatoru
+            profile: Ad, şəkil
+            email: Email ünvanı
+            accounts:read: Hesabları oxumaq
+            cards:read: Kartları oxumaq
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: Səhifə nömrəsi (1-dən)
+      schema: { type: integer, minimum: 1, maximum: 10000, default: 1 }
+    Size:
+      name: size
+      in: query
+      description: Səhifə ölçüsü (maks. 100)
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      description: Hesab nömrəsi
+      schema: { $ref: '#/components/schemas/AccountId' }
+      example: AZ21NABZ0001
+    CardId:
+      name: cardId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 1
+    BookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 1
+    HotelId:
+      name: hotelId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 1
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 1
+    BookId:
+      name: bookId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 12
+    TrackId:
+      name: trackId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 1
+    PlaylistId:
+      name: playlistId
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+      example: 1
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: 'Unikal açar (8–64 simvol, məs. UUID). Eyni açarla təkrar sorğu → saxlanmış cavab (24 saat).'
+      schema: { $ref: '#/components/schemas/IdempotencyKey' }
+      example: 6f1c2d3e-block-card-1
+    IdempotencyKeyRequired:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 'MƏCBURİ. Unikal açar (8–64 simvol, məs. UUID). Şəbəkə xətasından sonra eyni açarla təkrar göndərmək təhlükəsizdir.'
+      schema:
+        allOf:
+          - { $ref: '#/components/schemas/IdempotencyKey' }
+        x-error-code: IDEMPOTENCY_KEY_REQUIRED
+      example: 9b2e7c1a-transfer-0001
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      description: Əvvəlki cavabın `ETag` dəyəri
+      schema: { type: string, maxLength: 100 }
+      example: '"c1-2026-04-06T09:13:00Z"'
+    OAuthResponseType:
+      name: response_type
+      in: query
+      required: true
+      schema: { type: string, enum: [code] }
+    OAuthClientId:
+      name: client_id
+      in: query
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 100 }
+      example: apilab-portal
+    OAuthRedirectUri:
+      name: redirect_uri
+      in: query
+      required: true
+      schema: { type: string, format: uri, maxLength: 500 }
+      example: http://localhost:5173/oauth/callback
+    OAuthScope:
+      name: scope
+      in: query
+      required: false
+      description: Boşluqla ayrılmış scope-lar
+      schema: { $ref: '#/components/schemas/ScopeString' }
+      example: openid profile email
+    OAuthState:
+      name: state
+      in: query
+      required: true
+      description: CSRF qoruması üçün client-in yaratdığı təsadüfi dəyər (min. 8 simvol)
+      schema: { type: string, minLength: 8, maxLength: 200 }
+      example: xyz-12345678
+
+  headers:
+    X-Request-Id:
+      description: Sorğunun unikal identifikatoru (xətada `traceId` ilə eyni)
+      schema: { type: string }
+      example: req_7f2c9a
+    X-RateLimit-Limit:
+      description: Dəqiqədə icazə verilən sorğu sayı
+      schema: { type: integer }
+      example: 60
+    X-RateLimit-Remaining:
+      description: Cari pəncərədə qalan sorğu sayı
+      schema: { type: integer }
+      example: 57
+    X-RateLimit-Reset:
+      description: Pəncərənin sıfırlanma vaxtı (Unix epoch saniyə)
+      schema: { type: integer }
+      example: 1792141260
+    Retry-After:
+      description: Neçə saniyədən sonra yenidən cəhd etmək olar
+      schema: { type: integer }
+      example: 42
+    Location:
+      description: Yaradılmış resursun URL-i
+      schema: { type: string }
+      example: /api/v1/customers/26
+    ETag:
+      description: Resurs versiyasının identifikatoru (dəyişəndə dəyişir)
+      schema: { type: string }
+      example: '"c1-2026-04-06T09:13:00Z"'
+    Idempotent-Replayed:
+      description: '`true` — cavab Idempotency-Key ilə saxlanmış nəticədən təkrar qaytarılıb, əməliyyat yenidən icra olunmayıb'
+      schema: { type: string, enum: ['true'] }
+    Deprecation:
+      description: Bu versiya köhnəlib (RFC 9745)
+      schema: { type: string }
+      example: '@1798761600'
+    Sunset:
+      description: Bu versiyanın söndürüləcəyi tarix (RFC 8594)
+      schema: { type: string }
+      example: Thu, 31 Dec 2026 23:59:59 GMT
+    LinkSuccessor:
+      description: Yeni versiyaya keçid
+      schema: { type: string }
+      example: '</api/v2/customers>; rel="successor-version"'
+    Allow:
+      description: Dəstəklənən HTTP metodları
+      schema: { type: string }
+      example: GET, POST, HEAD, OPTIONS
+
+  responses:
+    BadRequest:
+      description: Sorğu sintaktik olaraq səhvdir (məs. JSON parse olunmur)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 400, code: MALFORMED_JSON, message: Request body düzgün JSON deyil, details: [{ field: body, message: 'Unexpected token } in JSON at position 27' }], traceId: req_7f2c9a }
+    Unauthorized:
+      description: Token yoxdur, etibarsızdır və ya vaxtı keçib
+      headers:
+        WWW-Authenticate:
+          schema: { type: string }
+          example: Bearer realm="API Lab"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            missing: { summary: Token yoxdur, value: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: UNAUTHORIZED, message: Authorization başlığı yoxdur, details: [], traceId: req_7f2c9a } }
+            expired: { summary: Token-in vaxtı keçib, value: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: TOKEN_EXPIRED, message: Access token-in vaxtı keçib — /auth/refresh istifadə edin, details: [], traceId: req_7f2c9a } }
+            invalid: { summary: İmza səhvdir, value: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: INVALID_TOKEN, message: Token etibarsızdır, details: [], traceId: req_7f2c9a } }
+    UnauthorizedApiKey:
+      description: X-API-Key yoxdur və ya etibarsızdır
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            missing: { summary: Açar yoxdur, value: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: UNAUTHORIZED, message: X-API-Key başlığı yoxdur, details: [], traceId: req_7f2c9a } }
+            invalid: { summary: Açar səhvdir / deaktivdir, value: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: INVALID_API_KEY, message: API key etibarsızdır və ya deaktiv edilib, details: [], traceId: req_7f2c9a } }
+    Forbidden:
+      description: Autentifikasiya var, amma icazə yoxdur (scope və ya rol)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            scope: { summary: Scope çatışmır, value: { timestamp: '2026-10-13T09:00:00Z', status: 403, code: INSUFFICIENT_SCOPE, message: 'Bu əməliyyat üçün scope lazımdır: bookings:write', details: [{ field: scope, message: 'Tələb olunur: bookings:write' }], traceId: req_7f2c9a } }
+            role: { summary: ADMIN deyil, value: { timestamp: '2026-10-13T09:00:00Z', status: 403, code: FORBIDDEN, message: Bu əməliyyat yalnız ADMIN üçündür, details: [], traceId: req_7f2c9a } }
+    ForbiddenBola:
+      description: Başqasının resursu (BOLA qorunması) və ya scope çatışmır
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            bola: { summary: Başqasının resursu, value: { timestamp: '2026-10-13T09:00:00Z', status: 403, code: FORBIDDEN, message: Bu resursa giriş icazəniz yoxdur, details: [], traceId: req_7f2c9a } }
+            scope: { summary: Scope çatışmır, value: { timestamp: '2026-10-13T09:00:00Z', status: 403, code: INSUFFICIENT_SCOPE, message: Bu əməliyyat üçün əlavə scope lazımdır, details: [], traceId: req_7f2c9a } }
+    ValidationError:
+      description: Sorğu OpenAPI sxeminə uyğun deyil (bilinməyən sahə, səhv tip, enum, pattern, min/max, required)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            required: { summary: Məcburi sahə yoxdur, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: VALIDATION_ERROR, message: Sorğu sxemə uyğun deyil, details: [{ field: /email, message: must have required property 'email' }], traceId: req_7f2c9a } }
+            unknownField: { summary: Bilinməyən sahə, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: VALIDATION_ERROR, message: Sorğu sxemə uyğun deyil, details: [{ field: /age, message: must NOT have additional properties }], traceId: req_7f2c9a } }
+            type: { summary: Səhv tip, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: VALIDATION_ERROR, message: Sorğu sxemə uyğun deyil, details: [{ field: query page, message: must be integer }], traceId: req_7f2c9a } }
+    UnsupportedMediaType:
+      description: Content-Type dəstəklənmir (məs. JSON əvəzinə text/plain)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 415, code: UNSUPPORTED_MEDIA_TYPE, message: 'Content-Type application/json olmalıdır', details: [{ field: Content-Type, message: 'Alındı: text/plain' }], traceId: req_7f2c9a }
+    NotAcceptable:
+      description: Accept başlığındakı format dəstəklənmir (yalnız application/json və application/xml)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 406, code: NOT_ACCEPTABLE, message: 'Dəstəklənən formatlar: application/json, application/xml', details: [], traceId: req_7f2c9a }
+    TooManyRequests:
+      description: Rate limit keçildi (60 sorğu/dəqiqə)
+      headers:
+        Retry-After: { $ref: '#/components/headers/Retry-After' }
+        X-RateLimit-Limit: { $ref: '#/components/headers/X-RateLimit-Limit' }
+        X-RateLimit-Remaining: { $ref: '#/components/headers/X-RateLimit-Remaining' }
+        X-RateLimit-Reset: { $ref: '#/components/headers/X-RateLimit-Reset' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 429, code: RATE_LIMIT_EXCEEDED, message: Çox sayda sorğu — 42 saniyə sonra yenidən cəhd edin, details: [], traceId: req_7f2c9a }
+    InternalError:
+      description: Gözlənilməz server xətası (stack trace qaytarılmır; `X-Simulate` ilə də yaradıla bilər)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            internal: { summary: Server xətası, value: { timestamp: '2026-10-13T09:00:00Z', status: 500, code: INTERNAL_ERROR, message: Gözlənilməz xəta baş verdi. traceId ilə dəstəyə müraciət edin, details: [], traceId: req_7f2c9a } }
+            simulated: { summary: 'X-Simulate: 500', value: { timestamp: '2026-10-13T09:00:00Z', status: 500, code: SIMULATED_ERROR, message: 'X-Simulate: 500 ilə yaradılmış test xətası', details: [], traceId: req_7f2c9a } }
+    CardNotFound:
+      description: Kart tapılmadı
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: CARD_NOT_FOUND, message: Kart tapılmadı, details: [], traceId: req_7f2c9a }
+    RateNotFound:
+      description: Bu tarix/valyuta üçün məzənnə yoxdur
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: RATE_NOT_FOUND, message: Bu tarix üçün məzənnə tapılmadı, details: [], traceId: req_7f2c9a }
+    FlightNotFound:
+      description: Reys tapılmadı
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: FLIGHT_NOT_FOUND, message: Reys tapılmadı, details: [], traceId: req_7f2c9a }
+    BookingNotFound:
+      description: Bron tapılmadı
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: BOOKING_NOT_FOUND, message: Bron tapılmadı, details: [], traceId: req_7f2c9a }
+    BookingAlreadyCancelled:
+      description: Bron artıq ləğv edilib
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: BOOKING_ALREADY_CANCELLED, message: Bron artıq ləğv edilib, details: [], traceId: req_7f2c9a }
+    HotelNotFound:
+      description: Otel tapılmadı
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: HOTEL_NOT_FOUND, message: Otel tapılmadı, details: [], traceId: req_7f2c9a }
+    RoomNotAvailable:
+      description: Otaq bu tarixlərdə doludur (tarix kəsişməsi)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: ROOM_NOT_AVAILABLE, message: Otaq seçilmiş tarixlərdə doludur, details: [{ field: checkIn, message: 'Kəsişən bron: #1 (2026-10-18 – 2026-10-21)' }], traceId: req_7f2c9a }
+    HotelBookingInvalid:
+      description: Tarix aralığı, tutum və ya validation xətası
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            dateRange: { summary: checkOut ≤ checkIn və ya keçmiş tarix, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: INVALID_DATE_RANGE, message: checkIn bu gündən sonra və checkOut checkIn-dən sonra olmalıdır, details: [], traceId: req_7f2c9a } }
+            capacity: { summary: Qonaq sayı otaq tutumundan çoxdur, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: ROOM_CAPACITY_EXCEEDED, message: 'Otaq tutumu: 1, qonaq: 2', details: [], traceId: req_7f2c9a } }
+            validation: { summary: Bilinməyən sahə, value: { timestamp: '2026-10-13T09:00:00Z', status: 422, code: VALIDATION_ERROR, message: Sorğu sxemə uyğun deyil, details: [{ field: /breakfast, message: must NOT have additional properties }], traceId: req_7f2c9a } }
+    CustomerNotFound:
+      description: Müştəri tapılmadı
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: CUSTOMER_NOT_FOUND, message: Müştəri tapılmadı, details: [], traceId: req_7f2c9a }
+    EmailExists:
+      description: Bu email artıq istifadə olunur (UNIQUE constraint)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: EMAIL_EXISTS, message: Bu email artıq qeydiyyatdadır, details: [{ field: email, message: nigar.aliyeva@example.az }], traceId: req_7f2c9a }
+    BookNotFound:
+      description: Kitab tapılmadı
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: BOOK_NOT_FOUND, message: Kitab tapılmadı, details: [], traceId: req_7f2c9a }
+    TrackNotFound:
+      description: Trek tapılmadı
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: TRACK_NOT_FOUND, message: Trek tapılmadı, details: [], traceId: req_7f2c9a }
+    PlaylistNotFound:
+      description: Playlist tapılmadı
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: PLAYLIST_NOT_FOUND, message: Playlist tapılmadı, details: [], traceId: req_7f2c9a }
+
+  schemas:
+    # ---------------------------------------------------------------- common
+    Error:
+      type: object
+      description: Vahid xəta formatı — bütün 4xx/5xx cavablar (OAuth token endpoint istisnadır).
+      required: [timestamp, status, code, message, details, traceId]
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        code: { $ref: '#/components/schemas/ErrorCode' }
+        message: { type: string, description: İnsan üçün izah (Azərbaycan dilində) }
+        details:
+          type: array
+          items: { $ref: '#/components/schemas/ErrorDetail' }
+        traceId: { type: string, description: '`X-Request-Id` ilə eynidir — loglarda axtarış üçün' }
+    ErrorDetail:
+      type: object
+      required: [field, message]
+      properties:
+        field: { type: string, description: 'JSON Pointer (`/email`), `query <ad>`, `header <ad>` və ya sahə adı' }
+        message: { type: string }
+    ErrorCode:
+      type: string
+      description: Maşın üçün sabit xəta kodu. Client məntiqi `message`-ə yox, `code`-a əsaslanmalıdır.
+      enum:
+        # 400
+        - BAD_REQUEST
+        - MALFORMED_JSON
+        - INVALID_REDIRECT_URI
+        - SQL_SYNTAX_ERROR
+        # 401
+        - UNAUTHORIZED
+        - INVALID_CREDENTIALS
+        - INVALID_TOKEN
+        - TOKEN_EXPIRED
+        - INVALID_REFRESH_TOKEN
+        - INVALID_API_KEY
+        # 403
+        - FORBIDDEN
+        - INSUFFICIENT_SCOPE
+        # 404
+        - NOT_FOUND
+        - ROUTE_NOT_FOUND
+        - USER_NOT_FOUND
+        - ACCOUNT_NOT_FOUND
+        - CARD_NOT_FOUND
+        - TRANSFER_NOT_FOUND
+        - RATE_NOT_FOUND
+        - FLIGHT_NOT_FOUND
+        - BOOKING_NOT_FOUND
+        - HOTEL_NOT_FOUND
+        - ROOM_NOT_FOUND
+        - CUSTOMER_NOT_FOUND
+        - BOOK_NOT_FOUND
+        - TRACK_NOT_FOUND
+        - PLAYLIST_NOT_FOUND
+        - TRACK_NOT_IN_PLAYLIST
+        # 405 / 406 / 415
+        - METHOD_NOT_ALLOWED
+        - NOT_ACCEPTABLE
+        - UNSUPPORTED_MEDIA_TYPE
+        # 409
+        - CONFLICT
+        - CARD_ALREADY_BLOCKED
+        - CARD_NOT_BLOCKED
+        - CARD_EXPIRED
+        - SOLD_OUT
+        - BOOKING_ALREADY_CANCELLED
+        - ROOM_NOT_AVAILABLE
+        - EMAIL_EXISTS
+        - REVIEW_EXISTS
+        - TRACK_ALREADY_IN_PLAYLIST
+        # 422
+        - VALIDATION_ERROR
+        - INVALID_REASON
+        - CARD_PERMANENTLY_BLOCKED
+        - INSUFFICIENT_FUNDS
+        - CURRENCY_MISMATCH
+        - SAME_ACCOUNT
+        - IDEMPOTENCY_KEY_REQUIRED
+        - IDEMPOTENCY_KEY_REUSED
+        - INVALID_DATE_RANGE
+        - ROOM_CAPACITY_EXCEEDED
+        - INVALID_CURSOR
+        - SQL_NOT_ALLOWED
+        - SQL_TIMEOUT
+        # 429
+        - RATE_LIMIT_EXCEEDED
+        # 5xx
+        - INTERNAL_ERROR
+        - SIMULATED_ERROR
+        - BAD_GATEWAY
+        - SERVICE_UNAVAILABLE
+        - GATEWAY_TIMEOUT
+    OAuthError:
+      type: object
+      description: RFC 6749 §5.2 xəta formatı (yalnız `POST /oauth/token`)
+      required: [error]
+      properties:
+        error: { type: string, enum: [invalid_request, invalid_client, invalid_grant, unauthorized_client, unsupported_grant_type, invalid_scope] }
+        error_description: { type: string }
+    Money:
+      type: number
+      description: 'Pul məbləği (decimal, maks. 2 onluq). DB-də minor units (qəpik) INTEGER kimi saxlanılır: 125.50 ↔ 12550.'
+      example: 125.50
+    MoneyInput:
+      type: number
+      description: Request-də pul məbləği — müsbət, maksimum 2 onluq rəqəm.
+      minimum: 0.01
+      maximum: 1000000
+      multipleOf: 0.01
+      example: 25.00
+    CurrencyCode:
+      type: string
+      description: ISO 4217 valyuta kodu
+      enum: [AZN, USD, EUR, TRY, GBP, GEL, AED]
+      example: AZN
+    AirportCode:
+      type: string
+      description: IATA hava limanı kodu
+      pattern: '^[A-Z]{3}$'
+      example: GYD
+    AccountId:
+      type: string
+      pattern: '^AZ[0-9]{2}[A-Z]{4}[0-9]{4}$'
+      example: AZ21NABZ0001
+    IdempotencyKey:
+      type: string
+      minLength: 8
+      maxLength: 64
+      pattern: '^[A-Za-z0-9_-]+$'
+    ScopeString:
+      type: string
+      maxLength: 300
+      pattern: '^[a-z:_]+( [a-z:_]+)*$'
+    PageMeta:
+      type: object
+      required: [page, size, total, totalPages]
+      properties:
+        page: { type: integer, minimum: 1 }
+        size: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+
+    # ---------------------------------------------------------------- auth
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 50, pattern: '^[a-zA-Z0-9_.-]+$' }
+        password: { type: string, minLength: 6, maxLength: 100, format: password }
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string, minLength: 10, maxLength: 200 }
+    TokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in, refresh_token, scope]
+      properties:
+        access_token: { type: string, description: JWT (HS256) }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, description: Saniyə (900 = 15 dəqiqə) }
+        refresh_token: { type: string }
+        scope: { type: string, description: Boşluqla ayrılmış scope-lar }
+    User:
+      type: object
+      required: [id, username, fullName, email, role, scopes]
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        fullName: { type: string }
+        email: { type: string, format: email }
+        role: { type: string, enum: [USER, ADMIN] }
+        scopes: { type: array, items: { type: string } }
+    BasicDemoResponse:
+      type: object
+      required: [authScheme, username, message]
+      properties:
+        authScheme: { type: string, enum: [Basic] }
+        username: { type: string }
+        message: { type: string }
+        decodedHeader: { type: string, description: Decode olunmuş başlıq (parol maskalanıb) }
+    OAuthConsentForm:
+      type: object
+      additionalProperties: false
+      required: [client_id, redirect_uri, state, username, decision]
+      properties:
+        client_id: { type: string, minLength: 1, maxLength: 100 }
+        redirect_uri: { type: string, format: uri, maxLength: 500 }
+        scope: { $ref: '#/components/schemas/ScopeString' }
+        state: { type: string, minLength: 8, maxLength: 200 }
+        username: { type: string, minLength: 3, maxLength: 50, pattern: '^[a-zA-Z0-9_.-]+$' }
+        decision: { type: string, enum: [allow, deny] }
+    OAuthTokenForm:
+      type: object
+      additionalProperties: false
+      required: [grant_type, code, redirect_uri]
+      properties:
+        grant_type: { type: string, enum: [authorization_code] }
+        code: { type: string, minLength: 1, maxLength: 200 }
+        redirect_uri: { type: string, format: uri, maxLength: 500 }
+        client_id: { type: string, maxLength: 100, description: Basic Auth istifadə olunmursa məcburidir }
+        client_secret: { type: string, maxLength: 200, description: Basic Auth istifadə olunmursa məcburidir }
+    OAuthTokenResponse:
+      type: object
+      required: [access_token, token_type, expires_in, scope]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer }
+        scope: { type: string }
+    UserInfo:
+      type: object
+      required: [sub, name, email]
+      properties:
+        sub: { type: string }
+        name: { type: string }
+        preferred_username: { type: string }
+        email: { type: string, format: email }
+        email_verified: { type: boolean }
+        picture: { type: string, format: uri }
+
+    # ---------------------------------------------------------------- bank
+    Account:
+      type: object
+      required: [id, type, currency, balance, openedAt]
+      properties:
+        id: { $ref: '#/components/schemas/AccountId' }
+        type: { type: string, enum: [CURRENT, SAVINGS] }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        balance: { $ref: '#/components/schemas/Money' }
+        openedAt: { type: string, format: date-time }
+    AccountList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Account' } }
+    Transaction:
+      type: object
+      required: [id, accountId, type, amount, currency, description, transferId, createdAt]
+      properties:
+        id: { type: integer }
+        accountId: { $ref: '#/components/schemas/AccountId' }
+        type: { type: string, enum: [DEBIT, CREDIT] }
+        amount: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        description: { type: string }
+        transferId: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+    TransactionPage:
+      allOf:
+        - { $ref: '#/components/schemas/PageMeta' }
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Transaction' } }
+    Card:
+      type: object
+      required: [id, accountId, maskedNumber, last4, brand, status, statusReason, dailyLimit, currency, expiresAt]
+      properties:
+        id: { type: integer }
+        accountId: { $ref: '#/components/schemas/AccountId' }
+        maskedNumber: { type: string, example: '**** **** **** 4169' }
+        last4: { type: string, pattern: '^[0-9]{4}$' }
+        brand: { type: string, enum: [VISA, MASTERCARD] }
+        status: { type: string, enum: [ACTIVE, BLOCKED, EXPIRED] }
+        statusReason: { type: string, nullable: true, enum: [LOST, STOLEN, SUSPECTED_FRAUD, null] }
+        dailyLimit: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        expiresAt: { type: string, format: date }
+    CardList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Card' } }
+    CardStatusHistoryEntry:
+      type: object
+      required: [oldStatus, newStatus, reason, changedBy, changedAt]
+      properties:
+        oldStatus: { type: string }
+        newStatus: { type: string }
+        reason: { type: string, nullable: true }
+        changedBy: { type: string, nullable: true, description: 'username; null — sistem' }
+        changedAt: { type: string, format: date-time }
+    CardDetail:
+      allOf:
+        - { $ref: '#/components/schemas/Card' }
+        - type: object
+          required: [statusHistory]
+          properties:
+            statusHistory: { type: array, items: { $ref: '#/components/schemas/CardStatusHistoryEntry' } }
+    BlockCardRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: '`STOLEN` — daimi blok (unblock mümkün deyil)'
+          enum: [LOST, STOLEN, SUSPECTED_FRAUD]
+          x-error-code: INVALID_REASON
+        comment: { type: string, maxLength: 500 }
+    UnblockCardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        comment: { type: string, maxLength: 500 }
+    CardStatusChangeResponse:
+      type: object
+      required: [cardId, previousStatus, status, reason, changedAt, message]
+      properties:
+        cardId: { type: integer }
+        previousStatus: { type: string, enum: [ACTIVE, BLOCKED, EXPIRED] }
+        status: { type: string, enum: [ACTIVE, BLOCKED, EXPIRED] }
+        reason: { type: string, nullable: true }
+        comment: { type: string, nullable: true }
+        changedAt: { type: string, format: date-time }
+        message: { type: string }
+    TransferRequest:
+      type: object
+      additionalProperties: false
+      required: [fromAccountId, toAccountId, amount, currency]
+      properties:
+        fromAccountId: { $ref: '#/components/schemas/AccountId' }
+        toAccountId: { $ref: '#/components/schemas/AccountId' }
+        amount: { $ref: '#/components/schemas/MoneyInput' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+    Transfer:
+      type: object
+      required: [id, fromAccountId, toAccountId, amount, currency, status, createdAt]
+      properties:
+        id: { type: integer }
+        fromAccountId: { $ref: '#/components/schemas/AccountId' }
+        toAccountId: { $ref: '#/components/schemas/AccountId' }
+        amount: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        status: { type: string, enum: [PENDING, COMPLETED, FAILED] }
+        createdAt: { type: string, format: date-time }
+
+    # ---------------------------------------------------------------- currencies
+    Currency:
+      type: object
+      required: [code, name, symbol]
+      properties:
+        code: { $ref: '#/components/schemas/CurrencyCode' }
+        name: { type: string }
+        symbol: { type: string }
+    CurrencyList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Currency' } }
+    RatesResponse:
+      type: object
+      required: [base, date, rates]
+      properties:
+        base: { $ref: '#/components/schemas/CurrencyCode' }
+        date: { type: string, format: date }
+        rates:
+          type: object
+          description: '1 base = X quote'
+          additionalProperties: { type: number }
+    ConvertResponse:
+      type: object
+      required: [from, to, amount, rate, result, date]
+      properties:
+        from: { $ref: '#/components/schemas/CurrencyCode' }
+        to: { $ref: '#/components/schemas/CurrencyCode' }
+        amount: { $ref: '#/components/schemas/Money' }
+        rate: { type: number }
+        result: { $ref: '#/components/schemas/Money' }
+        date: { type: string, format: date }
+    RateHistoryResponse:
+      type: object
+      required: [from, to, days, points]
+      properties:
+        from: { $ref: '#/components/schemas/CurrencyCode' }
+        to: { $ref: '#/components/schemas/CurrencyCode' }
+        days: { type: integer }
+        points:
+          type: array
+          items:
+            type: object
+            required: [date, rate]
+            properties:
+              date: { type: string, format: date }
+              rate: { type: number }
+
+    # ---------------------------------------------------------------- flights
+    Airport:
+      type: object
+      required: [code, city, country, name]
+      properties:
+        code: { $ref: '#/components/schemas/AirportCode' }
+        city: { type: string }
+        country: { type: string }
+        name: { type: string }
+    AirportList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Airport' } }
+    Flight:
+      type: object
+      required: [id, flightNo, airline, from, to, departAt, arriveAt, durationMin, stops, price, currency, seatsLeft]
+      properties:
+        id: { type: integer }
+        flightNo: { type: string }
+        airline:
+          type: object
+          required: [code, name]
+          properties:
+            code: { type: string }
+            name: { type: string }
+        from: { $ref: '#/components/schemas/FlightPoint' }
+        to: { $ref: '#/components/schemas/FlightPoint' }
+        departAt: { type: string, format: date-time }
+        arriveAt: { type: string, format: date-time }
+        durationMin: { type: integer }
+        stops: { type: integer }
+        price: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        seatsLeft: { type: integer, minimum: 0 }
+    FlightPoint:
+      type: object
+      required: [code, city]
+      properties:
+        code: { $ref: '#/components/schemas/AirportCode' }
+        city: { type: string }
+    FlightPage:
+      allOf:
+        - { $ref: '#/components/schemas/PageMeta' }
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Flight' } }
+    PassengerInput:
+      type: object
+      additionalProperties: false
+      required: [firstName, lastName]
+      properties:
+        firstName: { type: string, minLength: 1, maxLength: 50 }
+        lastName: { type: string, minLength: 1, maxLength: 50 }
+        passportNo:
+          type: string
+          description: Serverdə maskalanır (`C****4821`), açıq halda saxlanmır
+          pattern: '^[A-Z]{1,2}[0-9]{6,8}$'
+    Passenger:
+      type: object
+      required: [firstName, lastName, passportNoMasked]
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        passportNoMasked: { type: string, nullable: true }
+    FlightBookingRequest:
+      type: object
+      additionalProperties: false
+      required: [flightId, passengers]
+      properties:
+        flightId: { type: integer, minimum: 1 }
+        passengers:
+          type: array
+          minItems: 1
+          maxItems: 9
+          items: { $ref: '#/components/schemas/PassengerInput' }
+    FlightBooking:
+      type: object
+      required: [id, flightId, flightNo, route, departAt, status, passengers, total, currency, createdAt]
+      properties:
+        id: { type: integer }
+        flightId: { type: integer }
+        flightNo: { type: string }
+        route: { type: string }
+        departAt: { type: string, format: date-time }
+        status: { type: string, enum: [CONFIRMED, CANCELLED] }
+        passengers: { type: array, items: { $ref: '#/components/schemas/Passenger' } }
+        total: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        createdAt: { type: string, format: date-time }
+    FlightBookingList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/FlightBooking' } }
+
+    # ---------------------------------------------------------------- hotels
+    HotelSummary:
+      type: object
+      required: [id, name, city, stars, rating, pricePerNightFrom, currency, amenities]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        city: { type: string }
+        stars: { type: integer, minimum: 1, maximum: 5 }
+        rating: { type: number }
+        pricePerNightFrom: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        amenities: { type: array, items: { type: string } }
+        availableRooms: { type: integer, description: 'Yalnız checkIn/checkOut verildikdə' }
+    HotelPage:
+      allOf:
+        - { $ref: '#/components/schemas/PageMeta' }
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/HotelSummary' } }
+    HotelDetail:
+      allOf:
+        - { $ref: '#/components/schemas/HotelSummary' }
+        - type: object
+          required: [description, roomCount]
+          properties:
+            description: { type: string }
+            roomCount: { type: integer }
+    Room:
+      type: object
+      required: [id, hotelId, roomType, capacity, pricePerNight, currency]
+      properties:
+        id: { type: integer }
+        hotelId: { type: integer }
+        roomType: { type: string, enum: [SINGLE, DOUBLE, SUITE, FAMILY] }
+        capacity: { type: integer }
+        pricePerNight: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        available: { type: boolean, description: 'Yalnız checkIn/checkOut verildikdə' }
+    RoomList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Room' } }
+    HotelBookingRequest:
+      type: object
+      additionalProperties: false
+      required: [roomId, checkIn, checkOut, guests]
+      properties:
+        roomId: { type: integer, minimum: 1 }
+        checkIn: { type: string, format: date }
+        checkOut: { type: string, format: date }
+        guests: { type: integer, minimum: 1, maximum: 6 }
+    HotelBookingPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        checkIn: { type: string, format: date }
+        checkOut: { type: string, format: date }
+        guests: { type: integer, minimum: 1, maximum: 6 }
+    HotelBooking:
+      type: object
+      required: [id, roomId, hotelId, hotelName, roomType, checkIn, checkOut, nights, guests, status, total, currency, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        roomId: { type: integer }
+        hotelId: { type: integer }
+        hotelName: { type: string }
+        roomType: { type: string, enum: [SINGLE, DOUBLE, SUITE, FAMILY] }
+        checkIn: { type: string, format: date }
+        checkOut: { type: string, format: date }
+        nights: { type: integer }
+        guests: { type: integer }
+        status: { type: string, enum: [CONFIRMED, CANCELLED] }
+        total: { $ref: '#/components/schemas/Money' }
+        currency: { $ref: '#/components/schemas/CurrencyCode' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    HotelBookingList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/HotelBooking' } }
+
+    # ---------------------------------------------------------------- customers
+    PersonName:
+      type: string
+      minLength: 1
+      maxLength: 50
+      pattern: "^[A-Za-zÀ-ÖØ-öø-ÿĞğİıŞşƏə][A-Za-zÀ-ÖØ-öø-ÿĞğİıŞşƏə '.-]*$"
+    Phone:
+      type: string
+      description: Azərbaycan mobil nömrəsi, E.164 formatında
+      pattern: '^\+994(10|50|51|55|60|70|77|99)[0-9]{7}$'
+      example: '+994501234567'
+    Customer:
+      type: object
+      xml: { name: customer }
+      required: [id, firstName, lastName, email, phone, city, active, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        firstName: { type: string }
+        lastName: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CustomerCreate:
+      type: object
+      additionalProperties: false
+      required: [firstName, lastName, email]
+      properties:
+        firstName: { $ref: '#/components/schemas/PersonName' }
+        lastName: { $ref: '#/components/schemas/PersonName' }
+        email: { type: string, format: email, maxLength: 100 }
+        phone: { $ref: '#/components/schemas/Phone' }
+        city: { type: string, minLength: 1, maxLength: 50 }
+        active: { type: boolean, default: true }
+    CustomerReplace:
+      type: object
+      additionalProperties: false
+      description: PUT — bütün sahələr məcburidir (resurs tam əvəz olunur)
+      required: [firstName, lastName, email, phone, city, active]
+      properties:
+        firstName: { $ref: '#/components/schemas/PersonName' }
+        lastName: { $ref: '#/components/schemas/PersonName' }
+        email: { type: string, format: email, maxLength: 100 }
+        phone: { $ref: '#/components/schemas/Phone' }
+        city: { type: string, minLength: 1, maxLength: 50 }
+        active: { type: boolean }
+    CustomerPatch:
+      type: object
+      additionalProperties: false
+      description: PATCH — ən azı 1 sahə
+      minProperties: 1
+      properties:
+        firstName: { $ref: '#/components/schemas/PersonName' }
+        lastName: { $ref: '#/components/schemas/PersonName' }
+        email: { type: string, format: email, maxLength: 100 }
+        phone: { $ref: '#/components/schemas/Phone' }
+        city: { type: string, minLength: 1, maxLength: 50 }
+        active: { type: boolean }
+    CustomerPage:
+      xml: { name: customerPage }
+      allOf:
+        - { $ref: '#/components/schemas/PageMeta' }
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              xml: { wrapped: true }
+              items: { $ref: '#/components/schemas/Customer' }
+    CustomerV2:
+      type: object
+      required: [id, fullName, email, phone, city, active, createdAt, updatedAt]
+      properties:
+        id: { type: integer }
+        fullName: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string, nullable: true }
+        city: { type: string, nullable: true }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CustomerV2Page:
+      allOf:
+        - { $ref: '#/components/schemas/PageMeta' }
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/CustomerV2' } }
+
+    # ---------------------------------------------------------------- books
+    Book:
+      type: object
+      required: [id, title, author, genre, year, description, rating, pages]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        author: { type: string }
+        genre: { type: string }
+        year: { type: integer, nullable: true }
+        description: { type: string }
+        rating: { type: number }
+        pages: { type: integer }
+    BookPage:
+      allOf:
+        - { $ref: '#/components/schemas/PageMeta' }
+        - type: object
+          required: [items]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Book' } }
+    BookCursorPage:
+      type: object
+      required: [items, limit, nextCursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Book' } }
+        limit: { type: integer }
+        nextCursor: { type: string, nullable: true, description: 'null — son səhifə' }
+    Review:
+      type: object
+      required: [id, bookId, author, rating, comment, createdAt]
+      properties:
+        id: { type: integer }
+        bookId: { type: integer }
+        author: { type: string, description: Rəy yazanın username-i }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+    ReviewList:
+      type: object
+      required: [items, averageRating]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Review' } }
+        averageRating: { type: number, nullable: true }
+    ReviewCreate:
+      type: object
+      additionalProperties: false
+      required: [rating]
+      properties:
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: string, minLength: 1, maxLength: 1000 }
+
+    # ---------------------------------------------------------------- music
+    Track:
+      type: object
+      required: [id, youtubeId, title, artist, genre, durationSec, thumbnailUrl]
+      properties:
+        id: { type: integer }
+        youtubeId: { type: string, pattern: '^[A-Za-z0-9_-]{11}$' }
+        title: { type: string }
+        artist: { type: string }
+        genre: { type: string }
+        durationSec: { type: integer }
+        thumbnailUrl: { type: string, format: uri }
+    TrackPage:
+      allOf:
+        - { $ref: '#/components/schemas/PageMeta' }
+        - type: object
+          required: [items, source]
+          properties:
+            items: { type: array, items: { $ref: '#/components/schemas/Track' } }
+            source: { type: string, enum: [db, youtube] }
+    PopularTrack:
+      allOf:
+        - { $ref: '#/components/schemas/Track' }
+        - type: object
+          required: [playCount]
+          properties:
+            playCount: { type: integer }
+    PlayResponse:
+      type: object
+      required: [trackId, youtubeId, embedUrl, startedAt]
+      properties:
+        trackId: { type: integer }
+        youtubeId: { type: string }
+        embedUrl: { type: string, format: uri }
+        startedAt: { type: string, format: date-time }
+    Playlist:
+      type: object
+      required: [id, name, createdAt, tracks]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        createdAt: { type: string, format: date-time }
+        tracks:
+          type: array
+          items:
+            type: object
+            required: [position, track]
+            properties:
+              position: { type: integer }
+              track: { $ref: '#/components/schemas/Track' }
+    PlaylistList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Playlist' } }
+    PlaylistCreate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+    PlaylistAddTrack:
+      type: object
+      additionalProperties: false
+      required: [trackId]
+      properties:
+        trackId: { type: integer, minimum: 1 }
+        position: { type: integer, minimum: 1, maximum: 1000 }
+
+    # ---------------------------------------------------------------- bff
+    BffCall:
+      type: object
+      required: [service, durationMs, status]
+      properties:
+        service: { type: string, description: Daxili service funksiyası }
+        durationMs: { type: number }
+        status: { type: string, enum: [ok, error] }
+    BffMeta:
+      type: object
+      required: [calls, totalMs, partial]
+      properties:
+        calls: { type: array, items: { $ref: '#/components/schemas/BffCall' } }
+        totalMs: { type: number, description: 'Paralel çağırışlarda totalMs < calls cəmi' }
+        partial: { type: boolean, description: 'true — ən azı bir bölmə xəta verib (207)' }
+    BffSectionError:
+      type: object
+      required: [error]
+      properties:
+        error: { $ref: '#/components/schemas/Error' }
+    BffDashboard:
+      type: object
+      required: [user, accounts, cards, recentTransactions, rates, meta]
+      properties:
+        user:
+          type: object
+          required: [id, username, fullName]
+          properties:
+            id: { type: integer }
+            username: { type: string }
+            fullName: { type: string }
+        accounts: { type: array, items: { $ref: '#/components/schemas/Account' } }
+        cards: { type: array, items: { $ref: '#/components/schemas/Card' } }
+        recentTransactions: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/Transaction' } }
+        rates: { $ref: '#/components/schemas/RatesResponse' }
+        meta: { $ref: '#/components/schemas/BffMeta' }
+    BffTravel:
+      type: object
+      required: [flights, hotels, meta]
+      properties:
+        flights:
+          oneOf:
+            - type: object
+              required: [items, total]
+              properties:
+                items: { type: array, items: { $ref: '#/components/schemas/Flight' } }
+                total: { type: integer }
+            - { $ref: '#/components/schemas/BffSectionError' }
+        hotels:
+          oneOf:
+            - type: object
+              required: [items, total]
+              properties:
+                items: { type: array, items: { $ref: '#/components/schemas/HotelSummary' } }
+                total: { type: integer }
+            - { $ref: '#/components/schemas/BffSectionError' }
+        meta: { $ref: '#/components/schemas/BffMeta' }
+    BffMusicHome:
+      type: object
+      required: [popular, playlists, meta]
+      properties:
+        popular: { type: array, items: { $ref: '#/components/schemas/PopularTrack' } }
+        playlists: { type: array, items: { $ref: '#/components/schemas/Playlist' } }
+        meta: { $ref: '#/components/schemas/BffMeta' }
+
+    # ---------------------------------------------------------------- sql playground
+    DbSchema:
+      type: object
+      required: [tables]
+      properties:
+        tables:
+          type: array
+          items:
+            type: object
+            required: [name, type, columns, foreignKeys]
+            properties:
+              name: { type: string }
+              type: { type: string, enum: [table, view] }
+              rowCount: { type: integer, nullable: true }
+              columns:
+                type: array
+                items:
+                  type: object
+                  required: [name, type, notNull, primaryKey, hidden]
+                  properties:
+                    name: { type: string }
+                    type: { type: string }
+                    notNull: { type: boolean }
+                    primaryKey: { type: boolean }
+                    hidden: { type: boolean, description: 'true — Playground-da gizlidir (hash sütunları)' }
+              foreignKeys:
+                type: array
+                items:
+                  type: object
+                  required: [column, refTable, refColumn]
+                  properties:
+                    column: { type: string }
+                    refTable: { type: string }
+                    refColumn: { type: string }
+    SqlQueryRequest:
+      type: object
+      additionalProperties: false
+      required: [sql]
+      properties:
+        sql: { type: string, minLength: 1, maxLength: 5000 }
+    SqlQueryResult:
+      type: object
+      required: [columns, rows, rowCount, truncated, durationMs, hiddenColumns]
+      properties:
+        columns: { type: array, items: { type: string } }
+        rows: { type: array, items: { type: object, additionalProperties: true } }
+        rowCount: { type: integer }
+        truncated: { type: boolean, description: 'true — 200 sətir limiti tətbiq olundu' }
+        durationMs: { type: number }
+        hiddenColumns: { type: array, items: { type: string } }
+
+    # ---------------------------------------------------------------- admin / meta
+    ResetResponse:
+      type: object
+      required: [message, resetAt, tables]
+      properties:
+        message: { type: string }
+        resetAt: { type: string, format: date-time }
+        tables:
+          type: object
+          description: Cədvəl → sətir sayı
+          additionalProperties: { type: integer }
+    RequestLogEntry:
+      type: object
+      required: [id, requestId, method, path, route, status, durationMs, createdAt]
+      properties:
+        id: { type: integer }
+        requestId: { type: string }
+        method: { type: string }
+        path: { type: string }
+        route: { type: string, nullable: true }
+        status: { type: integer }
+        durationMs: { type: integer }
+        createdAt: { type: string, format: date-time }
+    RequestLogList:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/RequestLogEntry' } }
+    Health:
+      type: object
+      required: [status, db, version, uptimeSec]
+      properties:
+        status: { type: string, enum: [ok] }
+        db: { type: string, enum: [ok] }
+        version: { type: string }
+        uptimeSec: { type: integer }

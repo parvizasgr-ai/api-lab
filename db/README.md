@@ -72,7 +72,7 @@ erDiagram
 | Valyuta | currencies, exchange_rates | Sadə GET, query parametrləri, API Key |
 | Aviabilet | airports, flights, flight_bookings, flight_passengers | Axtarış + pagination/sort, 201 + Location, 409 SOLD_OUT |
 | Otel | hotels, hotel_amenities, hotel_rooms, hotel_bookings | Availability (tarix kəsişməsi → 409), PATCH |
-| Müştərilər | customers | Tam CRUD, ETag (`updated_at`-dan), 409 EMAIL_EXISTS |
+| Müştərilər | customers | Tam CRUD (auth tələb etmir — Dərs 2 security-dən əvvəldir), ETag (`updated_at`-dan), 409 EMAIL_EXISTS |
 | Kitab | books, book_reviews | Cursor pagination, nested resurs |
 | Musiqi | tracks, playlists, playlist_tracks, play_history | Xarici API (YouTube) inteqrasiyası, kompozit PK |
 | Texniki | idempotency_keys, audit_log, request_log, rate_limit_counters | Idempotency-Key, audit, API History, 429 |

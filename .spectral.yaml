@@ -1,0 +1,76 @@
+# Spectral ruleset — OpenAPI lint (npm run openapi:lint)
+# Standart "spectral:oas" qaydaları + API Lab-a xas qaydalar.
+extends: [[spectral:oas, recommended]]
+
+rules:
+  # summary məcburidir (aşağıdakı qayda); uzun description yalnız lazım olan yerdə yazılır.
+  operation-description: off
+
+  apilab-operation-summary:
+    description: Hər endpoint-in summary-si olmalıdır
+    severity: error
+    given: $.paths[*][get,put,post,delete,options,head,patch]
+    then:
+      field: summary
+      function: truthy
+
+  apilab-x-db-impact:
+    description: Hər endpoint DB təsirini x-db-impact ilə göstərməlidir (reads + writes)
+    severity: error
+    given: $.paths[*][get,put,post,delete,options,head,patch]
+    then:
+      field: x-db-impact
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [reads, writes]
+          additionalProperties: false
+          properties:
+            reads: { type: array, items: { type: string } }
+            writes: { type: array, items: { type: string } }
+
+  apilab-strict-request-body:
+    description: Request body sxemi additionalProperties false olmalıdır (bilinməyən sahə = 422)
+    severity: error
+    given: $.paths[*][post,put,patch].requestBody.content[*].schema
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [additionalProperties]
+          properties:
+            additionalProperties: { const: false }
+
+  apilab-rate-limit-documented:
+    description: Rate limit bütün endpoint-lərə aiddir — 429 cavabı sənədləşdirilməlidir
+    severity: error
+    given: $.paths[*][get,put,post,delete,options,head,patch].responses
+    then:
+      field: '429'
+      function: truthy
+
+  apilab-success-example:
+    description: 2xx JSON cavabının nümunəsi olmalıdır
+    severity: error
+    given: $.paths[*][*].responses[?(@property.match(/^2/))].content[*]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          anyOf:
+            - required: [example]
+            - required: [examples]
+
+  apilab-error-example:
+    description: 4xx/5xx JSON cavabının nümunəsi olmalıdır
+    severity: error
+    given: $.paths[*][*].responses[?(@property.match(/^[45]/))].content[*]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          anyOf:
+            - required: [example]
+            - required: [examples]

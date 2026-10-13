@@ -11,6 +11,11 @@ const proxied = ['/api', '/oauth', '/bff', '/docs']
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Build nəticəsi API Lab serverinin verdiyi qovluğa gedir → portal localhost:3000-də (tək port)
+  build: {
+    outDir: path.resolve(__dirname, '../web/dist'),
+    emptyOutDir: true,
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

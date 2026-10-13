@@ -315,6 +315,28 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 
 ---
 
+## Portal (web-design)
+
+React + Vite portalı (`web-design/`) real backend ilə işləyir — mock data yoxdur. Build nəticəsi `web/dist`-ə yazılır və server onu **http://localhost:3000**-də verir (tək port).
+
+```bash
+cd web-design
+corepack pnpm install        # pnpm qlobal quraşdırılmayıbsa corepack ilə
+corepack pnpm build          # typecheck + vite build → ../web/dist  (sonra http://localhost:3000)
+corepack pnpm dev            # dev: http://localhost:5173, /api /oauth /bff /docs → localhost:3000 (proxy)
+corepack pnpm test           # unit testlər (fetch mock): src/**/*.test.ts
+corepack pnpm e2e            # Playwright (Google Chrome): təzə DB ilə server port 3000-də qalxır — əvvəlcə 3000-i boşaldın
+```
+
+| Fayl | Nə edir |
+|---|---|
+| `src/lib/http.ts` | Bütün sorğular: `Authorization: Bearer`, 401 → refresh → 1 dəfə təkrar, backend xəta formatı → `AuthClientError` (`Retry-After` → `retryAfter`), Network panel üçün qeyd (BFF `meta.calls` → internal calls) |
+| `src/api/auth.ts` | login / refresh rotation / logout / `/auth/me`, rollar `USER → student`, `ADMIN → admin`; mock Google OAuth (Authorization Code, `state` yoxlanılır) |
+| `src/lib/api.ts` | Explorer (xam fetch), History (`/_history`), endpoint kitabxanası (`/api/openapi.json`), Home statistikası, bütün Apps, SQL Playground, Materials |
+
+Konfiqurasiya (opsional, `web-design/.env`): `VITE_API_BASE_URL` (default `/api`), `VITE_API_KEY` (default demo açar), `VITE_OAUTH_CLIENT_ID` / `VITE_OAUTH_CLIENT_SECRET`.
+Mock Google axınında portal `Accept: application/json` göndərir: `GET /oauth/authorize` hesabları JSON verir, `POST /oauth/authorize` 302 əvəzinə `{location}` qaytarır (fetch 302-nin `Location` başlığını oxuya bilmir). Consent ekranında seçilmiş hesabın parolu soruşulur.
+
 ## Dərs materialları
 
 Admin PDF / PPTX / DOCX / MD yükləyir → sistem fonda viewer üçün səhifə şəkillərinə çevirir → tələbələr portalda oxuyur.

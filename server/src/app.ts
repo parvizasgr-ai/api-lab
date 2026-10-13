@@ -114,7 +114,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
   });
 
   app.use(API_PREFIXES, routeNotFound);
-  mountStatic(app); // /docs (Swagger UI) + web/dist (portal) və ya başlanğıc səhifəsi
+  mountStatic(app, config); // /docs (Swagger UI) + web/dist (portal) və ya başlanğıc səhifəsi
   app.use(errorHandler(config));
   return app;
 }

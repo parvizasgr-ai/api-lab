@@ -281,7 +281,7 @@
               ],
               "variable": []
             },
-            "description": "Authorization Code flow-nun 1-ci addımı. Brauzer bu URL-ə yönləndirilir, istifadəçi hesab seçir və icazə verir.\n`state` məcburidir (CSRF qoruması) — client geri qayıdan `state`-i özündəki ilə müqayisə etməlidir.\n"
+            "description": "Authorization Code flow-nun 1-ci addımı. Brauzer bu URL-ə yönləndirilir, istifadəçi hesab seçir və icazə verir.\nSPA üçün: `Accept: application/json` → HTML əvəzinə client, scope və seçilə bilən hesablar JSON kimi qaytarılır.\n`state` məcburidir (CSRF qoruması) — client geri qayıdan `state`-i özündəki ilə müqayisə etməlidir.\n"
           }
         },
         {
@@ -304,7 +304,7 @@
               "query": [],
               "variable": []
             },
-            "description": "Consent formu buraya göndərilir. `decision=allow` → `302 Location: {redirect_uri}?code=...&state=...`.\n`decision=deny` → `302 Location: {redirect_uri}?error=access_denied&state=...`. Code **birdəfəlikdir** və **60 saniyə** yaşayır.\n`decision=allow` üçün seçilmiş hesabın parolu tələb olunur (real Google-da olduğu kimi). OAuth token-lərinə `admin` scope-u heç vaxt verilmir.\n",
+            "description": "Consent formu buraya göndərilir. `decision=allow` → `302 Location: {redirect_uri}?code=...&state=...`.\n`decision=deny` → `302 Location: {redirect_uri}?error=access_denied&state=...`. Code **birdəfəlikdir** və **60 saniyə** yaşayır.\n`decision=allow` üçün seçilmiş hesabın parolu tələb olunur (real Google-da olduğu kimi). OAuth token-lərinə `admin` scope-u heç vaxt verilmir.\nSPA üçün: `Accept: application/json` → 302 əvəzinə `200 {location}` (fetch 302-nin Location başlığını oxuya bilmir), səhv parol → 401 JSON.\n",
             "body": {
               "mode": "urlencoded",
               "urlencoded": [

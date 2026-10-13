@@ -4,10 +4,15 @@ import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
 export default tseslint.config(
-  // web-design/ — ayrıca UI layihəsi (öz tsconfig/build-i var), import/ — xam Figma Make export-u
-  { ignores: ['node_modules', 'data', 'web/dist', 'web-design', 'import', 'dist', 'coverage'] },
+  // import/ — xam Figma Make export-u (toxunulmur); web-design build/test nəticələri
+  { ignores: ['**/node_modules', 'data', 'web/dist', 'import', 'dist', 'coverage', 'web-design/dist', 'web-design/test-results', 'web-design/playwright-report'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // Portal (React) — brauzer mühiti
+  {
+    files: ['web-design/src/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser } },
+  },
   {
     languageOptions: { globals: { ...globals.node } },
     rules: {

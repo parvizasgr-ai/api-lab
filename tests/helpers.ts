@@ -46,6 +46,7 @@ export function createTestApp(options: { config?: Partial<Config>; handlers?: Ha
     dir: fs.mkdtempSync(path.join(os.tmpdir(), 'apilab-mat-')),
     slidesDir: fs.mkdtempSync(path.join(os.tmpdir(), 'apilab-slides-')),
   };
+  config.webDist = fs.mkdtempSync(path.join(os.tmpdir(), 'apilab-web-')); // portal build-indən asılı olmasın
   for (const dir of [config.materials.dir, config.materials.slidesDir]) {
     if (!path.resolve(dir).startsWith(path.resolve(os.tmpdir()))) throw new Error(`Test material qovluğu tmp-də deyil: ${dir}`);
   }

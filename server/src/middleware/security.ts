@@ -15,7 +15,8 @@ export function security(): RequestHandler[] {
       contentSecurityPolicy: {
         directives: {
           'script-src': ["'self'", 'https://www.youtube.com', 'https://s.ytimg.com'],
-          'style-src': ["'self'", "'unsafe-inline'"],
+          'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'], // portal: Inter + JetBrains Mono
+          'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
           'img-src': ["'self'", 'data:', 'https://i.ytimg.com', 'https://ui-avatars.com'],
           'frame-src': ['https://www.youtube.com', 'https://www.youtube-nocookie.com'],
           // OAuth consent formu POST-dan sonra client-in redirect_uri-sinə yönləndirir

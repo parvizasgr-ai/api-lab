@@ -8,10 +8,11 @@ const REDIRECT = 'http://localhost:5173/oauth/callback';
 function setup() {
   const t = createTestApp();
 
-  async function authorize(form: Record<string, string> = {}) {
+  async function authorize(form: Record<string, string> = {}, headers: Record<string, string> = {}) {
     return t
       .api()
       .post('/oauth/authorize')
+      .set(headers)
       .type('form')
       .send({ client_id: CLIENT.client_id, redirect_uri: REDIRECT, scope: 'openid profile email cards:read', state: 'state-12345678', username: 'student', password: 'student123', decision: 'allow', ...form });
   }
@@ -169,5 +170,32 @@ describe('POST /oauth/token', () => {
     const code = await t.getCode({ username: 'admin', password: 'admin123', scope: 'openid admin accounts:read' });
     const res = await t.token({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, ...CLIENT });
     expect(res.body.scope).toBe('openid accounts:read');
+  });
+});
+
+describe('SPA rejimi (Accept: application/json)', () => {
+  it('GET authorize → hesablar JSON; POST authorize → 200 {location}; səhv parol → 401 JSON', async () => {
+    const t = setup();
+    const info = await t
+      .api()
+      .get('/oauth/authorize')
+      .set('Accept', 'application/json')
+      .query({ response_type: 'code', client_id: 'apilab-portal', redirect_uri: REDIRECT, state: 'spa-state-1' });
+    expect(info.status).toBe(200);
+    expectMatchesSpec(info, 'oauthAuthorizePage');
+    expect(info.body.accounts.map((a: { username: string }) => a.username)).toEqual(['student', 'admin', 'rauf']);
+    expect(info.body).not.toHaveProperty('accounts.0.password_hash');
+
+    const ok = await t.authorize({}, { Accept: 'application/json' });
+    expect(ok.status).toBe(200);
+    expectMatchesSpec(ok, 'oauthAuthorizeDecision');
+    const url = new URL(ok.body.location);
+    expect(url.searchParams.get('state')).toBe('state-12345678');
+    expect(url.searchParams.get('code')).toMatch(/^ac_/);
+
+    const wrong = await t.authorize({ password: 'nope' }, { Accept: 'application/json' });
+    expect(wrong.status).toBe(401);
+    expectMatchesSpec(wrong, 'oauthAuthorizeDecision');
+    expect(wrong.body.code).toBe('INVALID_CREDENTIALS');
   });
 });

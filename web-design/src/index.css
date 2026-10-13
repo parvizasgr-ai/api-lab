@@ -7776,3 +7776,34 @@ footer {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Mock Google consent: provider seçilmiş hesabın parolunu tələb edir (backend /oauth/authorize) — login formasının stili */
+.consent-password {
+  display: grid;
+  gap: 6px;
+  margin: 14px 0 4px;
+  text-align: left;
+}
+
+.consent-password > span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.consent-password input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  outline: 0;
+  background: var(--background);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.consent-password input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-blue) 18%, transparent);
+}

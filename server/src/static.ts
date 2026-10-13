@@ -3,9 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import express, { type Express } from 'express';
-import { ROOT_DIR } from './config.js';
-
-const WEB_DIST = path.join(ROOT_DIR, 'web', 'dist');
+import type { Config } from './config.js';
 const SWAGGER_UI_DIR = path.dirname(createRequire(import.meta.url).resolve('swagger-ui-dist/package.json'));
 
 // Swagger UI bizim spec-i açsın və "Authorize" düyməsi mock Google OAuth ilə işləsin.
@@ -51,20 +49,21 @@ const PLACEHOLDER = `<!doctype html>
 </body>
 </html>`;
 
-export function mountStatic(app: Express): void {
+export function mountStatic(app: Express, config: Config): void {
   app.get('/docs/swagger-initializer.js', (_req, res) => {
     res.type('application/javascript').send(SWAGGER_INIT);
   });
   app.get('/docs', (req, res, next) => (req.path === '/docs' ? res.redirect(301, '/docs/') : next()));
   app.use('/docs', express.static(SWAGGER_UI_DIR, { index: 'index.html' }));
 
-  const hasPortal = fs.existsSync(path.join(WEB_DIST, 'index.html'));
-  if (hasPortal) app.use(express.static(WEB_DIST));
+  // Portal (web-design build → web/dist). Hər sorğuda yoxlanılır: build-dən sonra serveri restart etmək lazım deyil.
+  const portalIndex = path.join(config.webDist, 'index.html');
+  app.use(express.static(config.webDist, { index: false }));
 
-  // SPA fallback: API olmayan GET sorğuları portalın index.html-inə (React Router özü idarə edir)
+  // SPA fallback: API olmayan GET sorğuları portalın index.html-inə (/signin və s. client tərəfdə idarə olunur)
   app.get(/^\/(?!api\/|oauth\/|bff\/|docs\/).*/, (req, res, next) => {
     if (!req.accepts('html')) return next();
-    if (hasPortal) return res.sendFile(path.join(WEB_DIST, 'index.html'));
+    if (fs.existsSync(portalIndex)) return res.sendFile(portalIndex);
     res.type('html').send(PLACEHOLDER);
   });
 }

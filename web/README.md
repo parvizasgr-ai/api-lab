@@ -1,6 +1,6 @@
 # web/ — React portal üçün yer
 
-Portalın UI-ı ayrıca hazırlanır. Build nəticəsi `web/dist/` qovluğuna qoyulanda (`web/dist/index.html`)
+Portalın mənbəyi: `web-design/` (`corepack pnpm build`). Build nəticəsi `web/dist/` qovluğuna qoyulanda (`web/dist/index.html`)
 server onu avtomatik verir: `/` və API olmayan bütün yollar → `index.html` (SPA fallback),
 `/api`, `/oauth`, `/bff`, `/docs` isə serverdə qalır. `web/dist` yoxdursa — başlanğıc səhifəsi göstərilir.
 

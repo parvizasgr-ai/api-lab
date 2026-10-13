@@ -1,4 +1,5 @@
 // Mock Google OAuth2 endpoint-ləri.
+import type { Request } from 'express';
 import type { AppContext } from '../../app.js';
 import type { Handlers } from '../../openapi/router.js';
 import { ApiError } from '../../errors.js';
@@ -6,6 +7,9 @@ import { writeAudit } from '../../lib/audit.js';
 import { authRepo } from '../auth/repo.js';
 import { renderConsentPage } from './consentPage.js';
 import { DEFAULT_SCOPE, OAuthService } from './service.js';
+
+// SPA (portal) fetch ilə işləyir: HTML/302 əvəzinə JSON istəyir (content negotiation)
+const wantsJson = (req: Request) => req.accepts(['text/html', 'application/json']) === 'application/json';
 
 export function oauthHandlers({ db, config, auth }: AppContext): Handlers {
   const oauth = new OAuthService(db, config, auth);
@@ -25,7 +29,18 @@ export function oauthHandlers({ db, config, auth }: AppContext): Handlers {
 
   return {
     oauthAuthorizePage: (req, res) => {
-      const html = page(req.valid.query as any); // əvvəl yoxlama (xəta JSON qayıtmalıdır), sonra Content-Type
+      const q = req.valid.query as { client_id: string; redirect_uri: string; scope?: string; state: string };
+      if (wantsJson(req)) {
+        const client = oauth.checkClient(q.client_id, q.redirect_uri);
+        return res.json({
+          client: { clientId: client.client_id, name: client.name },
+          redirectUri: q.redirect_uri,
+          scope: q.scope || DEFAULT_SCOPE,
+          state: q.state,
+          accounts: authRepo.listUsers(db).map((u) => ({ username: u.username, fullName: u.full_name, email: u.email })),
+        });
+      }
+      const html = page(q); // əvvəl yoxlama (xəta JSON qayıtmalıdır), sonra Content-Type
       res.type('html').send(html);
     },
 
@@ -35,20 +50,23 @@ export function oauthHandlers({ db, config, auth }: AppContext): Handlers {
       const target = new URL(form.redirect_uri);
       target.searchParams.set('state', form.state);
 
+      // SPA-ya 302 əvəzinə yönləndiriləcək ünvan JSON-da verilir (fetch Location başlığını oxuya bilmir)
+      const redirect = () => (wantsJson(req) ? res.json({ location: target.toString() }) : res.redirect(302, target.toString()));
       if (form.decision === 'deny') {
         target.searchParams.set('error', 'access_denied');
-        return res.redirect(302, target.toString());
+        return redirect();
       }
       if (!authRepo.findUserByUsername(db, form.username)) throw new ApiError(404, 'USER_NOT_FOUND', 'İstifadəçi tapılmadı');
       const user = auth.verifyCredentials(form.username, form.password ?? '');
       if (!user) {
+        if (wantsJson(req)) throw new ApiError(401, 'INVALID_CREDENTIALS', 'Parol səhvdir');
         const html = page(form, { selected: form.username, error: 'Parol səhvdir' });
         return res.status(401).type('html').send(html);
       }
       const scope = oauth.grantedScopes(user.id, form.scope || DEFAULT_SCOPE);
       const code = oauth.createCode(form.client_id, user.id, scope, form.redirect_uri);
       target.searchParams.set('code', code);
-      res.redirect(302, target.toString());
+      redirect();
     },
 
     oauthToken: async (req, res) => {

@@ -2,15 +2,42 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   authClient,
   AuthClientError,
+  initialsOf,
+  oauthDemo,
+  onSessionChange,
   type AuthSession,
   type GoogleAccount,
 } from "./api/auth";
 import {
   apiClient,
+  bank,
+  books,
+  currency,
+  customers,
+  flights,
+  handoffs,
+  hotels,
+  learning,
+  music,
+  sql,
+  type Account,
+  type Book,
+  type Customer,
+  type Dashboard,
+  type DbTable,
+  type EndpointGroup,
   type ExplorerResponse,
+  type Flight,
   type HomeData,
+  type Hotel,
+  type LessonTask,
+  type Material,
   type NetworkCall,
+  type Playlist,
+  type Room,
+  type Track,
 } from "./lib/api";
+import { subscribeNetwork } from "./lib/http";
 
 type Language = "az" | "en";
 type Theme = "light" | "dark";
@@ -61,7 +88,6 @@ const translations = {
     role: "Role",
     student: "Tələbə",
     administrator: "Admin",
-    instructor: "Təlimçi",
     lessons: "Öyrənmə yolu",
     lessonsDescription:
       "Əsas anlayışlardan təhlükəsiz API design-a qədər addım-addım irəlilə.",
@@ -87,6 +113,13 @@ const translations = {
     responseReady: "200 OK · 42 ms",
     footerText: "API öyrənmək üçün təhlükəsiz təcrübə mühiti.",
     statusReady: "Sandbox aktivdir",
+    results: "nəticə",
+    materialsCount: "MATERİAL",
+    expired: "Müddəti bitib",
+    oauthPassword: "Parol",
+    loadError: "Məlumat yüklənmədi",
+    roomsLeft: "boş otaq",
+    noResults: "Nəticə tapılmadı",
     loading: "Məlumat yüklənir",
     beta: "BETA",
     live: "AKTİV",
@@ -546,7 +579,6 @@ const translations = {
     role: "Role",
     student: "Student",
     administrator: "Admin",
-    instructor: "Instructor",
     lessons: "Learning path",
     lessonsDescription:
       "Progress step by step from core concepts to secure API design.",
@@ -572,6 +604,13 @@ const translations = {
     responseReady: "200 OK · 42 ms",
     footerText: "A safe practice environment for learning APIs.",
     statusReady: "Sandbox is live",
+    results: "results",
+    materialsCount: "MATERIALS",
+    expired: "Expired",
+    oauthPassword: "Password",
+    loadError: "Could not load data",
+    roomsLeft: "rooms available",
+    noResults: "No results",
     loading: "Loading data",
     beta: "BETA",
     live: "LIVE",
@@ -1373,11 +1412,7 @@ function Header({
                       <strong>{session.user.name}</strong>
                       <span>{session.user.email}</span>
                       <code>
-                        {session.user.role === "student"
-                          ? t.student
-                          : session.user.role === "admin"
-                            ? t.administrator
-                            : t.instructor}
+                        {session.user.role === "admin" ? t.administrator : t.student}
                       </code>
                     </div>
                   </div>
@@ -1456,7 +1491,15 @@ type HistoryItem = {
   url: string;
   status: number;
   time: number;
+  createdAt: string;
 };
+
+type KeyValueRow = { key: string; value: string; description: string };
+
+const formatClock = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+const toBase64 = (value: string) => btoa(String.fromCharCode(...new TextEncoder().encode(value)));
 
 function StatusChip({ status }: { status: number }) {
   return (
@@ -1467,47 +1510,54 @@ function StatusChip({ status }: { status: number }) {
 }
 
 function ExplorerPage({ t }: { t: Translation }) {
-  const baseUrl = "https://api.apilab.az/v1";
+  const baseUrl = `${window.location.origin}`;
   const [search, setSearch] = useState("");
   const [method, setMethod] = useState("GET");
-  const [url, setUrl] = useState(`${baseUrl}/users`);
+  const [url, setUrl] = useState(`${baseUrl}/api/v1/health`);
   const [requestTab, setRequestTab] = useState<RequestTab>("params");
   const [responseTab, setResponseTab] = useState<ResponseTab>("pretty");
   const [mobilePanel, setMobilePanel] = useState<ExplorerPanel>("request");
-  const [authType, setAuthType] = useState("none");
-  const [body, setBody] = useState(
-    '{\n  "name": "Aylin",\n  "role": "student"\n}',
-  );
+  const [authType, setAuthType] = useState("bearer");
+  const [authValue, setAuthValue] = useState("");
+  const [params, setParams] = useState<KeyValueRow[]>([{ key: "", value: "", description: "" }]);
+  const [headers, setHeaders] = useState<KeyValueRow[]>([{ key: "Accept", value: "application/json", description: "" }]);
+  const [body, setBody] = useState("");
   const [response, setResponse] = useState<ExplorerResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyClearedAt, setHistoryClearedAt] = useState(0);
+  const [groups, setGroups] = useState<EndpointGroup[]>([]);
 
-  const groups = [
-    {
-      label: t.usersTag,
-      endpoints: [
-        { method: "GET", path: "/users", label: t.listUsers },
-        { method: "GET", path: "/users/:id", label: t.getUser },
-        { method: "POST", path: "/users", label: t.createUser },
-      ],
-    },
-    {
-      label: t.authTag,
-      endpoints: [
-        { method: "POST", path: "/auth/login", label: t.loginUser },
-        { method: "POST", path: "/auth/refresh", label: t.refreshToken },
-      ],
-    },
-    {
-      label: t.systemTag,
-      endpoints: [
-        { method: "GET", path: "/rate-limit", label: t.rateLimitTest },
-        { method: "GET", path: "/broken", label: t.triggerError },
-      ],
-    },
-  ];
+  // Endpoint kitabxanası OpenAPI spec-dən
+  useEffect(() => {
+    apiClient.getEndpointGroups().then(setGroups).catch(() => setGroups([]));
+    const pending = handoffs.take().explorer;
+    if (pending) {
+      setMethod(pending.method);
+      setUrl(`${baseUrl}${pending.path}`);
+    }
+  }, [baseUrl]);
 
+  // History — serverdəki request_log (GET /api/v1/_history)
+  const loadHistory = async () => {
+    try {
+      const items = await apiClient.getHistory(20);
+      setHistory(
+        items
+          .filter((item) => item.id > historyClearedAt)
+          .map((item) => ({ id: item.id, method: item.method, url: item.path, status: item.status, time: item.durationMs, createdAt: item.createdAt })),
+      );
+    } catch {
+      // History yalnız token ilə — xəta UI-ı bloklamır
+    }
+  };
+
+  useEffect(() => {
+    void loadHistory();
+  }, [historyClearedAt]);
+
+  const endpointCount = groups.reduce((n, group) => n + group.endpoints.length, 0);
   const filteredGroups = groups
     .map((group) => ({
       ...group,
@@ -1528,37 +1578,54 @@ function ExplorerPage({ t }: { t: Translation }) {
     return () => window.clearInterval(timer);
   }, [countdown]);
 
-  const selectEndpoint = (nextMethod: string, path: string) => {
+  const selectEndpoint = (nextMethod: string, path: string, exampleBody?: string) => {
     setMethod(nextMethod);
-    setUrl(`${baseUrl}${path.replace(":id", "1")}`);
+    setUrl(`${baseUrl}${path}`);
+    setBody(exampleBody ?? "");
     setResponse(null);
     setMobilePanel("request");
-    if (nextMethod === "POST") setRequestTab("body");
+    if (exampleBody) setRequestTab("body");
+  };
+
+  // Params → URL query, Headers + Auth → request headers
+  const buildRequest = () => {
+    const target = new URL(url, baseUrl);
+    params.filter((row) => row.key.trim()).forEach((row) => target.searchParams.set(row.key.trim(), row.value));
+    const requestHeaders: Record<string, string> = {};
+    headers.filter((row) => row.key.trim()).forEach((row) => (requestHeaders[row.key.trim()] = row.value));
+    const sendsBody = body.trim() !== "" && !["GET", "HEAD"].includes(method);
+    if (sendsBody && !Object.keys(requestHeaders).some((key) => key.toLowerCase() === "content-type")) {
+      requestHeaders["Content-Type"] = "application/json";
+    }
+    if (authType === "bearer") {
+      const token = authValue.trim() || authClient.getStoredSession()?.accessToken;
+      if (token) requestHeaders.Authorization = `Bearer ${token}`;
+    } else if (authType === "api-key" && authValue.trim()) {
+      requestHeaders["X-API-Key"] = authValue.trim();
+    } else if (authType === "basic" && authValue.includes(":")) {
+      requestHeaders.Authorization = `Basic ${toBase64(authValue)}`;
+    }
+    return { url: target.toString(), headers: requestHeaders, body: sendsBody ? body : undefined };
   };
 
   const sendRequest = async () => {
     setIsLoading(true);
     setResponse(null);
     setMobilePanel("response");
-    const result = await apiClient.sendExplorerRequest({ method, url, body });
+    const built = buildRequest();
+    const result = await apiClient.sendExplorerRequest({ method, ...built });
     setResponse(result);
     setIsLoading(false);
     setCountdown(result.retryAfter ?? 0);
-    setHistory((items) =>
-      [
-        {
-          id: Date.now(),
-          method,
-          url,
-          status: result.status,
-          time: result.time,
-        },
-        ...items,
-      ].slice(0, 8),
-    );
+    await loadHistory();
   };
 
-  const curl = `curl -X ${method} "${url}" -H "Accept: application/json"`;
+  const built = buildRequest();
+  const curl = [
+    `curl -X ${method} "${built.url}"`,
+    ...Object.entries(built.headers).map(([key, value]) => `-H "${key}: ${value}"`),
+    ...(built.body ? [`-d '${built.body.replace(/'/g, "'\\''")}'`] : []),
+  ].join(" \\\n  ");
   const requestTabs: { id: RequestTab; label: string }[] = [
     { id: "params", label: t.params },
     { id: "headers", label: t.headers },
@@ -1571,6 +1638,14 @@ function ExplorerPage({ t }: { t: Translation }) {
     { id: "raw", label: t.raw },
     { id: "headers", label: t.headers },
   ];
+  const rows = requestTab === "params" ? params : headers;
+  const setRows = requestTab === "params" ? setParams : setHeaders;
+  const updateRow = (index: number, field: keyof KeyValueRow, value: string) =>
+    setRows((items) => items.map((row, i) => (i === index ? { ...row, [field]: value } : row)));
+  const bodyText = (value: unknown, pretty: boolean) =>
+    typeof value === "string" ? value : JSON.stringify(value, null, pretty ? 2 : undefined) ?? "";
+  const errorMessage = (value: unknown) =>
+    value && typeof value === "object" ? String((value as Record<string, unknown>).message ?? (value as Record<string, unknown>).error_description ?? "") : String(value ?? "");
 
   return (
     <main className="explorer-page" id="main-content">
@@ -1629,7 +1704,7 @@ function ExplorerPage({ t }: { t: Translation }) {
           <div className="panel-heading">
             <div>
               <span>{t.endpointLibrary}</span>
-              <small>7 ENDPOINTS</small>
+              <small>{endpointCount} ENDPOINTS</small>
             </div>
           </div>
           <label className="endpoint-search">
@@ -1644,7 +1719,7 @@ function ExplorerPage({ t }: { t: Translation }) {
           </label>
           <div className="endpoint-tree">
             {filteredGroups.length === 0 ? (
-              <div className="tree-empty">{t.noEndpoints}</div>
+              <div className="tree-empty">{groups.length === 0 ? t.loading : t.noEndpoints}</div>
             ) : (
               filteredGroups.map((group) => (
                 <div className="endpoint-group" key={group.label}>
@@ -1654,14 +1729,12 @@ function ExplorerPage({ t }: { t: Translation }) {
                     <small>{group.endpoints.length}</small>
                   </div>
                   {group.endpoints.map((endpoint) => {
-                    const active =
-                      method === endpoint.method &&
-                      url === `${baseUrl}${endpoint.path.replace(":id", "1")}`;
+                    const active = method === endpoint.method && url === `${baseUrl}${endpoint.path}`;
                     return (
                       <button
                         className={active ? "endpoint-item active" : "endpoint-item"}
                         key={`${endpoint.method}-${endpoint.path}`}
-                        onClick={() => selectEndpoint(endpoint.method, endpoint.path)}
+                        onClick={() => selectEndpoint(endpoint.method, endpoint.path, endpoint.body)}
                         type="button"
                       >
                         <span className={`mini-method method-${endpoint.method.toLowerCase()}`}>
@@ -1697,6 +1770,8 @@ function ExplorerPage({ t }: { t: Translation }) {
                 <option>PUT</option>
                 <option>PATCH</option>
                 <option>DELETE</option>
+                <option>HEAD</option>
+                <option>OPTIONS</option>
               </select>
             </label>
             <label className="request-url-input">
@@ -1725,7 +1800,9 @@ function ExplorerPage({ t }: { t: Translation }) {
                 type="button"
               >
                 {tab.label}
-                {(tab.id === "params" || tab.id === "headers") && <span>1</span>}
+                {(tab.id === "params" || tab.id === "headers") && (
+                  <span>{(tab.id === "params" ? params : headers).filter((row) => row.key.trim()).length}</span>
+                )}
               </button>
             ))}
           </div>
@@ -1738,12 +1815,14 @@ function ExplorerPage({ t }: { t: Translation }) {
                   <span>{t.value}</span>
                   <span>{t.description}</span>
                 </div>
-                <div className="kv-row">
-                  <input aria-label={t.key} defaultValue={requestTab === "params" ? "page" : "Accept"} />
-                  <input aria-label={t.value} defaultValue={requestTab === "params" ? "1" : "application/json"} />
-                  <input aria-label={t.description} placeholder="—" />
-                </div>
-                <button className="add-row-button" type="button">
+                {rows.map((row, index) => (
+                  <div className="kv-row" key={index}>
+                    <input aria-label={t.key} onChange={(event) => updateRow(index, "key", event.target.value)} placeholder={requestTab === "params" ? "page" : "X-Request-Id"} value={row.key} />
+                    <input aria-label={t.value} onChange={(event) => updateRow(index, "value", event.target.value)} placeholder={requestTab === "params" ? "1" : "my-trace-1"} value={row.value} />
+                    <input aria-label={t.description} onChange={(event) => updateRow(index, "description", event.target.value)} placeholder="—" value={row.description} />
+                  </div>
+                ))}
+                <button className="add-row-button" onClick={() => setRows((items) => [...items, { key: "", value: "", description: "" }])} type="button">
                   <span>+</span>
                   {requestTab === "params" ? t.addParameter : t.addHeader}
                 </button>
@@ -1765,8 +1844,10 @@ function ExplorerPage({ t }: { t: Translation }) {
                   <label>
                     <span>{authType === "bearer" ? t.bearerToken : t.value}</span>
                     <input
-                      placeholder={t.tokenPlaceholder}
+                      onChange={(event) => setAuthValue(event.target.value)}
+                      placeholder={authType === "bearer" ? t.tokenPlaceholder : authType === "api-key" ? "apilab-demo-key-2026" : "student:student123"}
                       type={authType === "basic" ? "password" : "text"}
+                      value={authValue}
                     />
                   </label>
                 )}
@@ -1828,15 +1909,20 @@ function ExplorerPage({ t }: { t: Translation }) {
               <h3>{t.responseEmptyTitle}</h3>
               <p>{t.responseEmptyText}</p>
             </div>
-          ) : response.errorCode ? (
+          ) : response.errorCode && responseTab === "pretty" ? (
             <div className="response-error">
               <div className="error-mark">!</div>
               <h3>{t.errorTitle}</h3>
-              <p>{String(response.body.message)}</p>
+              <p>{errorMessage(response.body)}</p>
               <dl>
                 <div><dt>{t.errorCode}</dt><dd>{response.errorCode}</dd></div>
-                <div><dt>{t.traceId}</dt><dd>{response.traceId}</dd></div>
+                <div><dt>{t.traceId}</dt><dd>{response.traceId ?? "—"}</dd></div>
               </dl>
+              <div className="response-tabs" role="tablist">
+                {responseTabs.slice(1).map((tab) => (
+                  <button key={tab.id} onClick={() => setResponseTab(tab.id)} role="tab" type="button">{tab.label}</button>
+                ))}
+              </div>
             </div>
           ) : (
             <>
@@ -1859,12 +1945,8 @@ function ExplorerPage({ t }: { t: Translation }) {
               </div>
               <pre className="response-code">
                 {responseTab === "headers"
-                  ? Object.entries(response.headers)
-                      .map(([key, value]) => `${key}: ${value}`)
-                      .join("\n")
-                  : responseTab === "raw"
-                    ? JSON.stringify(response.body)
-                    : JSON.stringify(response.body, null, 2)}
+                  ? [`HTTP ${response.status} ${response.statusText}`, ...Object.entries(response.headers).map(([key, value]) => `${key}: ${value}`)].join("\n")
+                  : bodyText(response.body, responseTab === "pretty")}
               </pre>
             </>
           )}
@@ -1878,7 +1960,7 @@ function ExplorerPage({ t }: { t: Translation }) {
             <p>{t.historySubtitle}</p>
           </div>
           {history.length > 0 && (
-            <button onClick={() => setHistory([])} type="button">{t.clearHistory}</button>
+            <button onClick={() => setHistoryClearedAt(history[0].id)} type="button">{t.clearHistory}</button>
           )}
         </div>
         <div className="history-card">
@@ -1899,9 +1981,9 @@ function ExplorerPage({ t }: { t: Translation }) {
                   {history.map((item) => (
                     <tr key={item.id}>
                       <td><span className={`mini-method method-${item.method.toLowerCase()}`}>{item.method}</span></td>
-                      <td><code>{item.url.replace(baseUrl, "")}</code></td>
+                      <td><code>{item.url}</code></td>
                       <td><StatusChip status={item.status} /></td>
-                      <td><span className="history-time">{item.time} ms · {t.justNow}</span></td>
+                      <td><span className="history-time">{item.time} ms · {formatClock(item.createdAt)}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -2031,95 +2113,119 @@ function NetworkPanel({
   );
 }
 
-function BankApp({
-  addCall,
-  t,
-}: {
-  addCall: (call: NetworkCall) => void;
-  t: Translation;
-}) {
-  const [blockModal, setBlockModal] = useState(false);
+// Pul formatı: AZN → ₼, USD → $, EUR → €
+const CURRENCY_SYMBOL: Record<string, string> = { AZN: "₼", USD: "$", EUR: "€", GBP: "£", TRY: "₺" };
+const money = (amount: number, currencyCode: string) =>
+  `${CURRENCY_SYMBOL[currencyCode] ?? currencyCode} ${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const dateShort = (iso: string) => new Date(iso).toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" });
+
+// Xəta mesajı UI üçün: "422 INSUFFICIENT_FUNDS — Hesabda kifayət qədər vəsait yoxdur"
+const errorText = (error: unknown) =>
+  error instanceof AuthClientError ? `${error.status} ${error.code} — ${error.message}` : String((error as Error)?.message ?? error);
+
+function BankApp({ t }: { t: Translation }) {
+  const [data, setData] = useState<Dashboard | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [blockCardId, setBlockCardId] = useState<number | null>(null);
   const [blockReason, setBlockReason] = useState("LOST");
-  const [blocked, setBlocked] = useState(false);
+  const [blockComment, setBlockComment] = useState("");
+  const [blockError, setBlockError] = useState("");
   const [transferSent, setTransferSent] = useState(false);
-  const [idempotencyKey, setIdempotencyKey] = useState(
-    () => `idem_${crypto.randomUUID().slice(0, 18)}`,
-  );
+  const [transferError, setTransferError] = useState("");
+  const [fromAccount, setFromAccount] = useState("");
+  const [recipient, setRecipient] = useState("AZ21NABZ0004");
+  const [amount, setAmount] = useState("25.00");
+  const [idempotencyKey, setIdempotencyKey] = useState(() => bank.newIdempotencyKey());
 
-  const blockCard = () => {
-    setBlocked(true);
-    setBlockModal(false);
-    addCall({
-      id: `block-${Date.now()}`,
-      method: "POST",
-      url: "/v1/cards/card_4821/block",
-      status: 200,
-      time: 118,
-    });
+  const load = async () => {
+    try {
+      const next = await bank.dashboard(); // BFF: accounts + cards + transactions + rates (1 sorğu)
+      setData(next);
+      setFromAccount((current) => current || next.accounts[0]?.id || "");
+      setLoadError("");
+    } catch (error) {
+      setLoadError(errorText(error));
+    }
   };
 
-  const transfer = (event: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    void load();
+  }, []);
+
+  // Ümumi balans AZN ilə: 1 AZN = rate X → X / rate
+  const totalAzn = data
+    ? data.accounts.reduce((sum, account) => {
+        const rate = account.currency === "AZN" ? 1 : data.rates.rates[account.currency];
+        return sum + (rate ? account.balance / rate : 0);
+      }, 0)
+    : 0;
+  const accountName = (account: Account) => (account.type === "SAVINGS" ? t.savings : t.checking);
+  const holder = (data?.user.fullName ?? "").toUpperCase();
+
+  const blockCard = async () => {
+    if (blockCardId === null) return;
+    setBlockError("");
+    try {
+      await bank.blockCard(blockCardId, blockReason, blockComment);
+      setBlockCardId(null);
+      setBlockComment("");
+      await load();
+    } catch (error) {
+      setBlockError(errorText(error));
+    }
+  };
+
+  const transfer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setTransferSent(true);
-    addCall({
-      id: `transfer-${Date.now()}`,
-      method: "POST",
-      url: "/bff/transfers",
-      status: 201,
-      time: 284,
-      type: "BFF",
-      internalCalls: [
-        {
-          id: "transfer-check",
-          method: "GET",
-          url: "/accounts/acc_001/balance",
-          status: 200,
-          time: 38,
-        },
-        {
-          id: "transfer-create",
-          method: "POST",
-          url: "/transfers",
-          status: 201,
-          time: 176,
-        },
-      ],
-    });
-    setIdempotencyKey(`idem_${crypto.randomUUID().slice(0, 18)}`);
-    window.setTimeout(() => setTransferSent(false), 2600);
+    const source = data?.accounts.find((account) => account.id === fromAccount);
+    if (!source) return;
+    setTransferError("");
+    try {
+      await bank.transfer({ fromAccountId: source.id, toAccountId: recipient.replace(/\s+/g, ""), amount: Number(amount), currency: source.currency }, idempotencyKey);
+      setTransferSent(true);
+      setIdempotencyKey(bank.newIdempotencyKey());
+      await load();
+      window.setTimeout(() => setTransferSent(false), 2600);
+    } catch (error) {
+      setTransferError(errorText(error));
+    }
   };
+
+  if (!data) {
+    return (
+      <div className="bank-app">
+        <div className="bank-summary"><div><span>{t.totalBalance}</span><strong>{loadError ? "—" : t.loading}</strong><small>{loadError || t.acrossAccounts}</small></div></div>
+      </div>
+    );
+  }
 
   return (
     <div className="bank-app">
       <div className="bank-summary">
         <div>
           <span>{t.totalBalance}</span>
-          <strong>₼ 24,840.65</strong>
+          <strong>{money(totalAzn, "AZN")}</strong>
           <small>{t.acrossAccounts}</small>
         </div>
         <div className="balance-spark" aria-hidden="true">
           <svg viewBox="0 0 180 55">
             <path d="M2 45 C25 46 24 29 47 34 S72 19 92 25 S116 9 135 17 S158 6 178 8" />
           </svg>
-          <span>+8.4%</span>
+          <span>{data.rates.date}</span>
         </div>
       </div>
 
       <section className="bank-section">
         <div className="app-section-title">
           <h2>{t.accountsLabel}</h2>
-          <span>3</span>
+          <span>{data.accounts.length}</span>
         </div>
         <div className="account-grid">
-          {[
-            [t.checking, "AZN", "₼ 8,420.35", "•• 2048"],
-            [t.savings, "USD", "$ 6,240.00", "•• 7182"],
-            [t.business, "EUR", "€ 9,180.30", "•• 9014"],
-          ].map(([name, currency, amount, number]) => (
-            <article className="account-card" key={name}>
-              <div><span>{name}</span><b>{currency}</b></div>
-              <strong>{amount}</strong>
-              <small>{t.availableBalance} · {number}</small>
+          {data.accounts.map((account) => (
+            <article className="account-card" key={account.id}>
+              <div><span>{accountName(account)}</span><b>{account.currency}</b></div>
+              <strong>{money(account.balance, account.currency)}</strong>
+              <small>{t.availableBalance} · {account.id}</small>
             </article>
           ))}
         </div>
@@ -2129,40 +2235,34 @@ function BankApp({
         <section className="bank-section">
           <div className="app-section-title">
             <h2>{t.cardsLabel}</h2>
-            <span>2</span>
+            <span>{data.cards.length}</span>
           </div>
           <div className="payment-cards">
-            <article className={blocked ? "payment-card visa blocked" : "payment-card visa"}>
-              <div className="payment-card-top">
-                <span className="card-chip" />
-                <b>VISA</b>
-              </div>
-              <code>••••  ••••  ••••  4821</code>
-              <div className="payment-card-bottom">
-                <span>RAUF MAMMADOV</span>
-                <span>{t.expires}<b>08/28</b></span>
-                <strong>{blocked ? t.blocked : t.active}</strong>
-              </div>
-              {!blocked && (
-                <button onClick={() => setBlockModal(true)} type="button">
-                  <Icon name="lock" size={14} />
-                  {t.blockCard}
-                </button>
-              )}
-              {blocked && <div className="blocked-overlay"><Icon name="lock" size={24} />{t.cardBlocked}</div>}
-            </article>
-            <article className="payment-card mastercard">
-              <div className="payment-card-top">
-                <span className="card-chip" />
-                <b>MASTERCARD</b>
-              </div>
-              <code>••••  ••••  ••••  1093</code>
-              <div className="payment-card-bottom">
-                <span>RAUF MAMMADOV</span>
-                <span>{t.expires}<b>11/27</b></span>
-                <strong>{t.active}</strong>
-              </div>
-            </article>
+            {data.cards.map((card) => {
+              const blocked = card.status !== "ACTIVE";
+              const expires = `${card.expiresAt.slice(5, 7)}/${card.expiresAt.slice(2, 4)}`;
+              return (
+                <article className={`payment-card ${card.brand === "VISA" ? "visa" : "mastercard"}${blocked ? " blocked" : ""}`} key={card.id}>
+                  <div className="payment-card-top">
+                    <span className="card-chip" />
+                    <b>{card.brand}</b>
+                  </div>
+                  <code>••••  ••••  ••••  {card.last4}</code>
+                  <div className="payment-card-bottom">
+                    <span>{holder}</span>
+                    <span>{t.expires}<b>{expires}</b></span>
+                    <strong>{card.status === "ACTIVE" ? t.active : card.status === "BLOCKED" ? t.blocked : t.expired}</strong>
+                  </div>
+                  {!blocked && (
+                    <button onClick={() => { setBlockCardId(card.id); setBlockError(""); }} type="button">
+                      <Icon name="lock" size={14} />
+                      {t.blockCard}
+                    </button>
+                  )}
+                  {blocked && <div className="blocked-overlay"><Icon name="lock" size={24} />{card.status === "BLOCKED" ? `${t.cardBlocked}${card.statusReason ? ` · ${card.statusReason}` : ""}` : t.expired}</div>}
+                </article>
+              );
+            })}
           </div>
         </section>
 
@@ -2173,20 +2273,24 @@ function BankApp({
           <form className="transfer-form" onSubmit={transfer}>
             <label>
               <span>{t.fromAccount}</span>
-              <select><option>{t.checking} · ₼ 8,420.35</option></select>
+              <select onChange={(event) => setFromAccount(event.target.value)} value={fromAccount}>
+                {data.accounts.map((account) => (
+                  <option key={account.id} value={account.id}>{accountName(account)} · {money(account.balance, account.currency)}</option>
+                ))}
+              </select>
             </label>
             <label>
               <span>{t.recipientIban}</span>
-              <input defaultValue="AZ21 NABZ 0000 0012 3456 7890 12" required />
+              <input onChange={(event) => setRecipient(event.target.value)} required value={recipient} />
             </label>
             <div className="transfer-split">
-              <label><span>{t.amount}</span><input defaultValue="125.00" type="number" required /></label>
-              <label><span>{t.transferNote}</span><input defaultValue="Course payment" /></label>
+              <label><span>{t.amount}</span><input min="0.01" onChange={(event) => setAmount(event.target.value)} required step="0.01" type="number" value={amount} /></label>
+              <label><span>{t.currency}</span><input readOnly value={data.accounts.find((account) => account.id === fromAccount)?.currency ?? ""} /></label>
             </div>
             <div className="idempotency-field">
               <div>
                 <span>{t.idempotencyKey}</span>
-                <small>{t.idempotencyHint}</small>
+                <small>{transferError || t.idempotencyHint}</small>
               </div>
               <code>{idempotencyKey}</code>
             </div>
@@ -2199,21 +2303,18 @@ function BankApp({
       </div>
 
       <section className="bank-section activity-section">
-        <div className="app-section-title"><h2>{t.recentActivity}</h2><span>{t.today}</span></div>
-        <div className="activity-row">
-          <span className="activity-icon"><Icon name="card" size={17} /></span>
-          <div><strong>{t.cardPayment}</strong><small>API Lab Coffee · VISA •4821</small></div>
-          <b>− ₼ 8.50</b>
-        </div>
-        <div className="activity-row">
-          <span className="activity-icon incoming"><Icon name="arrow" size={17} /></span>
-          <div><strong>{t.salary}</strong><small>Acme Education LLC</small></div>
-          <b className="positive">+ ₼ 2,450.00</b>
-        </div>
+        <div className="app-section-title"><h2>{t.recentActivity}</h2><span>{data.recentTransactions.length}</span></div>
+        {data.recentTransactions.map((tx) => (
+          <div className="activity-row" key={tx.id}>
+            <span className={tx.type === "CREDIT" ? "activity-icon incoming" : "activity-icon"}><Icon name={tx.type === "CREDIT" ? "arrow" : "card"} size={17} /></span>
+            <div><strong>{tx.description}</strong><small>{tx.accountId} · {dateShort(tx.createdAt)}</small></div>
+            <b className={tx.type === "CREDIT" ? "positive" : ""}>{tx.type === "CREDIT" ? "+" : "−"} {money(tx.amount, tx.currency)}</b>
+          </div>
+        ))}
       </section>
 
-      {blockModal && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setBlockModal(false)}>
+      {blockCardId !== null && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setBlockCardId(null)}>
           <div
             aria-labelledby="block-card-title"
             aria-modal="true"
@@ -2223,21 +2324,21 @@ function BankApp({
           >
             <div className="modal-danger-icon"><Icon name="lock" size={23} /></div>
             <h2 id="block-card-title">{t.blockCardTitle}</h2>
-            <p>{t.blockCardText}</p>
+            <p>{blockError || t.blockCardText}</p>
             <label>
               <span>{t.reason}</span>
               <select value={blockReason} onChange={(event) => setBlockReason(event.target.value)}>
-                <option>{t.lost}</option>
-                <option>{t.stolen}</option>
-                <option>{t.suspectedFraud}</option>
+                <option value="LOST">{t.lost}</option>
+                <option value="STOLEN">{t.stolen}</option>
+                <option value="SUSPECTED_FRAUD">{t.suspectedFraud}</option>
               </select>
             </label>
             <label>
               <span>{t.comment}</span>
-              <textarea placeholder={t.commentPlaceholder} />
+              <textarea onChange={(event) => setBlockComment(event.target.value)} placeholder={t.commentPlaceholder} value={blockComment} />
             </label>
             <div className="modal-actions">
-              <button onClick={() => setBlockModal(false)} type="button">{t.cancel}</button>
+              <button onClick={() => setBlockCardId(null)} type="button">{t.cancel}</button>
               <button onClick={blockCard} type="button">{t.confirmBlock}</button>
             </div>
           </div>
@@ -2247,29 +2348,51 @@ function BankApp({
   );
 }
 
-function CurrencyApp({
-  addCall,
-  t,
-}: {
-  addCall: (call: NetworkCall) => void;
-  t: Translation;
-}) {
+function CurrencyApp({ t }: { t: Translation }) {
   const [from, setFrom] = useState("AZN");
   const [to, setTo] = useState("USD");
   const [amount, setAmount] = useState(1000);
-  const rates: Record<string, number> = { AZN: 1, USD: 0.5882, EUR: 0.5418, GBP: 0.463 };
-  const converted = ((amount / rates[from]) * rates[to]).toFixed(2);
+  const [rates, setRates] = useState<Record<string, number>>({ AZN: 1 });
+  const [rateDate, setRateDate] = useState("");
+  const [points, setPoints] = useState<{ date: string; rate: number }[]>([]);
+
+  // Məzənnələr base=AZN (X-API-Key); çarpaz kurs client-də: (AZN→to) / (AZN→from)
+  useEffect(() => {
+    currency
+      .rates("AZN")
+      .then((result) => {
+        setRates({ AZN: 1, ...result.rates });
+        setRateDate(result.date);
+      })
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (from === to) {
+      setPoints([]);
+      return;
+    }
+    currency.history(from, to, 7).then(setPoints).catch(() => setPoints([]));
+  }, [from, to]);
+
+  const rate = rates[from] && rates[to] ? rates[to] / rates[from] : 0;
+  const converted = (amount * rate).toFixed(2);
+  const values = points.map((p) => p.rate);
+  const low = values.length ? Math.min(...values) : rate;
+  const high = values.length ? Math.max(...values) : rate;
+  const change = values.length > 1 ? ((values[values.length - 1] - values[0]) / values[0]) * 100 : 0;
+  // Qrafik real tarixçədən: 600×230 sahəyə miqyaslanır
+  const chartPoints = values.map((value, index) => {
+    const x = values.length > 1 ? (index / (values.length - 1)) * 600 : 0;
+    const y = high === low ? 115 : 205 - ((value - low) / (high - low)) * 180;
+    return [x, y] as const;
+  });
+  const line = chartPoints.map(([x, y], index) => `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const last = chartPoints[chartPoints.length - 1];
 
   const swap = () => {
     setFrom(to);
     setTo(from);
-    addCall({
-      id: `rate-${Date.now()}`,
-      method: "GET",
-      url: `/v1/rates?base=${to}&symbols=${from}`,
-      status: 200,
-      time: 47,
-    });
   };
 
   return (
@@ -2291,7 +2414,7 @@ function CurrencyApp({
                 value={amount}
               />
               <select value={from} onChange={(event) => setFrom(event.target.value)}>
-                {Object.keys(rates).map((rate) => <option key={rate}>{rate}</option>)}
+                {Object.keys(rates).map((code) => <option key={code}>{code}</option>)}
               </select>
             </div>
           </div>
@@ -2307,25 +2430,25 @@ function CurrencyApp({
             <div>
               <input id="currency-to" readOnly value={converted} />
               <select value={to} onChange={(event) => setTo(event.target.value)}>
-                {Object.keys(rates).map((rate) => <option key={rate}>{rate}</option>)}
+                {Object.keys(rates).map((code) => <option key={code}>{code}</option>)}
               </select>
             </div>
           </div>
           <div className="rate-summary">
             <span>{t.exchangeRate}</span>
-            <strong>1 {from} = {(rates[to] / rates[from]).toFixed(4)} {to}</strong>
-            <small>{t.rateDisclaimer}</small>
+            <strong>1 {from} = {rate.toFixed(4)} {to}</strong>
+            <small>{t.rateDisclaimer} {rateDate}</small>
           </div>
         </section>
 
         <section className="trend-card">
           <div className="trend-head">
             <div><span>{t.marketTrend}</span><h2>{from} / {to}</h2></div>
-            <span className="trend-up">+1.24%</span>
+            <span className="trend-up">{change >= 0 ? "+" : ""}{change.toFixed(2)}%</span>
           </div>
           <div className="trend-value">
-            <strong>{(rates[to] / rates[from]).toFixed(4)}</strong>
-            <small>{t.updatedNow}</small>
+            <strong>{rate.toFixed(4)}</strong>
+            <small>{rateDate || t.updatedNow}</small>
           </div>
           <div className="mini-chart">
             <svg aria-label={t.marketTrend} preserveAspectRatio="none" role="img" viewBox="0 0 600 230">
@@ -2336,16 +2459,16 @@ function CurrencyApp({
                 </linearGradient>
               </defs>
               <path className="chart-grid" d="M0 45H600M0 105H600M0 165H600M0 225H600" />
-              <path className="chart-area" d="M0 184 C45 170 64 190 105 150 S172 145 208 116 S277 132 318 87 S390 110 432 71 S510 80 600 26 L600 230 L0 230Z" />
-              <path className="chart-line" d="M0 184 C45 170 64 190 105 150 S172 145 208 116 S277 132 318 87 S390 110 432 71 S510 80 600 26" />
-              <circle cx="600" cy="26" r="6" />
+              {line && <path className="chart-area" d={`${line} L600 230 L0 230Z`} />}
+              {line && <path className="chart-line" d={line} />}
+              {last && <circle cx={last[0]} cy={last[1]} r="6" />}
             </svg>
-            <div className="chart-labels"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+            <div className="chart-labels">{points.map((p) => <span key={p.date}>{p.date.slice(5)}</span>)}</div>
           </div>
           <div className="trend-stats">
-            <div><span>{t.low}</span><strong>0.5741</strong></div>
-            <div><span>{t.high}</span><strong>0.5912</strong></div>
-            <div><span>{t.exchangeRate}</span><strong>0.5882</strong></div>
+            <div><span>{t.low}</span><strong>{low.toFixed(4)}</strong></div>
+            <div><span>{t.high}</span><strong>{high.toFixed(4)}</strong></div>
+            <div><span>{t.exchangeRate}</span><strong>{rate.toFixed(4)}</strong></div>
           </div>
         </section>
       </div>
@@ -2353,68 +2476,66 @@ function CurrencyApp({
   );
 }
 
-function FlightsApp({
-  addCall,
-  t,
-}: {
-  addCall: (call: NetworkCall) => void;
-  t: Translation;
-}) {
+const isoDay = (offsetDays: number) => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10);
+const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const durationText = (minutes: number) => `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
+// "Bakı (GYD)" → "GYD", "gyd" → "GYD"
+const airportCode = (value: string) => (/\(([A-Za-z]{3})\)/.exec(value)?.[1] ?? value.trim()).toUpperCase();
+
+function FlightsApp({ t }: { t: Translation }) {
   const [filter, setFilter] = useState("all");
   const [sort, setSort] = useState("recommended");
-  const [selectedFlight, setSelectedFlight] = useState<{
-    airline: string;
-    code: string;
-    depart: string;
-    arrive: string;
-    duration: string;
-    stops: number;
-    price: number;
-  } | null>(null);
-  const [booked, setBooked] = useState(false);
-  const flights = [
-    { airline: "AZAL", code: "J2 075", depart: "09:15", arrive: "12:10", duration: "4h 55m", stops: 0, price: 428 },
-    { airline: "Turkish Airlines", code: "TK 333", depart: "11:40", arrive: "16:55", duration: "6h 15m", stops: 1, price: 365 },
-    { airline: "Qatar Airways", code: "QR 354", depart: "14:20", arrive: "18:35", duration: "5h 15m", stops: 0, price: 492 },
-  ];
-  const visibleFlights = flights
-    .filter((flight) =>
-      filter === "direct" ? flight.stops === 0 : filter === "stop" ? flight.stops === 1 : true,
-    )
-    .sort((a, b) =>
-      sort === "price"
-        ? a.price - b.price
-        : sort === "duration"
-          ? Number.parseInt(a.duration) - Number.parseInt(b.duration)
-          : a.stops - b.stops,
-    );
+  const [query, setQuery] = useState({ from: "Bakı (GYD)", to: "İstanbul (IST)", date: isoDay(3), adults: 1 });
+  const [results, setResults] = useState<Flight[]>([]);
+  const [searchError, setSearchError] = useState("");
+  const [selectedFlight, setSelectedFlight] = useState<Flight | null>(null);
+  const [passenger, setPassenger] = useState("");
+  const [booking, setBooking] = useState<{ id: number } | null>(null);
+  const [bookingError, setBookingError] = useState<AuthClientError | null>(null);
+
+  const runSearch = async (q = query) => {
+    setSearchError("");
+    try {
+      const page = await flights.search({ from: airportCode(q.from), to: airportCode(q.to), date: q.date, adults: q.adults });
+      setResults(page.items);
+    } catch (error) {
+      setResults([]);
+      setSearchError(errorText(error));
+    }
+  };
+
+  useEffect(() => {
+    void runSearch();
+    setPassenger(authClient.getStoredSession()?.user.name ?? "");
+  }, []);
+
+  const visibleFlights = results
+    .filter((flight) => (filter === "direct" ? flight.stops === 0 : filter === "stop" ? flight.stops >= 1 : true))
+    .sort((a, b) => (sort === "price" ? a.price - b.price : sort === "duration" ? a.durationMin - b.durationMin : a.stops - b.stops || a.price - b.price));
 
   const search = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    addCall({
-      id: `flight-search-${Date.now()}`,
-      method: "GET",
-      url: "/bff/flights/search?from=GYD&to=IST",
-      status: 200,
-      time: 436,
-      type: "BFF",
-      internalCalls: [
-        { id: "azal-search", method: "GET", url: "/providers/azal/offers", status: 200, time: 146 },
-        { id: "tk-search", method: "GET", url: "/providers/tk/offers", status: 200, time: 182 },
-        { id: "qr-search", method: "GET", url: "/providers/qr/offers", status: 200, time: 211 },
-      ],
-    });
+    void runSearch();
   };
 
-  const bookFlight = () => {
-    setBooked(true);
-    addCall({
-      id: `flight-book-${Date.now()}`,
-      method: "POST",
-      url: "/v1/bookings/flights",
-      status: 201,
-      time: 328,
-    });
+  const bookFlight = async () => {
+    if (!selectedFlight) return;
+    setBookingError(null);
+    const [firstName, ...rest] = passenger.trim().split(/\s+/);
+    const count = Math.max(1, query.adults);
+    const passengers = Array.from({ length: count }, (_, i) => ({ firstName: firstName || "Sərnişin", lastName: (rest.join(" ") || "API Lab") + (i ? ` ${i + 1}` : "") }));
+    try {
+      setBooking(await flights.book(selectedFlight.id, passengers));
+      void runSearch();
+    } catch (error) {
+      setBookingError(error instanceof AuthClientError ? error : new AuthClientError(String(error), 0, "ERROR", ""));
+    }
+  };
+
+  const closeModal = () => {
+    setSelectedFlight(null);
+    setBooking(null);
+    setBookingError(null);
   };
 
   return (
@@ -2424,15 +2545,15 @@ function FlightsApp({
         <div><h1>{t.flightSearch}</h1><p>{t.flightSearchSubtitle}</p></div>
       </div>
       <form className="travel-search flight-search" onSubmit={search}>
-        <label><span>{t.from}</span><input defaultValue="Bakı (GYD)" /></label>
-        <label><span>{t.to}</span><input defaultValue="İstanbul (IST)" /></label>
-        <label><span>{t.departureDate}</span><input defaultValue="2025-08-24" type="date" /></label>
-        <label><span>{t.adults}</span><select defaultValue="1"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+        <label><span>{t.from}</span><input onChange={(event) => setQuery({ ...query, from: event.target.value })} value={query.from} /></label>
+        <label><span>{t.to}</span><input onChange={(event) => setQuery({ ...query, to: event.target.value })} value={query.to} /></label>
+        <label><span>{t.departureDate}</span><input onChange={(event) => setQuery({ ...query, date: event.target.value })} type="date" value={query.date} /></label>
+        <label><span>{t.adults}</span><select onChange={(event) => setQuery({ ...query, adults: Number(event.target.value) })} value={query.adults}><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
         <button type="submit"><Icon name="search" size={17} />{t.searchFlights}</button>
       </form>
 
       <div className="results-toolbar">
-        <div><h2>{t.flightResults}</h2><span>{t.flightsFound}</span></div>
+        <div><h2>{t.flightResults}</h2><span>{searchError || `${visibleFlights.length} ${t.results}`}</span></div>
         <div className="travel-controls">
           <label><span>{t.filters}</span><select value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">{t.allFlights}</option><option value="direct">{t.directOnly}</option><option value="stop">{t.oneStop}</option></select></label>
           <label><span>{t.sortBy}</span><select value={sort} onChange={(event) => setSort(event.target.value)}><option value="recommended">{t.recommended}</option><option value="price">{t.lowestPrice}</option><option value="duration">{t.shortestDuration}</option></select></label>
@@ -2441,43 +2562,54 @@ function FlightsApp({
 
       <div className="flight-results">
         {visibleFlights.map((flight) => (
-          <article className="flight-card" key={flight.code}>
-            <div className="airline-mark">{flight.airline.slice(0, 2).toUpperCase()}</div>
-            <div className="airline-name"><strong>{flight.airline}</strong><code>{flight.code}</code></div>
+          <article className="flight-card" key={flight.id}>
+            <div className="airline-mark">{flight.airline.code}</div>
+            <div className="airline-name"><strong>{flight.airline.name}</strong><code>{flight.flightNo}</code></div>
             <div className="flight-route">
-              <div><strong>{flight.depart}</strong><span>GYD</span></div>
-              <div className="route-line"><span>{flight.duration}</span><i /><small>{flight.stops === 0 ? t.direct : `1 ${t.stop}`}</small></div>
-              <div><strong>{flight.arrive}</strong><span>IST</span></div>
+              <div><strong>{clock(flight.departAt)}</strong><span>{flight.from.code}</span></div>
+              <div className="route-line"><span>{durationText(flight.durationMin)}</span><i /><small>{flight.stops === 0 ? t.direct : `${flight.stops} ${t.stop}`}</small></div>
+              <div><strong>{clock(flight.arriveAt)}</strong><span>{flight.to.code}</span></div>
             </div>
-            <div className="flight-price"><strong>{flight.price} AZN</strong><span>{t.perAdult}</span></div>
-            <button onClick={() => { setSelectedFlight(flight); setBooked(false); }} type="button">{t.selectFlight}</button>
+            <div className="flight-price"><strong>{flight.price} {flight.currency}</strong><span>{t.perAdult}</span></div>
+            <button onClick={() => { setSelectedFlight(flight); setBooking(null); setBookingError(null); }} type="button">{t.selectFlight}</button>
           </article>
         ))}
       </div>
 
       {selectedFlight && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelectedFlight(null)}>
+        <div className="modal-backdrop" role="presentation" onMouseDown={closeModal}>
           <div className="booking-modal" role="dialog" aria-modal="true" aria-labelledby="flight-booking-title" onMouseDown={(event) => event.stopPropagation()}>
-            {booked ? (
+            {booking ? (
               <div className="booking-success">
                 <span><Icon name="check" size={26} /></span>
                 <h2>{t.bookingConfirmed}</h2>
-                <code>BK-{Date.now().toString().slice(-6)}</code>
-                <button onClick={() => setSelectedFlight(null)} type="button">{t.closeMenu}</button>
+                <code>BK-{booking.id}</code>
+                <button onClick={closeModal} type="button">{t.closeMenu}</button>
+              </div>
+            ) : bookingError ? (
+              <div className="booking-error-state">
+                <span className="conflict-status">{bookingError.status}</span>
+                <h2>{bookingError.code}</h2>
+                <p>{bookingError.message}</p>
+                <dl>
+                  <div><dt>{t.errorCode}</dt><dd>{bookingError.code}</dd></div>
+                  <div><dt>{t.traceId}</dt><dd>{bookingError.traceId || "—"}</dd></div>
+                </dl>
+                <button onClick={closeModal} type="button">{t.refreshResults}</button>
               </div>
             ) : (
               <>
-                <div className="booking-modal-head"><div><span>{t.bookingSummary}</span><h2 id="flight-booking-title">{selectedFlight.airline}</h2></div><button aria-label={t.closeMenu} onClick={() => setSelectedFlight(null)} type="button"><Icon name="close" size={18} /></button></div>
+                <div className="booking-modal-head"><div><span>{t.bookingSummary}</span><h2 id="flight-booking-title">{selectedFlight.airline.name}</h2></div><button aria-label={t.closeMenu} onClick={closeModal} type="button"><Icon name="close" size={18} /></button></div>
                 <div className="booking-itinerary">
-                  <div><strong>{selectedFlight.depart}</strong><span>Bakı · GYD</span></div>
-                  <div><Icon name="plane" size={18} /><span>{selectedFlight.duration} · {selectedFlight.stops === 0 ? t.direct : `1 ${t.stop}`}</span></div>
-                  <div><strong>{selectedFlight.arrive}</strong><span>İstanbul · IST</span></div>
+                  <div><strong>{clock(selectedFlight.departAt)}</strong><span>{selectedFlight.from.city} · {selectedFlight.from.code}</span></div>
+                  <div><Icon name="plane" size={18} /><span>{durationText(selectedFlight.durationMin)} · {selectedFlight.stops === 0 ? t.direct : `${selectedFlight.stops} ${t.stop}`}</span></div>
+                  <div><strong>{clock(selectedFlight.arriveAt)}</strong><span>{selectedFlight.to.city} · {selectedFlight.to.code}</span></div>
                 </div>
-                <form className="booking-form" onSubmit={(event) => { event.preventDefault(); bookFlight(); }}>
+                <form className="booking-form" onSubmit={(event) => { event.preventDefault(); void bookFlight(); }}>
                   <h3>{t.passengerDetails}</h3>
-                  <label><span>{t.fullName}</span><input defaultValue="Rauf Məmmədov" required /></label>
-                  <label><span>{t.email}</span><input defaultValue="rauf@example.com" required type="email" /></label>
-                  <div className="booking-total"><span>{t.total}</span><strong>{selectedFlight.price} AZN</strong></div>
+                  <label><span>{t.fullName}</span><input onChange={(event) => setPassenger(event.target.value)} required value={passenger} /></label>
+                  <label><span>{t.adults}</span><input readOnly value={query.adults} /></label>
+                  <div className="booking-total"><span>{t.total}</span><strong>{(selectedFlight.price * query.adults).toFixed(2)} {selectedFlight.currency}</strong></div>
                   <button type="submit">{t.confirmBooking}<Icon name="arrow" size={17} /></button>
                 </form>
               </>
@@ -2489,53 +2621,67 @@ function FlightsApp({
   );
 }
 
-function HotelsApp({
-  addCall,
-  t,
-}: {
-  addCall: (call: NetworkCall) => void;
-  t: Translation;
-}) {
-  const [selectedHotel, setSelectedHotel] = useState<{
-    name: string;
-    stars: number;
-    rating: string;
-    score: number;
-    amenities: string[];
-    price: number;
-  } | null>(null);
-  const [bookingError, setBookingError] = useState(false);
-  const hotels = [
-    { name: "Baku Marina Hotel", stars: 5, rating: t.excellent, score: 9.2, amenities: [t.freeWifi, t.breakfast, t.seaView, t.spa], price: 248 },
-    { name: "Old City Courtyard", stars: 4, rating: t.veryGood, score: 8.7, amenities: [t.freeWifi, t.breakfast, t.airportShuttle], price: 164 },
-    { name: "Boulevard Residence", stars: 4, rating: t.good, score: 8.3, amenities: [t.freeWifi, t.parking, t.seaView], price: 132 },
-  ];
+function HotelsApp({ t }: { t: Translation }) {
+  const [query, setQuery] = useState({ city: "Bakı", checkIn: isoDay(6), checkOut: isoDay(8), guests: 1 });
+  const [minRating, setMinRating] = useState(0);
+  const [sort, setSort] = useState("price");
+  const [results, setResults] = useState<Hotel[]>([]);
+  const [searchError, setSearchError] = useState("");
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null);
+  const [room, setRoom] = useState<Room | null>(null);
+  const [booking, setBooking] = useState<{ id: number; total: number; currency: string } | null>(null);
+  const [bookingError, setBookingError] = useState<AuthClientError | null>(null);
+  const nights = Math.max(1, Math.round((Date.parse(query.checkOut) - Date.parse(query.checkIn)) / 86_400_000));
+
+  const runSearch = async (q = query, order = sort) => {
+    setSearchError("");
+    try {
+      setResults((await hotels.search({ ...q, sort: order })).items);
+    } catch (error) {
+      setResults([]);
+      setSearchError(errorText(error));
+    }
+  };
+
+  useEffect(() => {
+    void runSearch();
+  }, []);
 
   const search = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    addCall({
-      id: `hotel-search-${Date.now()}`,
-      method: "GET",
-      url: "/bff/hotels/search?city=Baku",
-      status: 200,
-      time: 391,
-      type: "BFF",
-      internalCalls: [
-        { id: "inventory", method: "GET", url: "/hotel-inventory/search", status: 200, time: 171 },
-        { id: "rates", method: "GET", url: "/hotel-rates/batch", status: 200, time: 139 },
-      ],
-    });
+    void runSearch();
   };
 
-  const reserve = () => {
-    setBookingError(true);
-    addCall({
-      id: `hotel-book-${Date.now()}`,
-      method: "POST",
-      url: "/v1/bookings/hotels",
-      status: 409,
-      time: 247,
-    });
+  const ratingLabel = (score: number) => (score >= 9 ? t.excellent : score >= 8.5 ? t.veryGood : t.good);
+
+  // Rezerv: həmin tarixlərdə boş və tutumu kifayət edən ən ucuz otaq
+  const openHotel = async (hotel: Hotel) => {
+    setSelectedHotel(hotel);
+    setBooking(null);
+    setBookingError(null);
+    setRoom(null);
+    try {
+      const rooms = await hotels.rooms(hotel.id, query.checkIn, query.checkOut);
+      setRoom(rooms.find((r) => r.available !== false && r.capacity >= query.guests) ?? rooms.find((r) => r.capacity >= query.guests) ?? null);
+    } catch (error) {
+      setBookingError(error instanceof AuthClientError ? error : null);
+    }
+  };
+
+  const reserve = async () => {
+    if (!room) return;
+    try {
+      setBooking(await hotels.book({ roomId: room.id, checkIn: query.checkIn, checkOut: query.checkOut, guests: query.guests }));
+      void runSearch();
+    } catch (error) {
+      setBookingError(error instanceof AuthClientError ? error : new AuthClientError(String(error), 0, "ERROR", ""));
+    }
+  };
+
+  const close = () => {
+    setSelectedHotel(null);
+    setBookingError(null);
+    setBooking(null);
   };
 
   return (
@@ -2545,62 +2691,74 @@ function HotelsApp({
         <div><h1>{t.hotelSearch}</h1><p>{t.hotelSearchSubtitle}</p></div>
       </div>
       <form className="travel-search hotel-search" onSubmit={search}>
-        <label><span>{t.city}</span><input defaultValue="Bakı, Azərbaycan" /></label>
-        <label><span>{t.checkIn}</span><input defaultValue="2025-08-24" type="date" /></label>
-        <label><span>{t.checkOut}</span><input defaultValue="2025-08-27" type="date" /></label>
-        <label><span>{t.guests}</span><select defaultValue="2"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+        <label><span>{t.city}</span><input onChange={(event) => setQuery({ ...query, city: event.target.value })} value={query.city} /></label>
+        <label><span>{t.checkIn}</span><input onChange={(event) => setQuery({ ...query, checkIn: event.target.value })} type="date" value={query.checkIn} /></label>
+        <label><span>{t.checkOut}</span><input onChange={(event) => setQuery({ ...query, checkOut: event.target.value })} type="date" value={query.checkOut} /></label>
+        <label><span>{t.guests}</span><select onChange={(event) => setQuery({ ...query, guests: Number(event.target.value) })} value={query.guests}><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></label>
         <button type="submit"><Icon name="search" size={17} />{t.searchHotels}</button>
       </form>
 
       <div className="results-toolbar">
-        <div><h2>{t.hotelResults}</h2><span>{t.hotelsFound}</span></div>
+        <div><h2>{t.hotelResults}</h2><span>{searchError || `${results.filter((h) => h.rating >= minRating).length} ${t.results}`}</span></div>
         <div className="travel-controls">
-          <label><span>{t.guestRating}</span><select><option>8+</option><option>9+</option></select></label>
-          <label><span>{t.sortBy}</span><select><option>{t.recommended}</option><option>{t.lowestPrice}</option></select></label>
+          <label><span>{t.guestRating}</span><select onChange={(event) => setMinRating(Number(event.target.value))} value={minRating}><option value="0">—</option><option value="8">8+</option><option value="9">9+</option></select></label>
+          <label><span>{t.sortBy}</span><select onChange={(event) => { setSort(event.target.value); void runSearch(query, event.target.value); }} value={sort}><option value="-rating">{t.recommended}</option><option value="price">{t.lowestPrice}</option></select></label>
         </div>
       </div>
 
       <div className="hotel-results">
-        {hotels.map((hotel) => (
-          <article className="hotel-card" key={hotel.name}>
+        {results.filter((hotel) => hotel.rating >= minRating).map((hotel) => (
+          <article className="hotel-card" key={hotel.id}>
             <div className="hotel-main">
               <div className="hotel-stars" aria-label={`${hotel.stars} stars`}>
                 {Array.from({ length: hotel.stars }).map((_, index) => <Icon key={index} name="star" size={12} />)}
               </div>
               <h2>{hotel.name}</h2>
-              <span>Bakı · 1.2 km from city centre</span>
+              <span>{hotel.city}</span>
               <div className="amenity-list">{hotel.amenities.map((amenity) => <span key={amenity}>{amenity}</span>)}</div>
             </div>
-            <div className="hotel-rating"><div><strong>{hotel.rating}</strong><span>326 reviews</span></div><b>{hotel.score}</b></div>
-            <div className="hotel-price"><strong>{hotel.price} AZN</strong><span>{t.perNight}</span><small>{t.taxesIncluded}</small><button onClick={() => { setSelectedHotel(hotel); setBookingError(false); }} type="button">{t.reserveRoom}</button></div>
+            <div className="hotel-rating"><div><strong>{ratingLabel(hotel.rating)}</strong><span>{hotel.availableRooms ?? 0} {t.roomsLeft}</span></div><b>{hotel.rating}</b></div>
+            <div className="hotel-price">
+              <strong>{hotel.pricePerNightFrom} {hotel.currency}</strong>
+              <span>{t.perNight}</span>
+              <small>{hotel.currency !== "AZN" && hotel.pricePerNightFromAzn !== null ? `≈ ${hotel.pricePerNightFromAzn} AZN` : t.taxesIncluded}</small>
+              <button onClick={() => void openHotel(hotel)} type="button">{t.reserveRoom}</button>
+            </div>
           </article>
         ))}
       </div>
 
       {selectedHotel && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelectedHotel(null)}>
+        <div className="modal-backdrop" role="presentation" onMouseDown={close}>
           <div className="booking-modal hotel-booking-modal" role="dialog" aria-modal="true" aria-labelledby="hotel-booking-title" onMouseDown={(event) => event.stopPropagation()}>
             {bookingError ? (
               <div className="booking-error-state">
-                <span className="conflict-status">409</span>
-                <h2>{t.roomUnavailable}</h2>
-                <p>{t.roomUnavailableText}</p>
+                <span className="conflict-status">{bookingError.status}</span>
+                <h2>{bookingError.status === 409 ? t.roomUnavailable : bookingError.code}</h2>
+                <p>{bookingError.status === 409 ? t.roomUnavailableText : bookingError.message}</p>
                 <dl>
-                  <div><dt>{t.errorCode}</dt><dd>ROOM_NOT_AVAILABLE</dd></div>
-                  <div><dt>{t.traceId}</dt><dd>trc_hotel_409_x82</dd></div>
+                  <div><dt>{t.errorCode}</dt><dd>{bookingError.code}</dd></div>
+                  <div><dt>{t.traceId}</dt><dd>{bookingError.traceId || "—"}</dd></div>
                 </dl>
-                <button onClick={() => { setSelectedHotel(null); setBookingError(false); }} type="button">{t.refreshResults}</button>
+                <button onClick={() => { close(); void runSearch(); }} type="button">{t.refreshResults}</button>
+              </div>
+            ) : booking ? (
+              <div className="booking-success">
+                <span><Icon name="check" size={26} /></span>
+                <h2>{t.bookingConfirmed}</h2>
+                <code>HB-{booking.id} · {booking.total} {booking.currency}</code>
+                <button onClick={close} type="button">{t.closeMenu}</button>
               </div>
             ) : (
               <>
-                <div className="booking-modal-head"><div><span>{t.roomDetails}</span><h2 id="hotel-booking-title">{selectedHotel.name}</h2></div><button aria-label={t.closeMenu} onClick={() => setSelectedHotel(null)} type="button"><Icon name="close" size={18} /></button></div>
+                <div className="booking-modal-head"><div><span>{t.roomDetails}</span><h2 id="hotel-booking-title">{selectedHotel.name}</h2></div><button aria-label={t.closeMenu} onClick={close} type="button"><Icon name="close" size={18} /></button></div>
                 <div className="hotel-booking-summary">
-                  <div><span>{t.checkIn}</span><strong>24 Aug 2025</strong></div>
-                  <div><span>{t.checkOut}</span><strong>27 Aug 2025</strong></div>
-                  <div><span>{t.guests}</span><strong>2</strong></div>
+                  <div><span>{t.checkIn}</span><strong>{dateShort(query.checkIn)}</strong></div>
+                  <div><span>{t.checkOut}</span><strong>{dateShort(query.checkOut)}</strong></div>
+                  <div><span>{t.guests}</span><strong>{query.guests}</strong></div>
                 </div>
-                <div className="selected-room"><div><strong>{t.standardRoom}</strong><span>{t.breakfast} · {t.freeWifi}</span></div><b>{selectedHotel.price * 3} AZN</b></div>
-                <button className="hotel-confirm-button" onClick={reserve} type="button">{t.confirmBooking}<Icon name="arrow" size={17} /></button>
+                <div className="selected-room"><div><strong>{room ? room.roomType : t.loading}</strong><span>{room ? `${room.capacity} · ${room.pricePerNight} ${room.currency} / ${t.perNight}` : ""}</span></div><b>{room ? `${(room.pricePerNight * nights).toFixed(2)} ${room.currency}` : "—"}</b></div>
+                <button className="hotel-confirm-button" disabled={!room} onClick={() => void reserve()} type="button">{t.confirmBooking}<Icon name="arrow" size={17} /></button>
               </>
             )}
           </div>
@@ -2610,64 +2768,83 @@ function HotelsApp({
   );
 }
 
-function BooksApp({
-  addCall,
-  t,
-}: {
-  addCall: (call: NetworkCall) => void;
-  t: Translation;
-}) {
+const COVER_COLORS = ["navy", "blue", "yellow", "green"];
+
+function BooksApp({ t }: { t: Translation }) {
   const [genre, setGenre] = useState("all");
-  const [reviewBook, setReviewBook] = useState<string | null>(null);
+  const [genres, setGenres] = useState<string[]>([]);
+  const [term, setTerm] = useState("");
+  const [items, setItems] = useState<Book[]>([]);
+  const [reviewBook, setReviewBook] = useState<Book | null>(null);
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState("");
   const [reviewed, setReviewed] = useState(false);
-  const books = [
-    { title: "The Midnight Library", author: "Matt Haig", genre: "fiction", pages: 304, rating: 4.6, color: "navy" },
-    { title: "Designing Data-Intensive Applications", author: "Martin Kleppmann", genre: "technology", pages: 616, rating: 4.9, color: "blue" },
-    { title: "The Lean Startup", author: "Eric Ries", genre: "business", pages: 336, rating: 4.5, color: "yellow" },
-    { title: "A Brief History of Time", author: "Stephen Hawking", genre: "science", pages: 256, rating: 4.8, color: "green" },
-  ];
-  const genres = [
-    ["all", t.allGenres],
-    ["fiction", t.fiction],
-    ["technology", t.technology],
-    ["business", t.businessGenre],
-    ["science", t.science],
-  ];
+  const [reviewError, setReviewError] = useState("");
+
+  const load = async (q = term, g = genre) => {
+    try {
+      setItems((await books.search({ q: q || undefined, genre: g === "all" ? undefined : g })).items);
+    } catch {
+      setItems([]);
+    }
+  };
+
+  useEffect(() => {
+    // Janr siyahısı real kataloqdan (X-API-Key)
+    books.search({}).then((page) => {
+      setItems(page.items);
+      setGenres([...new Set(page.items.map((b) => b.genre))].sort());
+    }).catch(() => undefined);
+  }, []);
+
+  const chooseGenre = (id: string) => {
+    setGenre(id);
+    void load(term, id);
+  };
 
   const search = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    addCall({ id: `books-${Date.now()}`, method: "GET", url: `/v1/books?genre=${genre}`, status: 200, time: 73 });
+    void load();
   };
 
-  const publishReview = (event: React.FormEvent<HTMLFormElement>) => {
+  const publishReview = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setReviewed(true);
-    addCall({ id: `review-${Date.now()}`, method: "POST", url: "/v1/books/book_01/reviews", status: 201, time: 126 });
-    window.setTimeout(() => {
-      setReviewBook(null);
-      setReviewed(false);
-    }, 1600);
+    if (!reviewBook) return;
+    setReviewError("");
+    try {
+      await books.review(reviewBook.id, rating, comment);
+      setReviewed(true);
+      window.setTimeout(() => {
+        setReviewBook(null);
+        setReviewed(false);
+        setComment("");
+      }, 1600);
+    } catch (error) {
+      setReviewError(errorText(error));
+    }
   };
+
+  const colorOf = (g: string) => COVER_COLORS[Math.max(0, genres.indexOf(g)) % COVER_COLORS.length];
 
   return (
     <div className="books-app">
       <div className="library-head">
         <div><span className="section-kicker"><Icon name="book" size={16} />CATALOG API</span><h1>{t.books}</h1><p>{t.booksSubtitle}</p></div>
-        <form onSubmit={search}><Icon name="search" size={17} /><input aria-label={t.searchBooks} placeholder={t.searchBooks} /><button type="submit">{t.searchBooks}</button></form>
+        <form onSubmit={search}><Icon name="search" size={17} /><input aria-label={t.searchBooks} onChange={(event) => setTerm(event.target.value)} placeholder={t.searchBooks} value={term} /><button type="submit">{t.searchBooks}</button></form>
       </div>
       <div className="genre-chips" role="group" aria-label={t.allGenres}>
-        {genres.map(([id, label]) => <button className={genre === id ? "active" : ""} key={id} onClick={() => setGenre(id)} type="button">{label}</button>)}
+        {[["all", t.allGenres], ...genres.map((g) => [g, g])].map(([id, label]) => <button className={genre === id ? "active" : ""} key={id} onClick={() => chooseGenre(id)} type="button">{label}</button>)}
       </div>
       <div className="book-grid">
-        {books.filter((book) => genre === "all" || book.genre === genre).map((book) => (
-          <article className="book-card" key={book.title}>
-            <div className={`book-cover ${book.color}`}><span>API LAB<br />LIBRARY</span><strong>{book.title}</strong><small>{book.author}</small></div>
+        {items.map((book) => (
+          <article className="book-card" key={book.id}>
+            <div className={`book-cover ${colorOf(book.genre)}`}><span>API LAB<br />LIBRARY</span><strong>{book.title}</strong><small>{book.author}</small></div>
             <div className="book-info">
-              <span className="book-genre">{genres.find(([id]) => id === book.genre)?.[1]}</span>
+              <span className="book-genre">{book.genre}</span>
               <h2>{book.title}</h2>
-              <p>{t.byAuthor} {book.author}</p>
+              <p>{t.byAuthor} {book.author}{book.year ? ` · ${book.year}` : ""}</p>
               <div className="book-meta"><span><Icon name="star" size={12} />{book.rating}</span><span>{book.pages} {t.pages}</span></div>
-              <button onClick={() => setReviewBook(book.title)} type="button"><Icon name="edit" size={15} />{t.writeReview}</button>
+              <button onClick={() => { setReviewBook(book); setReviewError(""); }} type="button"><Icon name="edit" size={15} />{t.writeReview}</button>
             </div>
           </article>
         ))}
@@ -2675,10 +2852,11 @@ function BooksApp({
       {reviewBook && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setReviewBook(null)}>
           <form className="review-modal" onSubmit={publishReview} onMouseDown={(event) => event.stopPropagation()}>
-            <div className="booking-modal-head"><div><span>{t.reviewTitle}</span><h2>{reviewBook}</h2></div><button aria-label={t.closeMenu} onClick={() => setReviewBook(null)} type="button"><Icon name="close" size={18} /></button></div>
+            <div className="booking-modal-head"><div><span>{t.reviewTitle}</span><h2>{reviewBook.title}</h2></div><button aria-label={t.closeMenu} onClick={() => setReviewBook(null)} type="button"><Icon name="close" size={18} /></button></div>
             <div className="review-form-content">
-              <label><span>{t.yourRating}</span><select defaultValue="5"><option value="5">5 / 5</option><option value="4">4 / 5</option><option value="3">3 / 5</option></select></label>
-              <label><span>{t.yourReview}</span><textarea placeholder={t.reviewPlaceholder} required /></label>
+              <label><span>{t.yourRating}</span><select onChange={(event) => setRating(Number(event.target.value))} value={rating}><option value="5">5 / 5</option><option value="4">4 / 5</option><option value="3">3 / 5</option><option value="2">2 / 5</option><option value="1">1 / 5</option></select></label>
+              <label><span>{t.yourReview}</span><textarea onChange={(event) => setComment(event.target.value)} placeholder={reviewError || t.reviewPlaceholder} required value={comment} /></label>
+              {reviewError && <small>{reviewError}</small>}
               <button className={reviewed ? "success" : ""} type="submit"><Icon name={reviewed ? "check" : "edit"} size={16} />{reviewed ? t.reviewPublished : t.publishReview}</button>
             </div>
           </form>
@@ -2688,55 +2866,70 @@ function BooksApp({
   );
 }
 
-function MusicApp({
-  addCall,
-  t,
-}: {
-  addCall: (call: NetworkCall) => void;
-  t: Translation;
-}) {
-  const tracks = [
-    { id: "trk_01", title: "Midnight Drive", artist: "Nara", album: "City Lights", duration: "3:42" },
-    { id: "trk_02", title: "Blue Horizon", artist: "Caspian", album: "Coastline", duration: "4:08" },
-    { id: "trk_03", title: "Quiet Signals", artist: "Leyla R.", album: "Static Bloom", duration: "3:18" },
-    { id: "trk_04", title: "After Rain", artist: "Atlas", album: "Northern Lines", duration: "2:57" },
-  ];
-  const [playing, setPlaying] = useState<string | null>(null);
-  const [progress, setProgress] = useState(18);
+const mmss = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+
+function MusicApp({ t }: { t: Translation }) {
+  const [tracks, setTracks] = useState<Track[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [term, setTerm] = useState("");
+  const [playing, setPlaying] = useState<number | null>(null);
+  const [embedUrl, setEmbedUrl] = useState("");
+  const [progress, setProgress] = useState(0);
   const [showVideo, setShowVideo] = useState(false);
   const activeTrack = tracks.find((track) => track.id === playing) ?? tracks[0];
 
+  // BFF: populyar treklər + mənim playlist-lərim (1 sorğu)
   useEffect(() => {
-    if (!playing) return;
-    const timer = window.setInterval(() => setProgress((value) => (value >= 100 ? 0 : value + 1)), 1000);
-    return () => window.clearInterval(timer);
-  }, [playing]);
+    music.home().then((home) => {
+      setTracks(home.popular);
+      setPlaylists(home.playlists);
+    }).catch(() => undefined);
+  }, []);
 
-  const toggleTrack = (trackId: string) => {
-    const next = playing === trackId ? null : trackId;
-    setPlaying(next);
-    if (next) {
+  useEffect(() => {
+    if (!playing || !activeTrack) return;
+    const step = 100 / Math.max(1, activeTrack.durationSec);
+    const timer = window.setInterval(() => setProgress((value) => (value >= 100 ? 0 : value + step)), 1000);
+    return () => window.clearInterval(timer);
+  }, [playing, activeTrack]);
+
+  // play → backend embed URL qaytarır və play_history-ə yazır (video faylı yüklənmir)
+  const toggleTrack = async (trackId: number) => {
+    if (playing === trackId) {
+      setPlaying(null);
+      return;
+    }
+    try {
+      const result = await music.play(trackId);
+      setPlaying(trackId);
+      setEmbedUrl(result.embedUrl);
       setProgress(0);
-      addCall({ id: `stream-${Date.now()}`, method: "GET", url: `/v1/tracks/${trackId}/stream`, status: 206, time: 92 });
+    } catch {
+      setPlaying(null);
     }
   };
 
-  const search = (event: React.FormEvent<HTMLFormElement>) => {
+  const search = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    addCall({ id: `music-search-${Date.now()}`, method: "GET", url: "/v1/music/search?q=midnight", status: 200, time: 64 });
+    if (!term.trim()) return;
+    try {
+      setTracks(await music.search(term.trim()));
+    } catch {
+      setTracks([]);
+    }
   };
 
   return (
     <div className="music-app">
       <div className="music-head">
         <div><span className="section-kicker"><Icon name="music" size={16} />STREAMING API</span><h1>{t.music}</h1></div>
-        <form onSubmit={search}><Icon name="search" size={17} /><input aria-label={t.searchMusic} placeholder={t.searchMusic} /><button type="submit">{t.searchMusic}</button></form>
+        <form onSubmit={search}><Icon name="search" size={17} /><input aria-label={t.searchMusic} onChange={(event) => setTerm(event.target.value)} placeholder={t.searchMusic} value={term} /><button type="submit">{t.searchMusic}</button></form>
       </div>
       <section className="playlist-section">
-        <div className="app-section-title"><h2>{t.playlists}</h2><span>3</span></div>
+        <div className="app-section-title"><h2>{t.playlists}</h2><span>{playlists.length}</span></div>
         <div className="playlist-grid">
-          {[["Focus Flow", "24"], ["API After Hours", "18"], ["Morning Build", "31"]].map(([name, count], index) => (
-            <article className={`playlist-card playlist-${index + 1}`} key={name}><div><Icon name="music" size={22} /></div><strong>{name}</strong><span>{count} {t.songs}</span></article>
+          {playlists.map((playlist, index) => (
+            <article className={`playlist-card playlist-${(index % 3) + 1}`} key={playlist.id}><div><Icon name="music" size={22} /></div><strong>{playlist.name}</strong><span>{playlist.tracks.length} {t.songs}</span></article>
           ))}
         </div>
       </section>
@@ -2744,75 +2937,86 @@ function MusicApp({
         <div className="app-section-title"><h2>{t.tracks}</h2><span>{tracks.length}</span></div>
         <div className="track-list">
           <div className="track-head"><span>#</span><span>{t.song}</span><span>{t.album}</span><span>{t.length}</span></div>
-          {tracks.map((track, index) => (
+          {tracks.map((track) => (
             <div className={playing === track.id ? "track-row active" : "track-row"} key={track.id}>
-              <button aria-label={playing === track.id ? t.pauseTrack : t.playTrack} onClick={() => toggleTrack(track.id)} type="button"><Icon name={playing === track.id ? "pause" : "play"} size={15} /></button>
+              <button aria-label={playing === track.id ? t.pauseTrack : t.playTrack} onClick={() => void toggleTrack(track.id)} type="button"><Icon name={playing === track.id ? "pause" : "play"} size={15} /></button>
               <div><strong>{track.title}</strong><span>{track.artist}</span></div>
-              <span>{track.album}</span><code>{track.duration}</code>
+              <span>{track.genre}</span><code>{mmss(track.durationSec)}</code>
             </div>
           ))}
         </div>
       </section>
-      <div className="music-player">
-        <button className="player-play" aria-label={playing ? t.pauseTrack : t.playTrack} onClick={() => toggleTrack(activeTrack.id)} type="button"><Icon name={playing ? "pause" : "play"} size={18} /></button>
-        <div className="player-track"><strong>{activeTrack.title}</strong><span>{activeTrack.artist}</span></div>
-        <div className="player-progress"><span>0:{Math.floor(progress * 2.22).toString().padStart(2, "0")}</span><input aria-label={t.nowPlaying} max="100" onChange={(event) => setProgress(Number(event.target.value))} type="range" value={progress} /><span>{activeTrack.duration}</span></div>
-        <button className="video-toggle" aria-label={showVideo ? t.hideVideo : t.showVideo} onClick={() => setShowVideo(!showVideo)} type="button"><Icon name="play" size={14} /></button>
-        <div className={showVideo ? "youtube-mini visible" : "youtube-mini"} aria-hidden={!showVideo}>
-          <iframe allow="autoplay; encrypted-media" src={showVideo ? "https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?controls=0" : "about:blank"} title="YouTube music preview" />
+      {activeTrack && (
+        <div className="music-player">
+          <button className="player-play" aria-label={playing ? t.pauseTrack : t.playTrack} onClick={() => void toggleTrack(activeTrack.id)} type="button"><Icon name={playing ? "pause" : "play"} size={18} /></button>
+          <div className="player-track"><strong>{activeTrack.title}</strong><span>{activeTrack.artist}</span></div>
+          <div className="player-progress"><span>{mmss((progress / 100) * activeTrack.durationSec)}</span><input aria-label={t.nowPlaying} max="100" onChange={(event) => setProgress(Number(event.target.value))} type="range" value={progress} /><span>{mmss(activeTrack.durationSec)}</span></div>
+          <button className="video-toggle" aria-label={showVideo ? t.hideVideo : t.showVideo} onClick={() => setShowVideo(!showVideo)} type="button"><Icon name="play" size={14} /></button>
+          <div className={showVideo ? "youtube-mini visible" : "youtube-mini"} aria-hidden={!showVideo}>
+            <iframe allow="autoplay; encrypted-media" src={showVideo && embedUrl && playing ? `${embedUrl}?autoplay=1` : "about:blank"} title="YouTube music preview" />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-type Customer = { id: string; name: string; email: string; company: string; created: string };
+type CustomerRowView = { id: number; name: string; email: string; city: string; created: string; source: Customer };
 
-function CustomersApp({
-  addCall,
-  t,
-}: {
-  addCall: (call: NetworkCall) => void;
-  t: Translation;
-}) {
-  const [customers, setCustomers] = useState<Customer[]>([
-    { id: "cus_001", name: "Aylin Əliyeva", email: "aylin@example.com", company: "Northstar LLC", created: "12 Jun 2025" },
-    { id: "cus_002", name: "Murad Həsənli", email: "murad@example.com", company: "Caspian Studio", created: "08 Jun 2025" },
-    { id: "cus_003", name: "Nigar Abbasova", email: "nigar@example.com", company: "Solo", created: "30 May 2025" },
-  ]);
-  const [editing, setEditing] = useState<Customer | "new" | null>(null);
-  const [deleting, setDeleting] = useState<Customer | null>(null);
+function CustomersApp({ t }: { t: Translation }) {
+  const [customersList, setCustomersList] = useState<CustomerRowView[]>([]);
+  const [editing, setEditing] = useState<CustomerRowView | "new" | null>(null);
+  const [deleting, setDeleting] = useState<CustomerRowView | null>(null);
   const [updateMethod, setUpdateMethod] = useState<"PUT" | "PATCH">("PATCH");
+  const [formError, setFormError] = useState("");
 
-  const save = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const fields = new FormData(event.currentTarget);
-    const isNew = editing === "new";
-    const customer: Customer = {
-      id: isNew ? `cus_${String(customers.length + 1).padStart(3, "0")}` : (editing as Customer).id,
-      name: String(fields.get("name")),
-      email: String(fields.get("email")),
-      company: String(fields.get("company")),
-      created: isNew ? t.today : (editing as Customer).created,
-    };
-    setCustomers((items) => isNew ? [customer, ...items] : items.map((item) => item.id === customer.id ? customer : item));
-    addCall({ id: `customer-save-${Date.now()}`, method: isNew ? "POST" : updateMethod, url: isNew ? "/v1/customers" : `/v1/customers/${customer.id}`, status: isNew ? 201 : 200, time: 114 });
-    setEditing(null);
+  const toRow = (c: Customer): CustomerRowView => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, email: c.email, city: c.city ?? "—", created: dateShort(c.createdAt), source: c });
+  const load = async () => {
+    try {
+      setCustomersList((await customers.list()).items.map(toRow));
+    } catch {
+      setCustomersList([]);
+    }
   };
 
-  const remove = () => {
+  useEffect(() => {
+    void load();
+  }, []);
+
+  // "Ad Soyad" → firstName + lastName (backend v1 sxemi)
+  const save = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const fields = new FormData(event.currentTarget);
+    const [firstName, ...rest] = String(fields.get("name")).trim().split(/\s+/);
+    const input = { firstName, lastName: rest.join(" ") || firstName, email: String(fields.get("email")), city: String(fields.get("company")) };
+    setFormError("");
+    try {
+      if (editing === "new") await customers.create(input);
+      else if (editing && updateMethod === "PUT") await customers.replace(editing.source, input);
+      else if (editing) await customers.patch(editing.id, input);
+      setEditing(null);
+      await load();
+    } catch (error) {
+      setFormError(errorText(error));
+    }
+  };
+
+  const remove = async () => {
     if (!deleting) return;
-    setCustomers((items) => items.filter((item) => item.id !== deleting.id));
-    addCall({ id: `customer-delete-${Date.now()}`, method: "DELETE", url: `/v1/customers/${deleting.id}`, status: 204, time: 86 });
-    setDeleting(null);
+    try {
+      await customers.remove(deleting.id);
+    } finally {
+      setDeleting(null);
+      await load();
+    }
   };
 
   return (
     <div className="customers-app">
-      <div className="customers-head"><div><span className="section-kicker"><Icon name="users" size={16} />CUSTOMER API</span><h1>{t.customerDirectory}</h1><p>{t.customerSubtitle}</p></div><button onClick={() => setEditing("new")} type="button"><Icon name="plus" size={17} />{t.createCustomer}</button></div>
+      <div className="customers-head"><div><span className="section-kicker"><Icon name="users" size={16} />CUSTOMER API</span><h1>{t.customerDirectory}</h1><p>{t.customerSubtitle}</p></div><button onClick={() => { setEditing("new"); setFormError(""); }} type="button"><Icon name="plus" size={17} />{t.createCustomer}</button></div>
       <div className="customer-table-card table-scroll">
-        <table><thead><tr><th>{t.fullName}</th><th>{t.email}</th><th>{t.company}</th><th>{t.created}</th><th>{t.actions}</th></tr></thead>
-          <tbody>{customers.map((customer) => <tr key={customer.id}><td><span className="table-avatar">{customer.name.split(" ").map((part) => part[0]).join("")}</span><div><strong>{customer.name}</strong><code>{customer.id}</code></div></td><td>{customer.email}</td><td>{customer.company}</td><td>{customer.created}</td><td><div className="customer-actions"><button aria-label={t.editCustomer} onClick={() => setEditing(customer)} type="button"><Icon name="edit" size={15} /></button><button aria-label={t.deleteCustomer} onClick={() => setDeleting(customer)} type="button"><Icon name="trash" size={15} /></button></div></td></tr>)}</tbody>
+        <table><thead><tr><th>{t.fullName}</th><th>{t.email}</th><th>{t.city}</th><th>{t.created}</th><th>{t.actions}</th></tr></thead>
+          <tbody>{customersList.map((customer) => <tr key={customer.id}><td><span className="table-avatar">{initialsOf(customer.name)}</span><div><strong>{customer.name}</strong><code>#{customer.id}</code></div></td><td>{customer.email}</td><td>{customer.city}</td><td>{customer.created}</td><td><div className="customer-actions"><button aria-label={t.editCustomer} onClick={() => { setEditing(customer); setFormError(""); }} type="button"><Icon name="edit" size={15} /></button><button aria-label={t.deleteCustomer} onClick={() => setDeleting(customer)} type="button"><Icon name="trash" size={15} /></button></div></td></tr>)}</tbody>
         </table>
       </div>
       {editing && (
@@ -2820,10 +3024,11 @@ function CustomersApp({
           <form className="customer-modal" onSubmit={save} onMouseDown={(event) => event.stopPropagation()}>
             <div className="booking-modal-head"><div><span>CUSTOMER API</span><h2>{editing === "new" ? t.createCustomer : t.editCustomer}</h2></div><button aria-label={t.closeMenu} onClick={() => setEditing(null)} type="button"><Icon name="close" size={18} /></button></div>
             <div className="customer-form">
-              {editing !== "new" && <div className="method-choice"><span>{t.updateMethod}</span><div>{(["PUT", "PATCH"] as const).map((method) => <button className={updateMethod === method ? "active" : ""} key={method} onClick={() => setUpdateMethod(method)} type="button">{method}</button>)}</div><small>{updateMethod === "PUT" ? t.putDescription : t.patchDescription}</small></div>}
+              {editing !== "new" && <div className="method-choice"><span>{t.updateMethod}</span><div>{(["PUT", "PATCH"] as const).map((method) => <button className={updateMethod === method ? "active" : ""} key={method} onClick={() => setUpdateMethod(method)} type="button">{method}</button>)}</div><small>{formError || (updateMethod === "PUT" ? t.putDescription : t.patchDescription)}</small></div>}
+              {editing === "new" && formError && <div className="method-choice"><small>{formError}</small></div>}
               <label><span>{t.fullName}</span><input defaultValue={editing === "new" ? "" : editing.name} name="name" required /></label>
               <label><span>{t.email}</span><input defaultValue={editing === "new" ? "" : editing.email} name="email" required type="email" /></label>
-              <label><span>{t.company}</span><input defaultValue={editing === "new" ? "" : editing.company} name="company" required /></label>
+              <label><span>{t.city}</span><input defaultValue={editing === "new" ? "Bakı" : editing.source.city ?? ""} name="company" required /></label>
               <button type="submit">{t.saveCustomer}<Icon name="arrow" size={16} /></button>
             </div>
           </form>
@@ -2831,53 +3036,68 @@ function CustomersApp({
       )}
       {deleting && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleting(null)}>
-          <div className="delete-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="modal-danger-icon"><Icon name="trash" size={22} /></div><h2>{t.deleteCustomerTitle}</h2><p>{t.deleteCustomerText}</p><strong>{deleting.name}</strong><div className="modal-actions"><button onClick={() => setDeleting(null)} type="button">{t.cancel}</button><button onClick={remove} type="button">{t.confirmDelete}</button></div></div>
+          <div className="delete-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="modal-danger-icon"><Icon name="trash" size={22} /></div><h2>{t.deleteCustomerTitle}</h2><p>{t.deleteCustomerText}</p><strong>{deleting.name}</strong><div className="modal-actions"><button onClick={() => setDeleting(null)} type="button">{t.cancel}</button><button onClick={() => void remove()} type="button">{t.confirmDelete}</button></div></div>
         </div>
       )}
     </div>
   );
 }
 
-function GoogleAuthApp({
-  addCall,
-  t,
-}: {
-  addCall: (call: NetworkCall) => void;
-  t: Translation;
-}) {
+// OAuth axınını addım-addım REAL sorğularla göstərir (əsas sessiyaya toxunmur — token yalnız göstərilir)
+function GoogleAuthApp({ t }: { t: Translation }) {
   const [step, setStep] = useState(0);
+  const [state, setState] = useState("");
+  const [account, setAccount] = useState<GoogleAccount | null>(null);
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [token, setToken] = useState("");
+  const [error, setError] = useState("");
   const steps = [t.authorizationRequest, t.userConsent, t.authorizationCode, t.tokenExchange];
+  const session = authClient.getStoredSession();
 
-  const next = () => {
-    const nextStep = Math.min(step + 1, 4);
-    const calls = [
-      { method: "GET", url: "/oauth/authorize?client_id=api_lab", status: 302, time: 36 },
-      { method: "POST", url: "/oauth/consent", status: 302, time: 74 },
-      { method: "GET", url: "/auth/callback?code=mock_code", status: 200, time: 58 },
-      { method: "POST", url: "/oauth/token", status: 200, time: 129 },
-    ];
-    const call = calls[Math.min(step, 3)];
-    addCall({ id: `oauth-${Date.now()}`, ...call });
-    setStep(nextStep);
+  const next = async () => {
+    setError("");
+    try {
+      if (step === 0) {
+        const info = await oauthDemo.authorize();
+        setState(info.state);
+        setAccount(info.accounts.find((a) => a.username === session?.user.username) ?? info.accounts[0] ?? null);
+      } else if (step === 1 && account) {
+        setCode(await oauthDemo.consent(account, password, state));
+      } else if (step === 3) {
+        setToken(await oauthDemo.token(code));
+      }
+      setStep(Math.min(step + 1, 4));
+    } catch (caught) {
+      setError(errorText(caught));
+    }
+  };
+
+  const restart = () => {
+    setStep(0);
+    setCode("");
+    setToken("");
+    setPassword("");
+    setError("");
   };
 
   return (
     <div className="google-auth-app">
-      <div className="oauth-intro"><span className="google-mark">G</span><h1>{t.googleConsent}</h1><p>{t.googleConsentSubtitle}</p></div>
+      <div className="oauth-intro"><span className="google-mark">G</span><h1>{t.googleConsent}</h1><p>{error || t.googleConsentSubtitle}</p></div>
       <div className="oauth-layout">
         <aside className="oauth-steps"><span>{t.oauthFlow}</span>{steps.map((label, index) => <div className={step > index ? "complete" : step === index ? "active" : ""} key={label}><i>{step > index ? <Icon name="check" size={13} /> : index + 1}</i><span>{label}</span></div>)}</aside>
         <section className="consent-card">
           {step < 4 ? (
             <>
               <div className="consent-brand"><span className="google-mark">G</span><strong>{t.googleSignIn}</strong><small>{t.currentStep} {Math.min(step + 1, 4)} / 4</small></div>
-              {step === 1 ? (
-                <div className="consent-body"><h2>{t.consentTitle}</h2><div className="consent-account"><span className="avatar">RM</span><div><strong>Rauf Məmmədov</strong><span>rauf@example.com</span></div></div><p>{t.consentPermissions}</p><ul><li><Icon name="users" size={17} />{t.viewProfile}</li><li><Icon name="globe" size={17} />{t.viewEmail}</li></ul><div className="consent-actions"><button onClick={() => setStep(0)} type="button">{t.deny}</button><button onClick={next} type="button">{t.allow}</button></div></div>
+              {step === 1 && account ? (
+                <div className="consent-body"><h2>{t.consentTitle}</h2><div className="consent-account"><span className="avatar">{account.initials}</span><div><strong>{account.name}</strong><span>{account.email}</span></div></div><p>{t.consentPermissions}</p><ul><li><Icon name="users" size={17} />{t.viewProfile}</li><li><Icon name="globe" size={17} />{t.viewEmail}</li></ul><label className="consent-password"><span>{t.oauthPassword}</span><input autoComplete="current-password" onChange={(event) => setPassword(event.target.value)} type="password" value={password} /></label><div className="consent-actions"><button onClick={restart} type="button">{t.deny}</button><button onClick={() => void next()} type="button">{t.allow}</button></div></div>
               ) : (
-                <div className="oauth-step-body"><div className="oauth-code-icon"><Icon name={step === 0 ? "arrow" : step === 2 ? "code" : "lock"} size={25} /></div><h2>{steps[Math.min(step, 3)]}</h2><code>{step === 0 ? "response_type=code&scope=openid email profile" : step === 2 ? "code=4/mock_authorization_code" : "grant_type=authorization_code"}</code><button onClick={next} type="button">{t.continueFlow}<Icon name="arrow" size={16} /></button></div>
+                <div className="oauth-step-body"><div className="oauth-code-icon"><Icon name={step === 0 ? "arrow" : step === 2 ? "code" : "lock"} size={25} /></div><h2>{steps[Math.min(step, 3)]}</h2><code>{step === 0 ? "GET /oauth/authorize?response_type=code&client_id=apilab-portal" : step === 2 ? `code=${code}` : "POST /oauth/token grant_type=authorization_code"}</code><button onClick={() => void next()} type="button">{t.continueFlow}<Icon name="arrow" size={16} /></button></div>
               )}
             </>
           ) : (
-            <div className="oauth-complete"><span><Icon name="check" size={26} /></span><h2>{t.oauthComplete}</h2><p>{t.oauthCompleteText}</p><code>access_token: ya29.mock••••••••</code><button onClick={() => setStep(0)} type="button">{t.restartFlow}</button></div>
+            <div className="oauth-complete"><span><Icon name="check" size={26} /></span><h2>{t.oauthComplete}</h2><p>{t.oauthCompleteText}</p><code>access_token: {token.slice(0, 24)}••••••••</code><button onClick={restart} type="button">{t.restartFlow}</button></div>
           )}
         </section>
       </div>
@@ -2912,53 +3132,16 @@ function AppsPage({
     { id: "customers", title: t.customers, description: t.customersDescription, icon: "users", available: true },
   ];
 
-  const addCall = async (call: NetworkCall) => {
-    const result = await apiClient.runAppCall(call);
-    setCalls((items) => [result, ...items].slice(0, 12));
-  };
+  // Network panel: tətbiq açıq olduğu müddətdə portalın ETDİYİ REAL sorğular (BFF-də meta.calls → internal calls)
+  useEffect(() => {
+    if (!selectedApp) return;
+    return subscribeNetwork((call) => setCalls((items) => [call, ...items].slice(0, 12)));
+  }, [selectedApp]);
 
   const openApp = (id: AppId) => {
-    setSelectedApp(id);
     setCalls([]);
     setNetworkOpen(true);
-    const initialCall: NetworkCall =
-      id === "bank"
-        ? {
-            id: `overview-${Date.now()}`,
-            method: "GET",
-            url: "/bff/bank/overview",
-            status: 200,
-            time: 212,
-            type: "BFF",
-            internalCalls: [
-              { id: "accounts", method: "GET", url: "/accounts", status: 200, time: 42 },
-              { id: "cards", method: "GET", url: "/cards", status: 200, time: 51 },
-              { id: "activity", method: "GET", url: "/transactions?limit=5", status: 200, time: 68 },
-            ],
-          }
-        : {
-            id: `app-${Date.now()}`,
-            method: "GET",
-            url:
-              id === "currency"
-                ? "/v1/rates?base=AZN&symbols=USD"
-                : id === "flights"
-                  ? "/v1/flights/popular"
-                  : id === "hotels"
-                    ? "/v1/hotels/featured?city=Baku"
-                    : id === "books"
-                      ? "/v1/books?featured=true"
-                      : id === "music"
-                        ? "/v1/playlists/featured"
-                        : id === "customers"
-                          ? "/v1/customers"
-                          : id === "google"
-                            ? "/oauth/.well-known/openid-configuration"
-                            : `/v1/apps/${id}`,
-            status: 200,
-            time: id === "currency" ? 46 : id === "flights" ? 72 : id === "hotels" ? 81 : 54,
-          };
-    void addCall(initialCall);
+    setSelectedApp(id);
   };
 
   if (!selectedApp) {
@@ -3004,28 +3187,21 @@ function AppsPage({
       <div className={networkOpen ? "app-detail-shell" : "app-detail-shell network-closed"}>
         <div className="app-product">
           {selectedApp === "bank" ? (
-            <BankApp addCall={addCall} t={t} />
+            <BankApp t={t} />
           ) : selectedApp === "currency" ? (
-            <CurrencyApp addCall={addCall} t={t} />
+            <CurrencyApp t={t} />
           ) : selectedApp === "flights" ? (
-            <FlightsApp addCall={addCall} t={t} />
+            <FlightsApp t={t} />
           ) : selectedApp === "hotels" ? (
-            <HotelsApp addCall={addCall} t={t} />
+            <HotelsApp t={t} />
           ) : selectedApp === "books" ? (
-            <BooksApp addCall={addCall} t={t} />
+            <BooksApp t={t} />
           ) : selectedApp === "music" ? (
-            <MusicApp addCall={addCall} t={t} />
+            <MusicApp t={t} />
           ) : selectedApp === "customers" ? (
-            <CustomersApp addCall={addCall} t={t} />
-          ) : selectedApp === "google" ? (
-            <GoogleAuthApp addCall={addCall} t={t} />
+            <CustomersApp t={t} />
           ) : (
-            <div className="coming-soon-app">
-              <span className={`app-icon ${activeApp.id}`}><Icon name={activeApp.icon} size={28} /></span>
-              <h1>{activeApp.title}</h1>
-              <p>{activeApp.description}</p>
-              <span>{t.comingSoon}</span>
-            </div>
+            <GoogleAuthApp t={t} />
           )}
         </div>
         <NetworkPanel
@@ -3055,19 +3231,25 @@ function GoogleOAuthModal({
   );
   const [step, setStep] = useState(0);
   const [oauthState, setOauthState] = useState("");
+  const [accounts, setAccounts] = useState<GoogleAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<GoogleAccount | null>(
     null,
   );
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<"denied" | "invalid" | null>(null);
+  const [errorDetail, setErrorDetail] = useState("");
   const [showCalls, setShowCalls] = useState(false);
   const [successName, setSuccessName] = useState("");
-  const accounts = authClient.getGoogleAccounts();
+  const [calls, setCalls] = useState<NetworkCall[]>([]);
   const steps = [
     t.redirectAuthServer,
     t.chooseAccount,
     t.consent,
     t.tokenExchangeStep,
   ];
+
+  // Modal açıq olduğu müddətdə real OAuth sorğuları "HTTP calls" panelində
+  useEffect(() => subscribeNetwork((call) => setCalls((items) => [...items, call])), []);
 
   useEffect(() => {
     return () => returnFocusRef.current?.focus();
@@ -3106,58 +3288,54 @@ function GoogleOAuthModal({
     return () => dialog.removeEventListener("keydown", handleKeyDown);
   }, [onClose, step, error, showCalls]);
 
+  // 1. GET /oauth/authorize — provider-dən client və hesablar
   useEffect(() => {
     let cancelled = false;
-    authClient.authorizeGoogle().then((result) => {
-      if (cancelled) return;
-      setOauthState(result.state);
-      window.setTimeout(() => {
-        if (!cancelled) setStep(1);
-      }, 650);
-    });
+    authClient
+      .authorizeGoogle()
+      .then((result) => {
+        if (cancelled) return;
+        setOauthState(result.state);
+        setAccounts(result.accounts);
+        setStep(1);
+      })
+      .catch((caught) => {
+        if (cancelled) return;
+        setErrorDetail(errorText(caught));
+        setError("invalid");
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
+  // 2–4. consent (POST /oauth/authorize) → code + state yoxlaması → POST /oauth/token → GET /oauth/userinfo
   const allow = async () => {
     if (!selectedAccount) return;
     setStep(3);
     try {
-      const session = await authClient.exchangeGoogleCode(
-        selectedAccount,
-        oauthState,
-      );
+      const session = await authClient.exchangeGoogleCode(selectedAccount, password, oauthState);
       setSuccessName(session.user.name);
       window.setTimeout(() => onSignedIn(session), 900);
-    } catch {
+    } catch (caught) {
+      setErrorDetail(errorText(caught));
       setError("invalid");
     }
   };
 
+  const deny = async () => {
+    await authClient.denyGoogle(oauthState).catch(() => undefined);
+    setError("denied");
+  };
+
   const reset = () => {
     setError(null);
+    setErrorDetail("");
     setSelectedAccount(null);
+    setPassword("");
     setSuccessName("");
     setStep(1);
   };
-
-  const calls = [
-    { method: "GET", url: "/oauth/authorize", status: 302, visible: true },
-    {
-      method: "GET",
-      url: "/auth/callback?code=mock_code&state=state_•••",
-      status: 302,
-      visible: step >= 2,
-    },
-    { method: "POST", url: "/oauth/token", status: 200, visible: step >= 3 },
-    {
-      method: "GET",
-      url: "/oauth/userinfo",
-      status: 200,
-      visible: Boolean(successName),
-    },
-  ];
 
   return (
     <div className="auth-modal-backdrop" role="presentation">
@@ -3203,7 +3381,7 @@ function GoogleOAuthModal({
               <p>
                 {error === "denied"
                   ? t.accessDeniedText
-                  : t.invalidCodeText}
+                  : errorDetail || t.invalidCodeText}
               </p>
               <button onClick={reset} type="button">
                 {t.tryAgain}
@@ -3273,12 +3451,24 @@ function GoogleOAuthModal({
                   <span>{t.permissionSandbox}</span>
                 </div>
               </div>
+              <label className="consent-password">
+                <span>{t.oauthPassword}</span>
+                <input
+                  autoComplete="current-password"
+                  onChange={(event) => setPassword(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void allow();
+                  }}
+                  type="password"
+                  value={password}
+                />
+              </label>
               <p className="mock-google-notice">{t.mockGoogleNotice}</p>
               <div className="google-consent-actions">
-                <button onClick={() => setError("denied")} type="button">
+                <button onClick={() => void deny()} type="button">
                   {t.cancel}
                 </button>
-                <button onClick={allow} type="button">
+                <button disabled={!password} onClick={() => void allow()} type="button">
                   {t.allow}
                 </button>
               </div>
@@ -3340,19 +3530,17 @@ function GoogleOAuthModal({
           {showCalls && (
             <div>
               <span>{t.oauthRequests}</span>
-              {calls
-                .filter((call) => call.visible)
-                .map((call) => (
-                  <div className="oauth-http-call" key={call.url}>
-                    <span
-                      className={`mini-method method-${call.method.toLowerCase()}`}
-                    >
-                      {call.method}
-                    </span>
-                    <code>{call.url}</code>
-                    <StatusChip status={call.status} />
-                  </div>
-                ))}
+              {calls.map((call) => (
+                <div className="oauth-http-call" key={call.id}>
+                  <span
+                    className={`mini-method method-${call.method.toLowerCase()}`}
+                  >
+                    {call.method}
+                  </span>
+                  <code>{call.url.replace(/(code|state)=[^&]+/g, "$1=•••")}</code>
+                  <StatusChip status={call.status} />
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -3400,7 +3588,7 @@ function SignInPage({
               "Authentication failed",
               500,
               "AUTH_UNKNOWN",
-              "trc_unknown",
+              "",
             );
       setError(nextError);
       setRetryCountdown(nextError.retryAfter ?? 0);
@@ -3500,7 +3688,9 @@ function SignInPage({
                 <strong>
                   {error.status === 429
                     ? t.tooManyAttempts
-                    : t.wrongCredentials}
+                    : error.status === 401
+                      ? t.wrongCredentials
+                      : error.message}
                 </strong>
                 {error.status === 429 && retryCountdown > 0 && (
                   <span>
@@ -3558,15 +3748,30 @@ function SignInPage({
   );
 }
 
+// JWT-nin header və payload hissələri base64url-dir — imza olmadan oxunur (şifrələnməyib!)
+function decodeJwtPart(part: string | undefined): Record<string, unknown> | null {
+  if (!part) return null;
+  try {
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))));
+  } catch {
+    return null;
+  }
+}
+const timeOf = (epochSeconds: unknown) =>
+  typeof epochSeconds === "number" ? new Date(epochSeconds * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "—";
+
 function AuthLabPage({ t }: { t: Translation }) {
-  const demoJwt =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdHVkZW50Iiwicm9sZSI6InN0dWRlbnQiLCJpYXQiOjE3NTAwMDAwMDAsImV4cCI6MTc1MDAwMzYwMH0.mock_signature_8fa2c1";
   const [loginState, setLoginState] = useState<"idle" | "loading" | "success">("idle");
-  const [jwt, setJwt] = useState(demoJwt);
-  const [decoded, setDecoded] = useState(true);
+  const [labUser, setLabUser] = useState({ username: "student", password: "student123" });
+  const [labError, setLabError] = useState("");
+  const [jwt, setJwt] = useState(() => authClient.getStoredSession()?.accessToken ?? "");
+  const [refreshToken, setRefreshToken] = useState(() => authClient.getStoredSession()?.refreshToken ?? "");
+  const [decoded, setDecoded] = useState(Boolean(jwt));
   const [refreshed, setRefreshed] = useState(false);
   const [oauthStep, setOauthStep] = useState(-1);
   const [animating, setAnimating] = useState(false);
+  const [header, payload] = [decodeJwtPart(jwt.split(".")[0]), decodeJwtPart(jwt.split(".")[1])];
 
   useEffect(() => {
     if (!animating) return;
@@ -3578,20 +3783,39 @@ function AuthLabPage({ t }: { t: Translation }) {
     return () => window.clearTimeout(timer);
   }, [animating, oauthStep]);
 
-  const login = (event: React.FormEvent<HTMLFormElement>) => {
+  // Real POST /api/v1/auth/login — əsas sessiyaya toxunmur, token yalnız burada göstərilir
+  const login = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoginState("loading");
-    window.setTimeout(() => {
-      setLoginState("success");
-      setJwt(demoJwt);
+    setLabError("");
+    try {
+      const tokens = await authClient.labLogin(labUser.username, labUser.password);
+      setJwt(tokens.access_token);
+      setRefreshToken(tokens.refresh_token ?? "");
       setDecoded(true);
-    }, 700);
+      setLoginState("success");
+    } catch (error) {
+      setLabError(errorText(error));
+      setLoginState("idle");
+    }
   };
 
-  const refreshToken = () => {
-    setRefreshed(true);
-    setJwt(`${demoJwt.slice(0, demoJwt.lastIndexOf("."))}.refreshed_signature_91bf`);
-    window.setTimeout(() => setRefreshed(false), 1800);
+  // Real POST /api/v1/auth/refresh — rotation: köhnə refresh token artıq işləmir
+  const refreshTokenNow = async () => {
+    if (!refreshToken) {
+      setLabError(t.loadError);
+      return;
+    }
+    try {
+      const tokens = await authClient.labRefresh(refreshToken);
+      setJwt(tokens.access_token);
+      setRefreshToken(tokens.refresh_token ?? "");
+      setRefreshed(true);
+      setLabError("");
+      window.setTimeout(() => setRefreshed(false), 1800);
+    } catch (error) {
+      setLabError(errorText(error));
+    }
   };
 
   const startOauth = () => {
@@ -3601,7 +3825,7 @@ function AuthLabPage({ t }: { t: Translation }) {
 
   const oauthSteps = [
     { from: t.browser, to: t.authorizationServer, label: t.redirectToLogin, code: "GET /oauth/authorize" },
-    { from: t.authorizationServer, to: t.browser, label: t.returnCode, code: "302 /callback?code=..." },
+    { from: t.authorizationServer, to: t.browser, label: t.returnCode, code: "302 /oauth/callback?code=...&state=..." },
     { from: t.browser, to: t.authorizationServer, label: t.exchangeCode, code: "POST /oauth/token" },
     { from: t.browser, to: t.apiServer, label: t.callApi, code: "Authorization: Bearer ..." },
   ];
@@ -3616,10 +3840,10 @@ function AuthLabPage({ t }: { t: Translation }) {
 
       <div className="auth-top-grid">
         <section className="lab-card login-lab-card">
-          <div className="lab-card-heading"><span className="lab-card-icon"><Icon name="lock" size={20} /></span><div><h2>{t.login}</h2><p>{t.loginDescription}</p></div></div>
+          <div className="lab-card-heading"><span className="lab-card-icon"><Icon name="lock" size={20} /></span><div><h2>{t.login}</h2><p>{labError || t.loginDescription}</p></div></div>
           <form onSubmit={login}>
-            <label><span>{t.username}</span><input defaultValue="student" /></label>
-            <label><span>{t.password}</span><input defaultValue="student123" type="password" /></label>
+            <label><span>{t.username}</span><input onChange={(event) => setLabUser({ ...labUser, username: event.target.value })} value={labUser.username} /></label>
+            <label><span>{t.password}</span><input onChange={(event) => setLabUser({ ...labUser, password: event.target.value })} type="password" value={labUser.password} /></label>
             <button className={loginState === "success" ? "success" : ""} type="submit">
               {loginState === "loading" ? <span className="button-spinner" /> : <Icon name={loginState === "success" ? "check" : "arrow"} size={17} />}
               {loginState === "loading" ? t.signingIn : loginState === "success" ? t.loginSuccess : t.signIn}
@@ -3630,19 +3854,19 @@ function AuthLabPage({ t }: { t: Translation }) {
 
         <section className="lab-card jwt-card">
           <div className="lab-card-heading"><span className="lab-card-icon blue"><Icon name="code" size={20} /></span><div><h2>{t.jwtDecoder}</h2><p>{t.jwtDescription}</p></div></div>
-          <label className="jwt-input"><span>{t.pasteJwt}</span><textarea onChange={(event) => setJwt(event.target.value)} spellCheck="false" value={jwt} /></label>
+          <label className="jwt-input"><span>{t.pasteJwt}</span><textarea onChange={(event) => setJwt(event.target.value.trim())} spellCheck="false" value={jwt} /></label>
           <div className="jwt-actions">
             <button onClick={() => setDecoded(true)} type="button">{t.decode}</button>
-            <button className={refreshed ? "success" : ""} onClick={refreshToken} type="button"><Icon name={refreshed ? "check" : "repeat"} size={15} />{refreshed ? t.tokenRefreshed : t.refresh}</button>
+            <button className={refreshed ? "success" : ""} onClick={() => void refreshTokenNow()} type="button"><Icon name={refreshed ? "check" : "repeat"} size={15} />{refreshed ? t.tokenRefreshed : t.refresh}</button>
           </div>
         </section>
       </div>
 
       {decoded && (
         <section className="jwt-parts" aria-label={t.jwtDecoder}>
-          <article className="jwt-part header-part"><div><span>1</span><h3>{t.jwtHeader}</h3></div><pre>{'{\n  "alg": "HS256",\n  "typ": "JWT"\n}'}</pre></article>
-          <article className="jwt-part payload-part"><div><span>2</span><h3>{t.jwtPayload}</h3></div><pre>{'{\n  "sub": "student",\n  "role": "student",\n  "iat": 1750000000,\n  "exp": 1750003600\n}'}</pre><div className="jwt-time"><span>{t.issuedAt}<b>10:00</b></span><span>{t.expiresAt}<b>11:00</b></span></div></article>
-          <article className="jwt-part signature-part"><div><span>3</span><h3>{t.jwtSignature}</h3></div><pre>HMACSHA256(<br />&nbsp; base64UrlEncode(header) + "." +<br />&nbsp; base64UrlEncode(payload),<br />&nbsp; secret<br />)</pre></article>
+          <article className="jwt-part header-part"><div><span>1</span><h3>{t.jwtHeader}</h3></div><pre>{header ? JSON.stringify(header, null, 2) : "—"}</pre></article>
+          <article className="jwt-part payload-part"><div><span>2</span><h3>{t.jwtPayload}</h3></div><pre>{payload ? JSON.stringify(payload, null, 2) : "—"}</pre><div className="jwt-time"><span>{t.issuedAt}<b>{timeOf(payload?.iat)}</b></span><span>{t.expiresAt}<b>{timeOf(payload?.exp)}</b></span></div></article>
+          <article className="jwt-part signature-part"><div><span>3</span><h3>{t.jwtSignature}</h3></div><pre>HMACSHA256(<br />&nbsp; base64UrlEncode(header) + "." +<br />&nbsp; base64UrlEncode(payload),<br />&nbsp; secret<br />)<br /><br />{jwt.split(".")[2]?.slice(0, 24) ?? ""}…</pre></article>
         </section>
       )}
 
@@ -3663,64 +3887,70 @@ function AuthLabPage({ t }: { t: Translation }) {
   );
 }
 
-type SqlResult = { columns: string[]; rows: string[][] };
+type SqlView = { columns: string[]; rows: string[][]; durationMs: number; truncated: boolean };
 
 function SqlPlaygroundPage({ t }: { t: Translation }) {
-  const [query, setQuery] = useState("SELECT id, name, email, role\nFROM users\nWHERE status = 'active'\nORDER BY created_at DESC;");
-  const [result, setResult] = useState<SqlResult | null>(null);
+  const [query, setQuery] = useState(() => handoffs.take().sql ?? "SELECT id, username, full_name, email, role\nFROM users\nORDER BY id;");
+  const [result, setResult] = useState<SqlView | null>(null);
   const [running, setRunning] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<{ code: string; message: string } | null>(null);
+  const [tables, setTables] = useState<DbTable[]>([]);
   const [selectedTable, setSelectedTable] = useState("users");
-  const schemas = [
-    { name: "users", columns: ["id · uuid", "name · varchar", "email · varchar", "role · varchar", "status · boolean"] },
-    { name: "cards", columns: ["id · uuid", "user_id · uuid", "brand · varchar", "status · varchar"] },
-    { name: "bookings", columns: ["id · uuid", "user_id · uuid", "type · varchar", "total · decimal"] },
-    { name: "transactions", columns: ["id · uuid", "account_id · uuid", "amount · decimal", "created_at · timestamp"] },
-  ];
 
-  const execute = (nextQuery = query) => {
+  // Sxem ağacı real DB-dən (GET /api/v1/_db/schema); gizli sütunlar (hash) işarələnir
+  useEffect(() => {
+    sql.schema().then(setTables).catch(() => setTables([]));
+  }, []);
+
+  const execute = async (nextQuery = query) => {
     setQuery(nextQuery);
-    if (!nextQuery.trim().toLowerCase().startsWith("select")) {
-      setError(true);
-      setResult(null);
-      return;
-    }
-    setError(false);
+    setError(null);
     setRunning(true);
-    window.setTimeout(() => {
-      if (nextQuery.includes("cards")) {
-        setResult({ columns: ["id", "brand", "last_four", "status"], rows: [["card_01", "VISA", "4821", "ACTIVE"], ["card_02", "MASTERCARD", "1093", "ACTIVE"]] });
-      } else if (nextQuery.includes("bookings")) {
-        setResult({ columns: ["id", "type", "destination", "total"], rows: [["bk_1042", "flight", "Istanbul", "428.00"], ["bk_1038", "hotel", "Baku", "492.00"]] });
-      } else {
-        setResult({ columns: ["id", "name", "email", "role"], rows: [["usr_01", "Aylin Əliyeva", "aylin@example.com", "student"], ["usr_02", "Rauf Məmmədov", "rauf@example.com", "instructor"], ["usr_03", "Murad Həsənli", "murad@example.com", "student"]] });
-      }
+    try {
+      const r = await sql.query(nextQuery);
+      setResult({
+        columns: r.columns,
+        rows: r.rows.map((row) => r.columns.map((column) => (row[column] === null ? "NULL" : String(row[column])))),
+        durationMs: r.durationMs,
+        truncated: r.truncated,
+      });
+    } catch (caught) {
+      setResult(null);
+      setError(caught instanceof AuthClientError ? { code: caught.code, message: caught.details[0]?.message ?? caught.message } : { code: "ERROR", message: String(caught) });
+    } finally {
       setRunning(false);
-    }, 650);
+    }
   };
 
   const quickQueries = [
-    [t.allUsers, "SELECT id, name, email, role\nFROM users\nORDER BY created_at DESC;"],
-    [t.activeCards, "SELECT id, brand, last_four, status\nFROM cards\nWHERE status = 'ACTIVE';"],
-    [t.recentBookings, "SELECT id, type, destination, total\nFROM bookings\nORDER BY created_at DESC\nLIMIT 10;"],
+    [t.allUsers, "SELECT id, username, full_name, email, role\nFROM users\nORDER BY id;"],
+    [t.activeCards, "SELECT id, owner_id, brand, last4, status\nFROM cards\nWHERE status = 'ACTIVE';"],
+    [t.recentBookings, "SELECT b.id, f.flight_no, b.status, b.passengers, b.created_at\nFROM flight_bookings b\nJOIN flights f ON f.id = b.flight_id\nORDER BY b.created_at DESC\nLIMIT 10;"],
   ];
+  const lineCount = Math.max(6, query.split("\n").length);
+  const tableCount = tables.filter((table) => table.type === "table").length;
 
   return (
     <main className="sql-page" id="main-content">
       <div className="sql-titlebar"><div><span className="section-kicker"><Icon name="code" size={16} />{t.dataLab}</span><h1>{t.sqlPlayground}</h1><p>{t.sqlSubtitle}</p></div><div className="select-only-badge"><Icon name="lock" size={15} /><span><strong>{t.selectOnly}</strong><small>{t.selectOnlyNotice}</small></span></div></div>
-      <div className="quick-query-row"><span>{t.quickQueries}</span>{quickQueries.map(([label, sql]) => <button key={label} onClick={() => execute(sql)} type="button"><Icon name="play" size={12} />{label}</button>)}</div>
+      <div className="quick-query-row"><span>{t.quickQueries}</span>{quickQueries.map(([label, text]) => <button key={label} onClick={() => void execute(text)} type="button"><Icon name="play" size={12} />{label}</button>)}</div>
       <div className="sql-workspace">
         <aside className="schema-panel">
-          <div className="sql-panel-head"><span>{t.schemaTree}</span><code>public</code></div>
-          <div className="schema-title"><Icon name="chevron" size={13} /><span>{t.tables}</span><b>{schemas.length}</b></div>
-          {schemas.map((table) => <div className={selectedTable === table.name ? "schema-table active" : "schema-table"} key={table.name}><button onClick={() => setSelectedTable(table.name)} type="button"><Icon name="chevron" size={13} /><span>{table.name}</span></button>{selectedTable === table.name && <div>{table.columns.map((column) => <code key={column}>{column}</code>)}</div>}</div>)}
+          <div className="sql-panel-head"><span>{t.schemaTree}</span><code>main</code></div>
+          <div className="schema-title"><Icon name="chevron" size={13} /><span>{t.tables}</span><b>{tableCount}</b></div>
+          {tables.map((table) => (
+            <div className={selectedTable === table.name ? "schema-table active" : "schema-table"} key={table.name}>
+              <button onClick={() => setSelectedTable(table.name)} type="button"><Icon name="chevron" size={13} /><span>{table.name}{table.type === "view" ? " (view)" : ""}</span></button>
+              {selectedTable === table.name && <div>{table.columns.map((column) => <code key={column.name}>{column.name} · {column.type || "—"}{column.primaryKey ? " · PK" : ""}{column.hidden ? " · hidden" : ""}</code>)}</div>}
+            </div>
+          ))}
         </aside>
         <section className="sql-editor-panel">
-          <div className="sql-panel-head"><span>{t.sqlEditor}</span><div><button onClick={() => setQuery(query.replace(/\s+/g, " ").replace(/ SELECT /gi, "\nSELECT ").trim())} type="button">{t.formatQuery}</button><button disabled={running} onClick={() => execute()} type="button">{running ? <span className="button-spinner" /> : <Icon name="play" size={14} />}{running ? t.runningQuery : t.runQuery}</button></div></div>
-          <div className="sql-code-editor"><div className="line-numbers">1<br />2<br />3<br />4<br />5<br />6</div><textarea aria-label={t.sqlEditor} onChange={(event) => setQuery(event.target.value)} spellCheck="false" value={query} /></div>
-          {error && <div className="sql-error"><span>!</span><strong>{t.sqlError}</strong><code>SQL_WRITE_OPERATION_NOT_ALLOWED</code></div>}
+          <div className="sql-panel-head"><span>{t.sqlEditor}</span><div><button onClick={() => setQuery(query.replace(/\s+/g, " ").replace(/ (FROM|WHERE|JOIN|LEFT JOIN|GROUP BY|ORDER BY|HAVING|LIMIT) /gi, "\n$1 ").trim())} type="button">{t.formatQuery}</button><button disabled={running} onClick={() => void execute()} type="button">{running ? <span className="button-spinner" /> : <Icon name="play" size={14} />}{running ? t.runningQuery : t.runQuery}</button></div></div>
+          <div className="sql-code-editor"><div className="line-numbers">{Array.from({ length: lineCount }, (_, i) => <span key={i}>{i + 1}<br /></span>)}</div><textarea aria-label={t.sqlEditor} onChange={(event) => setQuery(event.target.value)} spellCheck="false" value={query} /></div>
+          {error && <div className="sql-error"><span>!</span><strong>{error.message}</strong><code>{error.code}</code></div>}
           <div className="sql-results">
-            <div className="results-head"><span>{t.queryResults}</span>{result && <small>{result.rows.length} {t.rowsReturned} · {t.queryTime}: 24 ms</small>}</div>
+            <div className="results-head"><span>{t.queryResults}</span>{result && <small>{result.rows.length}{result.truncated ? "+" : ""} {t.rowsReturned} · {t.queryTime}: {result.durationMs} ms</small>}</div>
             {running ? <div className="sql-result-skeleton"><i /><i /><i /></div> : result ? <div className="table-scroll"><table><thead><tr>{result.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}><code>{cell}</code></td>)}</tr>)}</tbody></table></div> : <div className="sql-empty"><span><Icon name="code" size={24} /></span><h3>{t.sqlEmptyTitle}</h3><p>{t.sqlEmptyText}</p></div>}
           </div>
         </section>
@@ -3729,6 +3959,10 @@ function SqlPlaygroundPage({ t }: { t: Translation }) {
   );
 }
 
+const KIND_ICON: Record<string, "compass" | "network" | "lock" | "code"> = { SLIDES: "compass", DOCUMENT: "network", TASKSHEET: "code", OTHER: "lock" };
+const fileExt = (name: string) => (name.split(".").pop() ?? "").toUpperCase();
+const sizeText = (bytes: number) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
 function MaterialsPage({
   onNavigate,
   t,
@@ -3736,40 +3970,58 @@ function MaterialsPage({
   onNavigate: (page: Page) => void;
   t: Translation;
 }) {
-  const [completed, setCompleted] = useState<number[]>([0]);
-  const tasks = [
-    { label: t.taskSendRequest, action: "explorer" as Page },
-    { label: t.taskInspectHeaders, action: "explorer" as Page },
-    { label: t.taskRefreshToken, action: "auth" as Page },
-    { label: t.taskSqlUsers, action: "sql" as Page },
-    { label: t.taskIdempotency, action: "explorer" as Page },
-  ];
-  const lessons = [
-    { number: "01", title: t.lessonIntro, meta: "18 min", method: "GET", icon: "compass" as const },
-    { number: "02", title: t.lessonHttp, meta: "26 min", method: "REST", icon: "network" as const },
-    { number: "03", title: t.lessonAuth, meta: "32 min", method: "JWT", icon: "lock" as const },
-    { number: "04", title: t.lessonData, meta: "24 min", method: "SQL", icon: "code" as const },
-  ];
-  const downloads = [
-    { title: t.presentation, type: t.pptxFile, ext: "PPTX", size: "8.4 MB", href: "/materials/api-lab-course.pptx" },
-    { title: t.workbook, type: t.pdfFile, ext: "PDF", size: "3.1 MB", href: "/materials/api-lab-workbook.pdf" },
-    { title: t.postmanCollection, type: t.jsonFile, ext: "JSON", size: "42 KB", href: "/materials/api-lab.postman_collection.json" },
-  ];
+  const [items, setItems] = useState<Material[]>([]);
+  const [tasks, setTasks] = useState<LessonTask[]>([]);
+  const [loadError, setLoadError] = useState("");
 
-  const toggleTask = (index: number) => {
-    setCompleted((items) => items.includes(index) ? items.filter((item) => item !== index) : [...items, index]);
+  useEffect(() => {
+    Promise.all([learning.materials(), learning.tasks()])
+      .then(([materials, lessonTasks]) => {
+        setItems(materials);
+        setTasks(lessonTasks);
+      })
+      .catch((error) => setLoadError(errorText(error)));
+  }, []);
+
+  // PUT /api/v1/tasks/{id}/progress — hər istifadəçinin öz irəliləyişi (DB-də task_progress)
+  const toggleTask = async (task: LessonTask) => {
+    const done = !task.done;
+    setTasks((list) => list.map((item) => (item.id === task.id ? { ...item, done } : item)));
+    try {
+      await learning.setDone(task.id, done);
+    } catch {
+      setTasks((list) => list.map((item) => (item.id === task.id ? { ...item, done: task.done } : item)));
+    }
   };
+
+  // Tapşırıqdan Explorer-ə (hazır method + path) və ya SQL Playground-a (hazır SELECT)
+  const openTask = (task: LessonTask) => {
+    if (task.sqlCheck && task.done) {
+      handoffs.set({ sql: task.sqlCheck });
+      onNavigate("sql");
+    } else {
+      handoffs.set({ explorer: { method: task.method, path: task.path } });
+      onNavigate("explorer");
+    }
+  };
+
+  const completed = tasks.filter((task) => task.done).length;
+  const progress = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+  const downloads = [
+    ...items.map((m) => ({ key: `m-${m.id}`, title: m.title, type: `${m.kind}${m.pageCount ? ` · ${m.pageCount} ${t.pages}` : ""}`, ext: fileExt(m.originalFilename), size: sizeText(m.sizeBytes), href: learning.fileUrl(m.links.download) })),
+    { key: "postman", title: t.postmanCollection, type: t.jsonFile, ext: "JSON", size: "Postman v2.1", href: learning.fileUrl("/api/postman/collection.json") },
+  ];
 
   return (
     <main className="materials-page" id="main-content">
       <div className="materials-hero">
-        <div><span className="section-kicker"><Icon name="book" size={16} />{t.learningHub}</span><h1>{t.materialsTitle}</h1><p>{t.materialsSubtitle}</p></div>
-        <div className="course-progress"><div><span>{t.courseProgress}</span><strong>{Math.round((completed.length / tasks.length) * 100)}%</strong></div><div className={`progress-track progress-${completed.length}`}><i /></div><small>{completed.length} / {tasks.length} {t.completedTasks}</small></div>
+        <div><span className="section-kicker"><Icon name="book" size={16} />{t.learningHub}</span><h1>{t.materialsTitle}</h1><p>{loadError || t.materialsSubtitle}</p></div>
+        <div className="course-progress"><div><span>{t.courseProgress}</span><strong>{progress}%</strong></div><div className={`progress-track progress-${Math.min(5, Math.round(progress / 20))}`}><i /></div><small>{completed} / {tasks.length} {t.completedTasks}</small></div>
       </div>
-      <section className="materials-section"><div className="materials-section-head"><h2>{t.lessonMaterials}</h2><span>{t.fourLessons}</span></div><div className="material-lesson-grid">{lessons.map((lesson, index) => <article key={lesson.number}><div className={`material-lesson-icon icon-${index + 1}`}><Icon name={lesson.icon} size={21} /></div><span>{t.lesson} {lesson.number}</span><h3>{lesson.title}</h3><div><small>{lesson.meta}</small><b>{lesson.method}</b></div></article>)}</div></section>
+      <section className="materials-section"><div className="materials-section-head"><h2>{t.lessonMaterials}</h2><span>{items.length} {t.materialsCount}</span></div><div className="material-lesson-grid">{items.length === 0 ? <article><h3>{t.noResults}</h3></article> : items.map((m, index) => <article key={m.id}><div className={`material-lesson-icon icon-${(index % 4) + 1}`}><Icon name={KIND_ICON[m.kind] ?? "compass"} size={21} /></div><span>{t.lesson} {m.lesson ? String(m.lesson).padStart(2, "0") : "—"}</span><h3>{m.title}</h3><div><small>{m.status === "READY" && m.pageCount ? `${m.pageCount} ${t.pages}` : m.status}</small><b>{fileExt(m.originalFilename)}</b></div></article>)}</div></section>
       <div className="materials-two-column">
-        <section className="materials-section task-section"><div className="materials-section-head"><h2>{t.practicalTasks}</h2><span>{completed.length}/{tasks.length}</span></div><div className="task-list">{tasks.map((task, index) => <article className={completed.includes(index) ? "complete" : ""} key={task.label}><button aria-label={t.markComplete} onClick={() => toggleTask(index)} type="button">{completed.includes(index) && <Icon name="check" size={15} />}</button><span>{task.label}</span><button onClick={() => onNavigate(task.action)} type="button">{task.action === "sql" ? t.checkWithSql : task.action === "auth" ? t.authLab : t.openInExplorerTask}<Icon name="arrow" size={14} /></button></article>)}</div></section>
-        <section className="materials-section download-section"><div className="materials-section-head"><div><h2>{t.downloads}</h2><p>{t.downloadsSubtitle}</p></div></div><div className="download-list">{downloads.map((file) => <a download href={file.href} key={file.ext}><span className={`file-icon file-${file.ext.toLowerCase()}`}>{file.ext}</span><div><strong>{file.title}</strong><small>{file.type} · {file.size}</small></div><span><Icon name="arrow" size={16} />{t.download}</span></a>)}</div></section>
+        <section className="materials-section task-section"><div className="materials-section-head"><h2>{t.practicalTasks}</h2><span>{completed}/{tasks.length}</span></div><div className="task-list">{tasks.map((task) => <article className={task.done ? "complete" : ""} key={task.id}><button aria-label={t.markComplete} onClick={() => void toggleTask(task)} type="button">{task.done && <Icon name="check" size={15} />}</button><span>{t.lesson} {task.lesson} · {task.title} <code>{task.method} {task.path} → {task.expectedStatus}</code></span><button onClick={() => openTask(task)} type="button">{task.sqlCheck && task.done ? t.checkWithSql : t.openInExplorerTask}<Icon name="arrow" size={14} /></button></article>)}</div></section>
+        <section className="materials-section download-section"><div className="materials-section-head"><div><h2>{t.downloads}</h2><p>{t.downloadsSubtitle}</p></div></div><div className="download-list">{downloads.map((file) => <a download href={file.href} key={file.key}><span className={`file-icon file-${file.ext.toLowerCase()}`}>{file.ext}</span><div><strong>{file.title}</strong><small>{file.type} · {file.size}</small></div><span><Icon name="arrow" size={16} />{t.download}</span></a>)}</div></section>
       </div>
     </main>
   );
@@ -3792,7 +4044,23 @@ function App() {
     return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   });
   const [data, setData] = useState<HomeData | null>(null);
+  const [lessonsDone, setLessonsDone] = useState(0);
   const t = translations[language];
+
+  // auth.ts sessiyanı dəyişəndə (refresh, refresh uğursuz → çıxış) state-i yenilə
+  useEffect(() => onSessionChange(setSession), []);
+
+  // Dərs irəliləyişi: bütün tapşırıqları bitmiş dərslərin sayı (GET /api/v1/tasks/progress/me)
+  useEffect(() => {
+    if (!session) {
+      setLessonsDone(0);
+      return;
+    }
+    learning
+      .progress()
+      .then((p) => setLessonsDone(p.byLesson.filter((l) => l.total > 0 && l.done === l.total).length))
+      .catch(() => setLessonsDone(0));
+  }, [session]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -3800,7 +4068,7 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
-    apiClient.getHomeData().then(setData);
+    apiClient.getHomeData().then(setData).catch(() => setData(null));
   }, []);
 
   useEffect(() => {
@@ -3863,7 +4131,7 @@ function App() {
   };
 
   const signOut = () => {
-    authClient.signOut();
+    void authClient.signOut();
     setSession(null);
     setCurrentPage("home");
     setIntendedPage("home");
@@ -3876,6 +4144,10 @@ function App() {
       const refreshed = await authClient.refreshSession();
       setSession(refreshed);
       setSessionExpired(false);
+    } catch {
+      // Refresh token yoxdur / ləğv edilib → yenidən daxil olmaq lazımdır
+      setSession(null);
+      navigateTo("signin");
     } finally {
       setRefreshingSession(false);
     }
@@ -3964,6 +4236,7 @@ function App() {
                 <span>
                   <Icon name="check" size={17} />
                   {t.statusReady}
+                  {data && ` · ${data.stats.endpoints} endpoint · v${data.stats.version}`}
                 </span>
               </div>
             </div>
@@ -3984,8 +4257,8 @@ function App() {
               <div className="request-body">
                 <div className="request-label">{t.practiceLabel}</div>
                 <div className="request-line">
-                  <span className="method-badge get">GET</span>
-                  <code>/v1/users/rauf</code>
+                  <span className="method-badge get">{data?.sample.method ?? "GET"}</span>
+                  <code>{data?.sample.path ?? "/api/v1/health"}</code>
                   <button className="send-button" type="button" aria-label={t.sendRequest}>
                     <Icon name="play" size={16} />
                   </button>
@@ -3993,13 +4266,15 @@ function App() {
                 <div className="response-block">
                   <div className="response-head">
                     <span>Response</span>
-                    <span className="status-chip">200 OK</span>
+                    <span className="status-chip">{data ? `${data.sample.status} OK` : "…"}</span>
                   </div>
                   <pre>
                     <span className="code-brace">{"{"}</span>
-                    {"\n  "}<span className="code-key">"id"</span>: <span className="code-number">42</span>,
-                    {"\n  "}<span className="code-key">"name"</span>: <span className="code-string">"Rauf"</span>,
-                    {"\n  "}<span className="code-key">"role"</span>: <span className="code-string">"student"</span>
+                    {Object.entries(data?.sample.body ?? {}).map(([key, value], index, all) => (
+                      <span key={key}>
+                        {"\n  "}<span className="code-key">"{key}"</span>: {typeof value === "number" ? <span className="code-number">{value}</span> : <span className="code-string">"{String(value)}"</span>}{index < all.length - 1 ? "," : ""}
+                      </span>
+                    ))}
                     {"\n"}<span className="code-brace">{"}"}</span>
                   </pre>
                 </div>
@@ -4053,7 +4328,7 @@ function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data?.users.map((user, index) => (
+                    {data?.users.map((user) => (
                       <tr key={user.username}>
                         <td>
                           <span className="table-avatar">{user.username.slice(0, 2).toUpperCase()}</span>
@@ -4064,11 +4339,7 @@ function App() {
                         </td>
                         <td>
                           <span className={`role-chip role-${user.role}`}>
-                            {index === 0
-                              ? t.student
-                              : index === 1
-                                ? t.administrator
-                                : t.instructor}
+                            {user.role === "admin" ? t.administrator : t.student}
                           </span>
                         </td>
                       </tr>
@@ -4090,8 +4361,8 @@ function App() {
                 <p>{t.lessonsDescription}</p>
               </div>
               <div className="progress-label">
-                <span>0 / 3</span>
-                <div><i /></div>
+                <span>{lessonsDone} / 3</span>
+                <div><i style={{ width: `${(lessonsDone / 3) * 100}%` }} /></div>
               </div>
             </div>
             <div className="lesson-grid">
@@ -4150,7 +4421,7 @@ function App() {
                   />
                 )}
               </div>
-              <pre><span>curl</span> -X GET \{"\n  "}<span className="terminal-url">{data?.baseUrl ?? "..."}/users</span> \{"\n  "}-H <span className="terminal-string">"Accept: application/json"</span></pre>
+              <pre><span>curl</span> -s \{"\n  "}<span className="terminal-url">"{data?.baseUrl ?? "..."}/currencies/rates?base=AZN"</span> \{"\n  "}-H <span className="terminal-string">"X-API-Key: apilab-demo-key-2026"</span></pre>
               <div className="terminal-response">
                 <span>{t.responsePreview}</span>
                 <strong>{t.responseReady}</strong>

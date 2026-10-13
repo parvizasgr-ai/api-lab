@@ -20,6 +20,7 @@ export const config = {
   migrationsDir: path.join(ROOT_DIR, 'db', 'migrations'),
   seedDir: path.join(ROOT_DIR, 'db', 'seed'),
   openapiJson: path.join(ROOT_DIR, 'openapi', 'openapi.json'),
+  webDist: env.WEB_DIST ?? path.join(ROOT_DIR, 'web', 'dist'), // portal build-i (web-design → pnpm build)
 
   // JWT: HS256 (simmetrik açar). Production-da uzun, təsadüfi JWT_SECRET mütləqdir.
   jwtSecret: env.JWT_SECRET ?? 'apilab-dev-secret-change-me-0123456789abcdef',

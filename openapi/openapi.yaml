@@ -252,6 +252,7 @@ paths:
       summary: Authorization endpoint — "Google ilə daxil ol" razılıq (consent) səhifəsi
       description: |
         Authorization Code flow-nun 1-ci addımı. Brauzer bu URL-ə yönləndirilir, istifadəçi hesab seçir və icazə verir.
+        SPA üçün: `Accept: application/json` → HTML əvəzinə client, scope və seçilə bilən hesablar JSON kimi qaytarılır.
         `state` məcburidir (CSRF qoruması) — client geri qayıdan `state`-i özündəki ilə müqayisə etməlidir.
       x-db-impact:
         reads: [oauth_clients, users]
@@ -264,11 +265,14 @@ paths:
         - { $ref: '#/components/parameters/OAuthState' }
       responses:
         '200':
-          description: HTML consent səhifəsi (hesab seçimi + "İcazə ver" / "İmtina")
+          description: HTML consent səhifəsi (hesab seçimi + "İcazə ver" / "İmtina") və ya JSON (Accept application/json)
           content:
             text/html:
               schema: { type: string }
               example: '<!doctype html><html><body><h1>Google ilə daxil ol</h1>...</body></html>'
+            application/json:
+              schema: { $ref: '#/components/schemas/OAuthConsentInfo' }
+              example: { client: { clientId: apilab-portal, name: API Lab Portal }, redirectUri: 'http://localhost:5173/oauth/callback', scope: openid profile email, state: xyz-12345678, accounts: [{ username: student, fullName: Aysel Məmmədova, email: student@apilab.az }] }
         '400':
           description: client_id və ya redirect_uri qeydiyyatda yoxdur (redirect edilmir — açıq redirect hücumunun qarşısı alınır)
           content:
@@ -286,6 +290,7 @@ paths:
         Consent formu buraya göndərilir. `decision=allow` → `302 Location: {redirect_uri}?code=...&state=...`.
         `decision=deny` → `302 Location: {redirect_uri}?error=access_denied&state=...`. Code **birdəfəlikdir** və **60 saniyə** yaşayır.
         `decision=allow` üçün seçilmiş hesabın parolu tələb olunur (real Google-da olduğu kimi). OAuth token-lərinə `admin` scope-u heç vaxt verilmir.
+        SPA üçün: `Accept: application/json` → 302 əvəzinə `200 {location}` (fetch 302-nin Location başlığını oxuya bilmir), səhv parol → 401 JSON.
       x-db-impact:
         reads: [oauth_clients, users]
         writes: [INSERT oauth_codes]
@@ -296,6 +301,12 @@ paths:
             schema: { $ref: '#/components/schemas/OAuthConsentForm' }
             example: { client_id: apilab-portal, redirect_uri: 'http://localhost:5173/oauth/callback', scope: openid profile email, state: xyz-12345678, username: student, password: student123, decision: allow }
       responses:
+        '200':
+          description: 'Accept: application/json — yönləndiriləcək ünvan (code + state və ya error)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OAuthRedirect' }
+              example: { location: 'http://localhost:5173/oauth/callback?state=xyz-12345678&code=ac_5d1e2f3a4b5c6d7e' }
         '302':
           description: redirect_uri-yə yönləndirmə (code və ya error ilə)
           headers:
@@ -309,11 +320,14 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 400, code: INVALID_REDIRECT_URI, message: redirect_uri bu client üçün qeydiyyatda deyil, details: [], traceId: req_7f2c9a }
         '401':
-          description: Parol səhvdir — consent səhifəsi xəta mesajı ilə yenidən göstərilir
+          description: Parol səhvdir — consent səhifəsi xəta mesajı ilə yenidən göstərilir (JSON client-ə — vahid xəta formatı)
           content:
             text/html:
               schema: { type: string }
               example: '<!doctype html><html><body><p class="error">Parol səhvdir</p>...</body></html>'
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: INVALID_CREDENTIALS, message: Parol səhvdir, details: [], traceId: req_7f2c9a }
         '404':
           description: Seçilmiş istifadəçi tapılmadı
           content:
@@ -3916,6 +3930,33 @@ components:
         username: { type: string, minLength: 3, maxLength: 50, pattern: '^[a-zA-Z0-9_.-]+$' }
         password: { type: string, maxLength: 100, description: 'decision=allow üçün məcburidir' }
         decision: { type: string, enum: [allow, deny] }
+    OAuthConsentInfo:
+      type: object
+      required: [client, redirectUri, scope, state, accounts]
+      properties:
+        client:
+          type: object
+          required: [clientId, name]
+          properties:
+            clientId: { type: string }
+            name: { type: string }
+        redirectUri: { type: string }
+        scope: { type: string }
+        state: { type: string }
+        accounts:
+          type: array
+          items:
+            type: object
+            required: [username, fullName, email]
+            properties:
+              username: { type: string }
+              fullName: { type: string }
+              email: { type: string }
+    OAuthRedirect:
+      type: object
+      required: [location]
+      properties:
+        location: { type: string }
     OAuthTokenForm:
       type: object
       additionalProperties: false

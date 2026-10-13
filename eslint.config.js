@@ -5,7 +5,7 @@ import globals from 'globals';
 
 export default tseslint.config(
   // import/ — xam Figma Make export-u (toxunulmur); web-design build/test nəticələri
-  { ignores: ['**/node_modules', 'data', 'web/dist', 'import', 'dist', 'coverage', 'web-design/dist', 'web-design/test-results', 'web-design/playwright-report'] },
+  { ignores: ['**/node_modules', 'artifacts', 'data', 'web/dist', 'import', 'dist', 'coverage', 'web-design/dist', 'web-design/test-results', 'web-design/playwright-report'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   // Portal (React) — brauzer mühiti

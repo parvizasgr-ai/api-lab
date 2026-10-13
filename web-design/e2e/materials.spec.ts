@@ -121,6 +121,11 @@ test('STUDENT: yükləmə gizli, viewer oxunur (mobil də), tapşırıq done →
     multipart: { title: 'Dərs 2 — HTTP və REST', lesson: '2', file: { name: 'API_Ders2_HTTP_REST.pdf', mimeType: 'application/pdf', buffer: makePdf(3) } },
   })
   expect(up.status()).toBe(202)
+  // Student yalnız READY materialları görür — konvertasiyanın bitməsini API ilə gözləyirik (əks halda yarış: siyahı boş gəlir)
+  const { id } = await up.json()
+  await expect
+    .poll(async () => (await (await request.get(`/api/v1/materials/${id}`, { headers: { Authorization: `Bearer ${access_token}` } })).json()).status, { timeout: 20_000 })
+    .toBe('READY')
 
   await signIn(page, 'student', 'student123')
   await nav(page, 'Materials')

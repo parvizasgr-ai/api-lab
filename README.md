@@ -90,7 +90,10 @@ Seed **deterministikdir** (eyni gündə hər reset eyni datanı verir), tarixlə
 | `npm run dev` | OpenAPI-ni bundle edir və serveri watch rejimində işə salır (DB boşdursa — migration + seed) |
 | `npm start` | Serveri watch olmadan işə salır |
 | `npm run build` | `openapi/openapi.json` və `postman/*.json` fayllarını yenidən yaradır |
-| `npm test` | Bütün testlər (vitest + supertest, in-memory DB) |
+| `npm test` | Backend testləri (vitest + supertest, in-memory DB; contract + security daxil) |
+| `npm run test:all` | **CI — tək komanda:** lint → typecheck → backend (coverage) → portal unit (coverage) → portal build + e2e |
+| `npm run test:contract` | Yalnız OpenAPI contract + təhlükəsizlik testləri |
+| `npm run test:coverage` / `test:web` / `test:e2e` | Backend coverage / portal unit coverage / build + Playwright |
 | `npm run lint` | ESLint + Spectral (OpenAPI lint) |
 | `npm run typecheck` | TypeScript yoxlaması |
 | `npm run db:reset` | DB-ni sıfırlayır (drop → migrate → seed), `db/schema.sql`-i yeniləyir, cədvəl saylarını göstərir |
@@ -101,6 +104,24 @@ Seed **deterministikdir** (eyni gündə hər reset eyni datanı verir), tarixlə
 | `npm run postman:export` | Postman fayllarını `postman/` qovluğuna yazır |
 | `npm run rates:refresh` | Bu günün məzənnələrini ECB-dən (Frankfurter) yeniləyir; şəbəkə yoxdursa seed qalır |
 | `npm run pg:up` / `pg:down` | Opsional PostgreSQL (Docker) |
+
+## Testlər və QA (CI)
+
+```bash
+npm run test:all      # hamısı ardıcıl; ilk uğursuz addımda dayanır (exit code ≠ 0)
+```
+
+İlk dəfə: `npm install`, `cd web-design && corepack pnpm install`. E2E üçün **Google Chrome** quraşdırılmalı və **port 3000 boş** olmalıdır (Playwright təzə müvəqqəti DB ilə öz serverini qaldırır — işləyən `npm start`-ı əvvəlcə dayandırın). `pdftoppm` (poppler) yoxdursa slayd önizləməsi testləri skip olunur.
+
+| Qat | Fayl | Nəyi yoxlayır |
+|---|---|---|
+| Contract | `tests/contract.test.ts` | `openapi.json`-dakı **hər** əməliyyat avtomatik: spec nümunəsi ilə happy path + cavab sxemi və Content-Type, 401 (+ `WWW-Authenticate`), ADMIN endpoint-də student → 403, naməlum body sahəsi / query → 422, 100 KB-dan böyük body → 413, vahid xəta formatı (`traceId` = `X-Request-Id`), 400/404/405/406/415/422 (Idempotency)/429, pagination. Yeni endpoint spec-ə düşən kimi əhatə olunur. |
+| Security | `tests/security.test.ts` | `alg=none`/saxta imzalı JWT, refresh ↔ access qarışdırma, open redirect, IDOR matrisi (hesab, kart, bron, transfer, playlist, irəliləyiş, `/_history`), mass assignment, `__proto__`, SQLi (`_db/query` və adi endpoint-lər), sirr sütunları, path traversal, imzanın başqa materiala köçürülməsi, XSS (OAuth HTML, saxlanmış payload), CRLF header injection, CSP, CORS |
+| Portal unit | `web-design/src/**/*.test.ts` | http/auth/api client-ləri, Tests DSL |
+| E2E axınlar | `web-design/e2e/portal.spec.ts`, `materials.spec.ts`, `flows.spec.ts` | login/logout, OAuth, 401→refresh, Kartı blokla (ikiqat klik + itmiş cavab → eyni Idempotency-Key, replay), transfer, valyuta, uçuş/otel bronu, Customers CRUD (PUT/PATCH), kitab/musiqi, SQL, Explorer+History+Tests, Materials, klaviatura, 500/yüklənir halları |
+| E2E matris | `web-design/e2e/matrix.spec.ts` | 6 səhifə × student/admin × AZ/EN × light/dark × 375/768/1440 px = 144 görünüş: console error, uğursuz sorğu, overflow, axe WCAG 2 A/AA (kontrast), fontlar. Ekran görüntüləri → `artifacts/e2e/` |
+
+Coverage hesabatları: `coverage/backend/index.html`, `coverage/web/index.html`. QA hesabatı və tapılan problemlər: [`docs/qa/W5-report.md`](docs/qa/W5-report.md).
 
 Konfiqurasiya: `cp .env.example .env` — bütün parametrlər izahlı [`.env.example`](.env.example)-dadır (port, JWT_SECRET, rate limit, `AUTH_CUSTOMERS`, `YOUTUBE_API_KEY` və s.).
 
@@ -484,5 +505,6 @@ Bu, **yalnız sxem səviyyəsindədir**: API server runtime-da SQLite işlədir 
 
 ## Hələ edilməyənlər
 
-- **React portal** (`/web`) — UI ayrıca (Figma Make) hazırlanır; `web/dist` əlavə olunanda server onu avtomatik verir, indi isə başlanğıc səhifəsi göstərilir.
+- **External APIs (RapidAPI, W4)** — API seçimi təsdiq gözləyir; `/external/*` proxy və portal səhifəsi hələ yoxdur.
+- W5 QA-da tapılmış Medium/Low problemlər — [`docs/qa/W5-report.md`](docs/qa/W5-report.md) (təsdiq gözləyir).
 - **Real Google OAuth** — `GOOGLE_CLIENT_ID/SECRET` `.env.example`-da ayrılıb, amma hələ istifadə olunmur; mock tam işləyir.

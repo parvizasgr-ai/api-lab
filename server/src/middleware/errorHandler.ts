@@ -35,7 +35,7 @@ export function errorHandler(config: Config): ErrorRequestHandler {
     } else if (err?.type === 'entity.parse.failed') {
       apiError = new ApiError(400, 'MALFORMED_JSON', 'Request body düzgün JSON deyil', [{ field: 'body', message: err.message }]);
     } else if (err?.type === 'entity.too.large') {
-      apiError = new ApiError(400, 'BAD_REQUEST', 'Request body çox böyükdür (maks. 100kb)');
+      apiError = new ApiError(413, 'PAYLOAD_TOO_LARGE', 'Request body çox böyükdür (maks. 100 KB)');
     } else {
       console.error(`[${req.id}] Gözlənilməz xəta:`, err);
       apiError = new ApiError(500, 'INTERNAL_ERROR', 'Gözlənilməz xəta baş verdi. traceId ilə dəstəyə müraciət edin');

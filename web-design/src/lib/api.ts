@@ -185,8 +185,8 @@ export const bank = {
   // Balans qrafiki üçün: hesabın son əməliyyatları (köhnədən yeniyə)
   transactions: async (accountId: string, size = 30) =>
     (await api.get<{ items: Transaction[] }>(`/api/v1/accounts/${accountId}/transactions?size=${size}&sort=-createdAt`)).data.items.reverse(),
-  blockCard: async (cardId: number, reason: string, comment: string) =>
-    (await api.post(`/api/v1/cards/${cardId}/block`, { reason, ...(comment ? { comment } : {}) }, { headers: { "Idempotency-Key": newKey("block") } })).data,
+  blockCard: async (cardId: number, reason: string, comment: string, idempotencyKey: string) =>
+    (await api.post(`/api/v1/cards/${cardId}/block`, { reason, ...(comment ? { comment } : {}) }, { headers: { "Idempotency-Key": idempotencyKey } })).data,
   transfer: async (body: { fromAccountId: string; toAccountId: string; amount: number; currency: string }, idempotencyKey: string) =>
     (await api.post<{ id: number; status: string }>("/api/v1/transfers", body, { headers: { "Idempotency-Key": idempotencyKey } })).data,
 };

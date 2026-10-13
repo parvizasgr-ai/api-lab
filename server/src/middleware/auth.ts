@@ -7,6 +7,8 @@ import type { OperationInfo, OpenApiDoc } from '../openapi/spec.js';
 import type { AuthService } from '../modules/auth/service.js';
 
 const BEARER_SCHEMES = new Set(['bearerAuth', 'googleOAuth']);
+// RFC 9110 §15.5.2: 401 cavabında WWW-Authenticate məcburidir (API key üçün standart sxem yoxdur — adət olunmuş forma)
+const API_KEY_CHALLENGE = 'ApiKey realm="API Lab", header="X-API-Key"';
 
 function unauthorized(code: string, message: string, challenge: string): ApiError {
   return new ApiError(401, code, message, [], { 'WWW-Authenticate': challenge });
@@ -38,7 +40,7 @@ export function authenticate(op: OperationInfo, spec: OpenApiDoc, auth: AuthServ
     const apiKey = req.get('x-api-key');
     if (schemes.has('apiKeyAuth') && apiKey) {
       const key = auth.findActiveApiKey(apiKey);
-      if (!key) throw new ApiError(401, 'INVALID_API_KEY', 'API key etibarsızdır və ya deaktiv edilib');
+      if (!key) throw unauthorized('INVALID_API_KEY', 'API key etibarsızdır və ya deaktiv edilib', API_KEY_CHALLENGE);
       req.auth = { userId: key.owner_user_id, username: key.username, role: key.role, scopes: [], via: 'apiKey' };
       return next();
     }
@@ -56,7 +58,7 @@ export function authenticate(op: OperationInfo, spec: OpenApiDoc, auth: AuthServ
 
     if (schemes.has('basicAuth')) throw unauthorized('UNAUTHORIZED', 'Authorization: Basic başlığı yoxdur', 'Basic realm="API Lab"');
     if (schemes.has('apiKeyAuth') && ![...schemes].some((s) => BEARER_SCHEMES.has(s))) {
-      throw new ApiError(401, 'UNAUTHORIZED', 'X-API-Key başlığı yoxdur');
+      throw unauthorized('UNAUTHORIZED', 'X-API-Key başlığı yoxdur', API_KEY_CHALLENGE);
     }
     throw unauthorized('UNAUTHORIZED', 'Authorization: Bearer <token> başlığı yoxdur', 'Bearer realm="API Lab"');
   };

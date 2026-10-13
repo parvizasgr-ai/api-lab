@@ -176,6 +176,9 @@
               }
             }
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/ValidationError"
           },
@@ -259,6 +262,9 @@
               }
             }
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "422": {
             "$ref": "#/components/responses/ValidationError"
           },
@@ -314,6 +320,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
           },
           "422": {
             "$ref": "#/components/responses/ValidationError"
@@ -371,6 +380,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -442,6 +454,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -667,6 +682,9 @@
               }
             }
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -801,6 +819,9 @@
               }
             }
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -859,6 +880,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -924,6 +948,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -1523,6 +1550,9 @@
               }
             }
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -1688,6 +1718,9 @@
                 }
               }
             }
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
           },
           "422": {
             "description": "STOLEN səbəbi ilə bloklanmış kart açıla bilməz və ya validation xətası",
@@ -1864,6 +1897,9 @@
                 }
               }
             }
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
@@ -2094,6 +2130,9 @@
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedApiKey"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -2830,6 +2869,9 @@
               }
             }
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -3405,6 +3447,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
@@ -3515,6 +3560,9 @@
           },
           "409": {
             "$ref": "#/components/responses/RoomNotAvailable"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
@@ -3690,6 +3738,9 @@
           },
           "409": {
             "$ref": "#/components/responses/RoomNotAvailable"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
@@ -3994,6 +4045,9 @@
           "409": {
             "$ref": "#/components/responses/EmailExists"
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -4237,6 +4291,9 @@
           "409": {
             "$ref": "#/components/responses/EmailExists"
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -4320,6 +4377,9 @@
           },
           "409": {
             "$ref": "#/components/responses/EmailExists"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
@@ -4999,6 +5059,9 @@
               }
             }
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -5303,6 +5366,9 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
@@ -5374,6 +5440,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
@@ -5606,6 +5675,9 @@
               }
             }
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -5827,6 +5899,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -6196,6 +6271,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
@@ -6282,6 +6360,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -6382,6 +6463,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
@@ -6869,6 +6953,9 @@
           "404": {
             "$ref": "#/components/responses/MaterialNotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -7269,7 +7356,14 @@
               }
             },
             "content": {
-              "application/octet-stream": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "(binary)"
+              },
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
                 "schema": {
                   "type": "string",
                   "format": "binary"
@@ -7547,6 +7641,9 @@
           "409": {
             "$ref": "#/components/responses/TaskExists"
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -7644,6 +7741,9 @@
           },
           "409": {
             "$ref": "#/components/responses/TaskExists"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
           },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
@@ -7775,6 +7875,9 @@
           "404": {
             "$ref": "#/components/responses/TaskNotFound"
           },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
           "415": {
             "$ref": "#/components/responses/UnsupportedMediaType"
           },
@@ -7850,6 +7953,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -8142,6 +8248,9 @@
               }
             }
           },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           },
@@ -8195,6 +8304,9 @@
               }
             }
           },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
           }
@@ -8230,6 +8342,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -8268,6 +8383,9 @@
                 }
               }
             }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -9010,6 +9128,24 @@
               "status": 413,
               "code": "PAYLOAD_TOO_LARGE",
               "message": "Fayl çox böyükdür — maksimum 50 MB",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "BodyTooLarge": {
+        "description": "JSON / form body 100 KB limitini aşır",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 413,
+              "code": "PAYLOAD_TOO_LARGE",
+              "message": "Request body çox böyükdür (maks. 100 KB)",
               "details": [],
               "traceId": "req_7f2c9a"
             }
@@ -11186,7 +11322,7 @@
       "CustomerReplace": {
         "type": "object",
         "additionalProperties": false,
-        "description": "PUT — bütün sahələr məcburidir (resurs tam əvəz olunur)",
+        "description": "PUT — bütün sahələr məcburidir (resurs tam əvəz olunur). `phone`/`city` üçün `null` = \"yoxdur\" (GET cavabı olduğu kimi geri göndərilə bilər).",
         "required": [
           "firstName",
           "lastName",
@@ -11208,10 +11344,15 @@
             "maxLength": 100
           },
           "phone": {
-            "$ref": "#/components/schemas/Phone"
+            "type": "string",
+            "nullable": true,
+            "description": "E.164 (+994...) və ya null",
+            "pattern": "^\\+994(10|50|51|55|60|70|77|99)[0-9]{7}$",
+            "example": "+994501234567"
           },
           "city": {
             "type": "string",
+            "nullable": true,
             "minLength": 1,
             "maxLength": 50
           },

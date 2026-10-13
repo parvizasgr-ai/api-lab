@@ -15,8 +15,8 @@ export function security(): RequestHandler[] {
       contentSecurityPolicy: {
         directives: {
           'script-src': ["'self'", 'https://www.youtube.com', 'https://s.ytimg.com'],
-          'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'], // portal: Inter + JetBrains Mono
-          'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
+          'style-src': ["'self'", "'unsafe-inline'"],
+          'font-src': ["'self'", 'data:'], // portal fontları lokaldır (@fontsource) — xarici font CDN-i yoxdur
           'img-src': ["'self'", 'data:', 'https://i.ytimg.com', 'https://ui-avatars.com'],
           'frame-src': ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'], // 'self' — Materials PDF viewer
           // OAuth consent formu POST-dan sonra client-in redirect_uri-sinə yönləndirir

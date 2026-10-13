@@ -2237,6 +2237,11 @@ function BankApp({ t }: { t: Translation }) {
   const [blockReason, setBlockReason] = useState("LOST");
   const [blockComment, setBlockComment] = useState("");
   const [blockError, setBlockError] = useState("");
+  // Idempotency-Key bir "niyyətə" bağlıdır: eyni kart + səbəb + şərh üçün təkrar cəhdlər (ikiqat klik, şəbəkə xətası) eyni açarla
+  // gedir → server saxlanmış cavabı qaytarır (409 yox). Sorğu dəyişəndə yeni açar (əks halda 422 IDEMPOTENCY_KEY_REUSED).
+  const [blockKey, setBlockKey] = useState(() => bank.newIdempotencyKey());
+  const [blockPending, setBlockPending] = useState(false);
+  const [transferPending, setTransferPending] = useState(false);
   const [transferSent, setTransferSent] = useState(false);
   const [transferError, setTransferError] = useState("");
   const [fromAccount, setFromAccount] = useState("");
@@ -2293,24 +2298,33 @@ function BankApp({ t }: { t: Translation }) {
   const accountName = (account: Account) => (account.type === "SAVINGS" ? t.savings : t.checking);
   const holder = (data?.user.fullName ?? "").toUpperCase();
 
-  const blockCard = async () => {
-    if (blockCardId === null) return;
+  const openBlock = (cardId: number) => {
+    setBlockCardId(cardId);
     setBlockError("");
+    setBlockKey(bank.newIdempotencyKey());
+  };
+  const blockCard = async () => {
+    if (blockCardId === null || blockPending) return;
+    setBlockError("");
+    setBlockPending(true);
     try {
-      await bank.blockCard(blockCardId, blockReason, blockComment);
+      await bank.blockCard(blockCardId, blockReason, blockComment, blockKey);
       setBlockCardId(null);
       setBlockComment("");
       await load();
     } catch (error) {
       setBlockError(errorText(error));
+    } finally {
+      setBlockPending(false);
     }
   };
 
   const transfer = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const source = data?.accounts.find((account) => account.id === fromAccount);
-    if (!source) return;
+    if (!source || transferPending) return;
     setTransferError("");
+    setTransferPending(true);
     try {
       await bank.transfer({ fromAccountId: source.id, toAccountId: recipient.replace(/\s+/g, ""), amount: Number(amount), currency: source.currency }, idempotencyKey);
       setTransferSent(true);
@@ -2319,7 +2333,14 @@ function BankApp({ t }: { t: Translation }) {
       window.setTimeout(() => setTransferSent(false), 2600);
     } catch (error) {
       setTransferError(errorText(error));
+    } finally {
+      setTransferPending(false);
     }
+  };
+  // Forma dəyişdisə bu artıq başqa köçürmədir → yeni açar
+  const editTransfer = <T,>(setter: (value: T) => void) => (value: T) => {
+    setter(value);
+    setIdempotencyKey(bank.newIdempotencyKey());
   };
 
   if (!data) {
@@ -2385,7 +2406,7 @@ function BankApp({ t }: { t: Translation }) {
                     <strong>{card.status === "ACTIVE" ? t.active : card.status === "BLOCKED" ? t.blocked : t.expired}</strong>
                   </div>
                   {!blocked && (
-                    <button onClick={() => { setBlockCardId(card.id); setBlockError(""); }} type="button">
+                    <button onClick={() => openBlock(card.id)} type="button">
                       <Icon name="lock" size={14} />
                       {t.blockCard}
                     </button>
@@ -2404,7 +2425,7 @@ function BankApp({ t }: { t: Translation }) {
           <form className="transfer-form" onSubmit={transfer}>
             <label>
               <span>{t.fromAccount}</span>
-              <select onChange={(event) => setFromAccount(event.target.value)} value={fromAccount}>
+              <select onChange={(event) => editTransfer(setFromAccount)(event.target.value)} value={fromAccount}>
                 {data.accounts.map((account) => (
                   <option key={account.id} value={account.id}>{accountName(account)} · {money(account.balance, account.currency)}</option>
                 ))}
@@ -2412,10 +2433,10 @@ function BankApp({ t }: { t: Translation }) {
             </label>
             <label>
               <span>{t.recipientIban}</span>
-              <input onChange={(event) => setRecipient(event.target.value)} required value={recipient} />
+              <input onChange={(event) => editTransfer(setRecipient)(event.target.value)} required value={recipient} />
             </label>
             <div className="transfer-split">
-              <label><span>{t.amount}</span><input min="0.01" onChange={(event) => setAmount(event.target.value)} required step="0.01" type="number" value={amount} /></label>
+              <label><span>{t.amount}</span><input min="0.01" onChange={(event) => editTransfer(setAmount)(event.target.value)} required step="0.01" type="number" value={amount} /></label>
               <label><span>{t.currency}</span><input readOnly value={data.accounts.find((account) => account.id === fromAccount)?.currency ?? ""} /></label>
             </div>
             <div className="idempotency-field">
@@ -2425,7 +2446,7 @@ function BankApp({ t }: { t: Translation }) {
               </div>
               <code>{idempotencyKey}</code>
             </div>
-            <button className={transferSent ? "transfer-button success" : "transfer-button"} type="submit">
+            <button aria-busy={transferPending} className={transferSent ? "transfer-button success" : "transfer-button"} disabled={transferPending} type="submit">
               <Icon name={transferSent ? "check" : "arrow"} size={17} />
               {transferSent ? t.transferComplete : t.sendTransfer}
             </button>
@@ -2458,7 +2479,7 @@ function BankApp({ t }: { t: Translation }) {
             <p>{blockError || t.blockCardText}</p>
             <label>
               <span>{t.reason}</span>
-              <select value={blockReason} onChange={(event) => setBlockReason(event.target.value)}>
+              <select value={blockReason} onChange={(event) => { setBlockReason(event.target.value); setBlockKey(bank.newIdempotencyKey()); }}>
                 <option value="LOST">{t.lost}</option>
                 <option value="STOLEN">{t.stolen}</option>
                 <option value="SUSPECTED_FRAUD">{t.suspectedFraud}</option>
@@ -2466,11 +2487,11 @@ function BankApp({ t }: { t: Translation }) {
             </label>
             <label>
               <span>{t.comment}</span>
-              <textarea onChange={(event) => setBlockComment(event.target.value)} placeholder={t.commentPlaceholder} value={blockComment} />
+              <textarea onChange={(event) => { setBlockComment(event.target.value); setBlockKey(bank.newIdempotencyKey()); }} placeholder={t.commentPlaceholder} value={blockComment} />
             </label>
             <div className="modal-actions">
               <button onClick={() => setBlockCardId(null)} type="button">{t.cancel}</button>
-              <button onClick={blockCard} type="button">{t.confirmBlock}</button>
+              <button aria-busy={blockPending} disabled={blockPending} onClick={blockCard} type="button">{t.confirmBlock}</button>
             </div>
           </div>
         </div>

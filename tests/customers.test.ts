@@ -77,6 +77,19 @@ describe('customers v1', () => {
     expect((await t.api().patch('/api/v1/customers/999').send({ city: 'Quba' })).status).toBe(404);
   });
 
+  it('regresiya QA-H06: telefonsuz müştərinin GET cavabı olduğu kimi PUT ilə geri göndərilə bilər (phone/city null)', async () => {
+    const { api } = createTestApp();
+    const created = await api().post('/api/v1/customers').send({ firstName: 'Eldar', lastName: 'Testov', email: 'eldar.null@example.az' });
+    expect(created.status).toBe(201);
+    expect(created.body.phone).toBeNull();
+    const { firstName, lastName, email, phone, city, active } = created.body;
+    const put = await api().put(`/api/v1/customers/${created.body.id}`).send({ firstName, lastName, email, phone, city, active });
+    expect(put.status, JSON.stringify(put.body)).toBe(200);
+    expectMatchesSpec(put, 'replaceCustomer');
+    const bad = await api().put(`/api/v1/customers/${created.body.id}`).send({ firstName, lastName, email, phone: '12345', city, active });
+    expect(bad.status).toBe(422);
+  });
+
   it('ETag + If-None-Match → 304; data dəyişəndən sonra köhnə ETag → 200', async () => {
     const first = await t.api().get('/api/v1/customers/1');
     expect(first.status).toBe(200);

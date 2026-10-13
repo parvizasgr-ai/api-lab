@@ -120,3 +120,15 @@ describe("Materials", () => {
     expect(calls.map((c) => `${c.method} ${c.url} ${c.body ?? ""}`)).toEqual(["GET /api/v1/tasks?lesson=2 ", 'PUT /api/v1/tasks/5/progress {"done":true}']);
   });
 });
+
+describe("Bank idempotency (regresiya QA-H02)", () => {
+  it("blockCard verilən Idempotency-Key-i göndərir — təkrar cəhd eyni açarla gedir (hər klikdə yeni açar yox)", async () => {
+    const { bank } = await load();
+    const calls = mockFetch(() => json(200, { id: 1, status: "BLOCKED" }));
+    const key = bank.newIdempotencyKey();
+    await bank.blockCard(1, "LOST", "", key);
+    await bank.blockCard(1, "LOST", "", key);
+    expect(calls.map((c) => c.headers["idempotency-key"])).toEqual([key, key]);
+    expect(JSON.parse(String(calls[0].body))).toEqual({ reason: "LOST" });
+  });
+});

@@ -122,6 +122,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: INVALID_CREDENTIALS, message: Username və ya parol səhvdir, details: [], traceId: req_7f2c9a }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -160,6 +161,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: INVALID_REFRESH_TOKEN, message: Refresh token etibarsızdır və ya ləğv edilib, details: [], traceId: req_7f2c9a }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -186,6 +188,7 @@ paths:
           description: Refresh token ləğv edildi (cavab gövdəsi yoxdur)
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -208,6 +211,7 @@ paths:
               schema: { $ref: '#/components/schemas/User' }
               example: { id: 1, username: student, fullName: Aysel Məmmədova, email: student@apilab.az, role: USER, scopes: [accounts:read, cards:read, cards:write] }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -239,6 +243,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 401, code: INVALID_CREDENTIALS, message: Basic credential səhvdir, details: [], traceId: req_7f2c9a }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -334,6 +339,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: USER_NOT_FOUND, message: İstifadəçi tapılmadı, details: [], traceId: req_7f2c9a }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -384,6 +390,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/OAuthError' }
               example: { error: invalid_client, error_description: client_id və ya client_secret səhvdir }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -407,6 +414,7 @@ paths:
               schema: { $ref: '#/components/schemas/UserInfo' }
               example: { sub: '1', name: Aysel Məmmədova, preferred_username: student, email: student@apilab.az, email_verified: true, picture: 'https://ui-avatars.com/api/?name=Aysel+M%C9%99mm%C9%99dova' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -436,6 +444,7 @@ paths:
                   - { id: AZ21NABZ0002, type: SAVINGS, currency: USD, balance: 910.00, openedAt: '2025-12-17T11:00:00Z' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -664,6 +673,7 @@ paths:
               examples:
                 alreadyBlocked: { summary: Artıq bloklanıb, value: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: CARD_ALREADY_BLOCKED, message: Kart artıq bloklanıb, details: [], traceId: req_7f2c9a } }
                 expired: { summary: Müddəti bitib, value: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: CARD_EXPIRED, message: Kartın müddəti bitib, details: [], traceId: req_7f2c9a } }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '422':
           description: Validation xətası
           content:
@@ -715,6 +725,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: CARD_NOT_BLOCKED, message: Kart bloklu deyil, details: [], traceId: req_7f2c9a }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '422':
           description: STOLEN səbəbi ilə bloklanmış kart açıla bilməz və ya validation xətası
           content:
@@ -777,6 +788,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: ACCOUNT_NOT_FOUND, message: 'Hesab tapılmadı: AZ21NABZ9999', details: [], traceId: req_7f2c9a }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '422':
           description: Biznes qaydası və ya validation xətası
           content:
@@ -854,6 +866,7 @@ paths:
                   - { code: USD, name: ABŞ dolları, symbol: $ }
                   - { code: EUR, name: Avro, symbol: € }
         '401': { $ref: '#/components/responses/UnauthorizedApiKey' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -1146,6 +1159,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: SOLD_OUT, message: 'Bu reysdə kifayət qədər boş yer yoxdur (qalıb: 0)', details: [], traceId: req_7f2c9a }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -1351,6 +1365,7 @@ paths:
                   - { id: 2, roomId: 2, hotelId: 1, hotelName: Xəzər Sahil Hotel, roomType: DOUBLE, checkIn: '2026-10-23', checkOut: '2026-10-25', nights: 2, guests: 2, status: CONFIRMED, total: 756.00, currency: AZN, createdAt: '2026-10-10T11:00:00Z', updatedAt: '2026-10-10T11:00:00Z' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
     post:
@@ -1391,6 +1406,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 404, code: ROOM_NOT_FOUND, message: Otaq tapılmadı, details: [], traceId: req_7f2c9a }
         '409': { $ref: '#/components/responses/RoomNotAvailable' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '422': { $ref: '#/components/responses/HotelBookingInvalid' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
@@ -1453,6 +1469,7 @@ paths:
         '403': { $ref: '#/components/responses/ForbiddenBola' }
         '404': { $ref: '#/components/responses/BookingNotFound' }
         '409': { $ref: '#/components/responses/RoomNotAvailable' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '422': { $ref: '#/components/responses/HotelBookingInvalid' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
@@ -1566,6 +1583,7 @@ paths:
               example: { id: 26, firstName: Rəna, lastName: Quliyeva, email: rena.quliyeva@example.az, phone: '+994501112233', city: Gəncə, active: true, createdAt: '2026-10-13T09:40:00Z', updatedAt: '2026-10-13T09:40:00Z' }
         '409': { $ref: '#/components/responses/EmailExists' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -1668,6 +1686,7 @@ paths:
         '404': { $ref: '#/components/responses/CustomerNotFound' }
         '409': { $ref: '#/components/responses/EmailExists' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -1700,6 +1719,7 @@ paths:
         '404': { $ref: '#/components/responses/CustomerNotFound' }
         '409': { $ref: '#/components/responses/EmailExists' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -1978,6 +1998,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: REVIEW_EXISTS, message: Bu kitaba artıq rəy yazmısınız, details: [], traceId: req_7f2c9a }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -2104,6 +2125,7 @@ paths:
                 items:
                   - { id: 1, name: Eurovision Azərbaycan, createdAt: '2026-08-24T20:00:00Z', tracks: [{ position: 1, track: { id: 1, youtubeId: _0tlQUW5X0U, title: Running Scared, artist: Ell & Nikki, genre: Pop, durationSec: 183, thumbnailUrl: 'https://i.ytimg.com/vi/_0tlQUW5X0U/hqdefault.jpg' } }] }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
     post:
@@ -2134,6 +2156,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -2211,6 +2234,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 409, code: TRACK_ALREADY_IN_PLAYLIST, message: Bu trek artıq playlist-dədir, details: [], traceId: req_7f2c9a }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -2279,6 +2303,7 @@ paths:
                 meta: { totalMs: 3, partial: false, calls: [{ name: accounts.list, status: 200, durationMs: 1 }, { name: cards.list, status: 200, durationMs: 1 }, { name: transactions.recent, status: 200, durationMs: 1 }, { name: currencies.rates, status: 200, durationMs: 1 }] }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -2384,6 +2409,7 @@ paths:
                 meta: { totalMs: 2, partial: false, calls: [{ name: music.popular, status: 200, durationMs: 1 }, { name: music.playlists, status: 200, durationMs: 1 }] }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -2421,6 +2447,7 @@ paths:
                       - { name: card_id, type: INTEGER, notNull: false, primaryKey: false, hidden: false }
                     foreignKeys: []
                     indexes: []
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -2469,6 +2496,7 @@ paths:
                 durationMs: 1
                 hiddenColumns: []
                 executedSql: SELECT * FROM card_status_history ORDER BY changed_at DESC LIMIT 201
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '422':
           description: İcazəsiz, sintaksis xətalı və ya çox uzun sürən sorğu
           content:
@@ -2694,6 +2722,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/MaterialNotFound' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -2878,7 +2907,10 @@ paths:
               schema: { type: string }
               example: attachment; filename="API_Ders1_Giris.pdf"; filename*=UTF-8''API_Ders1_Giris.pdf
           content:
-            application/octet-stream:
+            application/pdf:
+              schema: { type: string, format: binary }
+              example: (binary)
+            application/vnd.openxmlformats-officedocument.presentationml.presentation:
               schema: { type: string, format: binary }
               example: (binary)
         '401': { $ref: '#/components/responses/UnauthorizedSigned' }
@@ -2981,6 +3013,7 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/TaskExists' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -3017,6 +3050,7 @@ paths:
         '404': { $ref: '#/components/responses/TaskNotFound' }
         '409': { $ref: '#/components/responses/TaskExists' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -3071,6 +3105,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/TaskNotFound' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -3102,6 +3137,7 @@ paths:
                 items:
                   - { taskId: 1, done: true, doneAt: '2026-10-13T09:30:00Z' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '500': { $ref: '#/components/responses/InternalError' }
 
@@ -3225,6 +3261,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Health' }
               example: { status: ok, db: ok, version: 1.0.0, uptimeSec: 120 }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
         '503':
           description: DB əlçatan deyil
@@ -3248,6 +3285,7 @@ paths:
             application/json:
               schema: { type: object }
               example: { openapi: 3.0.3, info: { title: API Lab, version: 1.0.0 } }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/postman/collection.json:
@@ -3266,6 +3304,7 @@ paths:
             application/json:
               schema: { type: object }
               example: { info: { name: API Lab, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' }, item: [] }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /api/postman/environment.json:
@@ -3283,6 +3322,7 @@ paths:
             application/json:
               schema: { type: object }
               example: { name: API Lab — Local, values: [{ key: baseUrl, value: 'http://localhost:3000', enabled: true }] }
+        '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
 # ============================================================================
@@ -3603,6 +3643,12 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
           example: { timestamp: '2026-10-13T09:00:00Z', status: 413, code: PAYLOAD_TOO_LARGE, message: Fayl çox böyükdür — maksimum 50 MB, details: [], traceId: req_7f2c9a }
+    BodyTooLarge:
+      description: JSON / form body 100 KB limitini aşır
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 413, code: PAYLOAD_TOO_LARGE, message: Request body çox böyükdür (maks. 100 KB), details: [], traceId: req_7f2c9a }
     UnauthorizedSigned:
       description: Nə Bearer token, nə də etibarlı pre-signed imza (exp/sig) var
       content:
@@ -4376,14 +4422,14 @@ components:
     CustomerReplace:
       type: object
       additionalProperties: false
-      description: PUT — bütün sahələr məcburidir (resurs tam əvəz olunur)
+      description: PUT — bütün sahələr məcburidir (resurs tam əvəz olunur). `phone`/`city` üçün `null` = "yoxdur" (GET cavabı olduğu kimi geri göndərilə bilər).
       required: [firstName, lastName, email, phone, city, active]
       properties:
         firstName: { $ref: '#/components/schemas/PersonName' }
         lastName: { $ref: '#/components/schemas/PersonName' }
         email: { type: string, format: email, maxLength: 100 }
-        phone: { $ref: '#/components/schemas/Phone' }
-        city: { type: string, minLength: 1, maxLength: 50 }
+        phone: { type: string, nullable: true, description: 'E.164 (+994...) və ya null', pattern: '^\+994(10|50|51|55|60|70|77|99)[0-9]{7}$', example: '+994501234567' }
+        city: { type: string, nullable: true, minLength: 1, maxLength: 50 }
         active: { type: boolean }
     CustomerPatch:
       type: object

@@ -24,6 +24,10 @@ export const config = {
   // Dərs 2-də customers tokensiz işləyir; Dərs 3-də AUTH_CUSTOMERS=true → Bearer tələb olunur.
   authCustomers: env.AUTH_CUSTOMERS === 'true',
 
+  // Musiqi: YOUTUBE_API_KEY varsa real YouTube Data API v3 axtarışı (nəticələr tracks-ə cache olunur)
+  youtubeApiKey: env.YOUTUBE_API_KEY ?? '',
+  fetch: globalThis.fetch as typeof fetch, // testlərdə əvəz olunur
+
   rateLimit: { limit: Number(env.RATE_LIMIT_PER_MIN ?? 60), windowSec: 60 },
   idempotencyTtlSec: 24 * 60 * 60,
 

@@ -25,6 +25,7 @@ import { customersHandlers } from './modules/customers/routes.js';
 import { flightsHandlers } from './modules/flights/routes.js';
 import { hotelsHandlers } from './modules/hotels/routes.js';
 import { booksHandlers } from './modules/books/routes.js';
+import { musicHandlers } from './modules/music/routes.js';
 
 export interface AppContext {
   db: DB;
@@ -62,6 +63,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...flightsHandlers(ctx),
     ...hotelsHandlers(ctx),
     ...booksHandlers(ctx),
+    ...musicHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 

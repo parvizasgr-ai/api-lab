@@ -11,7 +11,7 @@
       "name": "MIT (yalnız tədris məqsədli)",
       "url": "https://opensource.org/licenses/MIT"
     },
-    "description": "**API Lab** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.\nBu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.\n\n## Konvensiyalar\n| Mövzu | Qayda |\n|---|---|\n| **Pul** | API-də **JSON number**, maksimum 2 onluq rəqəm (`multipleOf: 0.01`), məs. `125.50`. DB-də `*_minor INTEGER` (qəpik): `12550`. Çevirmə yalnız serverdə olur. |\n| **Vaxt** | ISO-8601 UTC: `2026-10-13T09:30:00Z`. Tarix: `2026-10-13`. |\n| **Sahə adları** | JSON-da `camelCase`. İstisna: OAuth2 token cavabları (`access_token`) — RFC 6749 standartına görə `snake_case`. |\n| **Validation** | Hər request body/query/path/header bu sxemə qarşı yoxlanılır (ajv). Bilinməyən sahə, səhv tip, enum xaricində dəyər → **422 VALIDATION_ERROR**. JSON parse olunmursa → **400 MALFORMED_JSON**. |\n| **Xəta formatı** | Bütün xətalar `Error` sxemindədir: `{timestamp, status, code, message, details[], traceId}`. Stack trace heç vaxt qaytarılmır. İstisna: `POST /oauth/token` RFC 6749 formatı (`{error, error_description}`). |\n| **Pagination** | `page` (1-dən) və `size` (1–100, default 20). Cavab: `{items, page, size, total, totalPages}`. Kitablar üçün əlavə **cursor** nümunəsi: `GET /api/v1/books`. |\n| **Rate limit** | Subyekt (token / API key / IP) başına **60 sorğu/dəqiqə**. Hər cavabda `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; limit keçiləndə **429** + `Retry-After`. |\n| **Request ID** | Hər cavabda `X-Request-Id`. Xətada `traceId` ilə eynidir. Sorğuda `X-Request-Id` göndərsəniz, server onu istifadə edir. |\n| **Versioning** | `/api/v1`. `/api/v2/customers` — breaking change nümunəsi (`firstName`+`lastName` → `fullName`). v1 customers cavablarında `Deprecation`, `Sunset`, `Link` başlıqları. |\n\n## Tədris simulyatorları\nİstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):\n`500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.\n\n## Extension-lar\n* `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).\n* `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.\n* `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).\n\n## Demo istifadəçilər\n`student/student123` (bütün scope-lar), `rauf/rauf123` (`cards:write` yoxdur), `admin/admin123` (ADMIN). API Key: `apilab-demo-key-2026`.\n"
+    "description": "**API Lab** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.\nBu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.\n\n## Konvensiyalar\n| Mövzu | Qayda |\n|---|---|\n| **Pul** | API-də **JSON number**, maksimum 2 onluq rəqəm (`multipleOf: 0.01`), məs. `125.50`. DB-də `*_minor INTEGER` (qəpik): `12550`. Çevirmə yalnız serverdə olur. |\n| **Vaxt** | ISO-8601 UTC: `2026-10-13T09:30:00Z`. Tarix: `2026-10-13`. |\n| **Sahə adları** | JSON-da `camelCase`. İstisna: OAuth2 token cavabları (`access_token`) — RFC 6749 standartına görə `snake_case`. |\n| **Validation** | Hər request body/query/path/header bu sxemə qarşı yoxlanılır (ajv). Bilinməyən sahə, səhv tip, enum xaricində dəyər → **422 VALIDATION_ERROR**. JSON parse olunmursa → **400 MALFORMED_JSON**. |\n| **Xəta formatı** | Bütün xətalar `Error` sxemindədir: `{timestamp, status, code, message, details[], traceId}`. Stack trace heç vaxt qaytarılmır. İstisna: `POST /oauth/token` RFC 6749 formatı (`{error, error_description}`). |\n| **Pagination** | `page` (1-dən) və `size` (1–100, default 20). Cavab: `{items, page, size, total, totalPages}`. Kitablar üçün əlavə **cursor** nümunəsi: `GET /api/v1/books`. |\n| **Rate limit** | Subyekt (token / API key / IP) başına **60 sorğu/dəqiqə**. Hər cavabda `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; limit keçiləndə **429** + `Retry-After`. |\n| **Request ID** | Hər cavabda `X-Request-Id`. Xətada `traceId` ilə eynidir. Sorğuda `X-Request-Id` göndərsəniz, server onu istifadə edir. |\n| **Versioning** | `/api/v1`. `/api/v2/customers` — breaking change nümunəsi (`firstName`+`lastName` → `fullName`). v1 customers cavablarında `Deprecation`, `Sunset`, `Link` başlıqları. |\n\n## Tədris simulyatorları\nİstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):\n`500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.\n\n## Extension-lar\n* `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).\n* `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.\n* `x-error-format: oauth2` — həmin endpoint-in xətaları RFC 6749 formatındadır (`{error, error_description}`), validation xətası → 400 `invalid_request`.\n* `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).\n\n## Demo istifadəçilər\n`student/student123` (bütün scope-lar), `rauf/rauf123` (`cards:write` yoxdur), `admin/admin123` (ADMIN). API Key: `apilab-demo-key-2026`.\n"
   },
   "servers": [
     {
@@ -523,7 +523,7 @@
         ],
         "operationId": "oauthAuthorizeDecision",
         "summary": "Consent qərarı — authorization code yarat və redirect et",
-        "description": "Consent formu buraya göndərilir. `decision=allow` → `302 Location: {redirect_uri}?code=...&state=...`.\n`decision=deny` → `302 Location: {redirect_uri}?error=access_denied&state=...`. Code **birdəfəlikdir** və **60 saniyə** yaşayır.\n",
+        "description": "Consent formu buraya göndərilir. `decision=allow` → `302 Location: {redirect_uri}?code=...&state=...`.\n`decision=deny` → `302 Location: {redirect_uri}?error=access_denied&state=...`. Code **birdəfəlikdir** və **60 saniyə** yaşayır.\n`decision=allow` üçün seçilmiş hesabın parolu tələb olunur (real Google-da olduğu kimi). OAuth token-lərinə `admin` scope-u heç vaxt verilmir.\n",
         "x-db-impact": {
           "reads": [
             "oauth_clients",
@@ -546,6 +546,7 @@
                 "scope": "openid profile email",
                 "state": "xyz-12345678",
                 "username": "student",
+                "password": "student123",
                 "decision": "allow"
               }
             }
@@ -579,6 +580,17 @@
                   "details": [],
                   "traceId": "req_7f2c9a"
                 }
+              }
+            }
+          },
+          "401": {
+            "description": "Parol səhvdir — consent səhifəsi xəta mesajı ilə yenidən göstərilir",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<!doctype html><html><body><p class=\"error\">Parol səhvdir</p>...</body></html>"
               }
             }
           },
@@ -622,7 +634,8 @@
         ],
         "operationId": "oauthToken",
         "summary": "Token endpoint — authorization code-u access token-ə dəyiş",
-        "description": "Server-to-server (back channel) sorğu. Client özünü `client_id` + `client_secret` ilə (form sahələri və ya Basic Auth) təsdiq edir.\nXətalar **RFC 6749** formatındadır: `invalid_request`, `invalid_client`, `invalid_grant` (code vaxtı keçib / artıq istifadə olunub / redirect_uri uyğun deyil), `unsupported_grant_type`.\n",
+        "x-error-format": "oauth2",
+        "description": "Server-to-server (back channel) sorğu. Client özünü `client_id` + `client_secret` ilə (form sahələri və ya Basic Auth) təsdiq edir.\nXətalar (validation daxil) **RFC 6749** formatındadır (`x-error-format: oauth2`): `invalid_request`, `invalid_client`, `invalid_grant` (code vaxtı keçib / artıq istifadə olunub / redirect_uri uyğun deyil), `unsupported_grant_type`.\n",
         "x-db-impact": {
           "reads": [
             "oauth_clients",
@@ -7196,7 +7209,7 @@
             "example": {
               "timestamp": "2026-10-13T09:00:00Z",
               "status": 429,
-              "code": "RATE_LIMIT_EXCEEDED",
+              "code": "TOO_MANY_REQUESTS",
               "message": "Çox sayda sorğu — 42 saniyə sonra yenidən cəhd edin",
               "details": [],
               "traceId": "req_7f2c9a"
@@ -7630,7 +7643,7 @@
           "INVALID_CURSOR",
           "SQL_NOT_ALLOWED",
           "SQL_TIMEOUT",
-          "RATE_LIMIT_EXCEEDED",
+          "TOO_MANY_REQUESTS",
           "INTERNAL_ERROR",
           "SIMULATED_ERROR",
           "BAD_GATEWAY",
@@ -7906,6 +7919,11 @@
             "minLength": 3,
             "maxLength": 50,
             "pattern": "^[a-zA-Z0-9_.-]+$"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "decision=allow üçün məcburidir"
           },
           "decision": {
             "type": "string",

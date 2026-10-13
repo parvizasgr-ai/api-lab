@@ -32,6 +32,7 @@ info:
     ## Extension-lar
     * `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).
     * `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.
+    * `x-error-format: oauth2` — həmin endpoint-in xətaları RFC 6749 formatındadır (`{error, error_description}`), validation xətası → 400 `invalid_request`.
     * `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).
 
     ## Demo istifadəçilər
@@ -278,6 +279,7 @@ paths:
       description: |
         Consent formu buraya göndərilir. `decision=allow` → `302 Location: {redirect_uri}?code=...&state=...`.
         `decision=deny` → `302 Location: {redirect_uri}?error=access_denied&state=...`. Code **birdəfəlikdir** və **60 saniyə** yaşayır.
+        `decision=allow` üçün seçilmiş hesabın parolu tələb olunur (real Google-da olduğu kimi). OAuth token-lərinə `admin` scope-u heç vaxt verilmir.
       x-db-impact:
         reads: [oauth_clients, users]
         writes: [INSERT oauth_codes]
@@ -286,7 +288,7 @@ paths:
         content:
           application/x-www-form-urlencoded:
             schema: { $ref: '#/components/schemas/OAuthConsentForm' }
-            example: { client_id: apilab-portal, redirect_uri: 'http://localhost:5173/oauth/callback', scope: openid profile email, state: xyz-12345678, username: student, decision: allow }
+            example: { client_id: apilab-portal, redirect_uri: 'http://localhost:5173/oauth/callback', scope: openid profile email, state: xyz-12345678, username: student, password: student123, decision: allow }
       responses:
         '302':
           description: redirect_uri-yə yönləndirmə (code və ya error ilə)
@@ -300,6 +302,12 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-13T09:00:00Z', status: 400, code: INVALID_REDIRECT_URI, message: redirect_uri bu client üçün qeydiyyatda deyil, details: [], traceId: req_7f2c9a }
+        '401':
+          description: Parol səhvdir — consent səhifəsi xəta mesajı ilə yenidən göstərilir
+          content:
+            text/html:
+              schema: { type: string }
+              example: '<!doctype html><html><body><p class="error">Parol səhvdir</p>...</body></html>'
         '404':
           description: Seçilmiş istifadəçi tapılmadı
           content:
@@ -316,9 +324,10 @@ paths:
       tags: [OAuth2]
       operationId: oauthToken
       summary: Token endpoint — authorization code-u access token-ə dəyiş
+      x-error-format: oauth2
       description: |
         Server-to-server (back channel) sorğu. Client özünü `client_id` + `client_secret` ilə (form sahələri və ya Basic Auth) təsdiq edir.
-        Xətalar **RFC 6749** formatındadır: `invalid_request`, `invalid_client`, `invalid_grant` (code vaxtı keçib / artıq istifadə olunub / redirect_uri uyğun deyil), `unsupported_grant_type`.
+        Xətalar (validation daxil) **RFC 6749** formatındadır (`x-error-format: oauth2`): `invalid_request`, `invalid_client`, `invalid_grant` (code vaxtı keçib / artıq istifadə olunub / redirect_uri uyğun deyil), `unsupported_grant_type`.
       x-db-impact:
         reads: [oauth_clients, oauth_codes, users, user_scopes]
         writes: [UPDATE oauth_codes (used_at), INSERT audit_log]
@@ -2824,7 +2833,7 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
-          example: { timestamp: '2026-10-13T09:00:00Z', status: 429, code: RATE_LIMIT_EXCEEDED, message: Çox sayda sorğu — 42 saniyə sonra yenidən cəhd edin, details: [], traceId: req_7f2c9a }
+          example: { timestamp: '2026-10-13T09:00:00Z', status: 429, code: TOO_MANY_REQUESTS, message: Çox sayda sorğu — 42 saniyə sonra yenidən cəhd edin, details: [], traceId: req_7f2c9a }
     InternalError:
       description: Gözlənilməz server xətası (stack trace qaytarılmır; `X-Simulate` ilə də yaradıla bilər)
       content:
@@ -3002,7 +3011,7 @@ components:
         - SQL_NOT_ALLOWED
         - SQL_TIMEOUT
         # 429
-        - RATE_LIMIT_EXCEEDED
+        - TOO_MANY_REQUESTS
         # 5xx
         - INTERNAL_ERROR
         - SIMULATED_ERROR
@@ -3110,6 +3119,7 @@ components:
         scope: { $ref: '#/components/schemas/ScopeString' }
         state: { type: string, minLength: 8, maxLength: 200 }
         username: { type: string, minLength: 3, maxLength: 50, pattern: '^[a-zA-Z0-9_.-]+$' }
+        password: { type: string, maxLength: 100, description: 'decision=allow üçün məcburidir' }
         decision: { type: string, enum: [allow, deny] }
     OAuthTokenForm:
       type: object

@@ -109,6 +109,7 @@ Seed **deterministikdir** (eyni gündə hər reset eyni datanı verir), tarixlə
 
 ```bash
 npm run test:all      # hamısı ardıcıl; ilk uğursuz addımda dayanır (exit code ≠ 0)
+caffeinate -i npm run test:all   # macOS: e2e zamanı sistem yuxuya getməsin (yoxsa testlər timeout olur)
 ```
 
 İlk dəfə: `npm install`, `cd web-design && corepack pnpm install`. E2E üçün **Google Chrome** quraşdırılmalı və **port 3000 boş** olmalıdır (Playwright təzə müvəqqəti DB ilə öz serverini qaldırır — işləyən `npm start`-ı əvvəlcə dayandırın). `pdftoppm` (poppler) yoxdursa slayd önizləməsi testləri skip olunur.
@@ -124,6 +125,8 @@ npm run test:all      # hamısı ardıcıl; ilk uğursuz addımda dayanır (exit
 Coverage hesabatları: `coverage/backend/index.html`, `coverage/web/index.html`. QA hesabatı və tapılan problemlər: [`docs/qa/W5-report.md`](docs/qa/W5-report.md).
 
 Konfiqurasiya: `cp .env.example .env` — bütün parametrlər izahlı [`.env.example`](.env.example)-dadır (port, JWT_SECRET, rate limit, `AUTH_CUSTOMERS`, `YOUTUBE_API_KEY` və s.).
+
+Təhlükəsizlik parametrləri: `LOGIN_MAX_FAILURES` (username üzrə 5 dəqiqədə uğursuz login limiti, default 10), `TRUSTED_PROXIES` (`X-Forwarded-For` yalnız bu proxy-lərdən — default `loopback`; server birbaşa açıqdırsa `none`), `CORS_ORIGINS` (boş → yalnız localhost və `PUBLIC_URL`). Logout həm refresh, həm də cari access token-i ləğv edir (`revoked_access_tokens`).
 
 ---
 
@@ -368,6 +371,8 @@ pm.response.to.have.status(200)
 
 **Materials səhifəsi:** dərslər üzrə qruplaşma, axtarış və dərs filteri, status badge (`READY`, `READY_NO_PREVIEW`, `FAILED`), viewer (səhifə şəkilləri pre-signed URL ilə, sol naviqasiya, inline PDF, ← → klaviatura, mobil enində üfüqi zolaq), dərs tapşırıqları (`PUT /tasks/{id}/progress`) və progress bar. ADMIN üçün drag-and-drop yükləmə (413/415/422 xətaları kod və təfərrüatla göstərilir), 202-dən sonra polling, PATCH, reconvert, DELETE; USER üçün bu düymələr gizlidir.
 
+**URL-lər:** portal real yollarla işləyir — `/explorer`, `/apps/bank`, `/sql`, `/materials?lesson=2`, `/signin`. Reload və paylaşılan link eyni səhifəni açır, brauzerin Geri/İrəli düymələri işləyir; sessiyasız qorunan link `/signin`-ə, girişdən sonra isə həmin səhifəyə aparır. Server API olmayan bütün GET yollarına `index.html` verir (SPA fallback). Dil, tema və Materials dərs filteri yadda qalır.
+
 **Sessiya:** access token bitməzdən 60 san əvvəl refresh token ilə **səssiz** yenilənir (həm parol, həm OAuth girişində). OAuth refresh token-i verilmiş scope-u saxlayır — refresh-də genişlənmir (`refresh_tokens.scope`, migration 004).
 
 Mock Google axınında portal `Accept: application/json` göndərir: `GET /oauth/authorize` hesabları JSON verir, `POST /oauth/authorize` 302 əvəzinə `{location}` qaytarır (fetch 302-nin `Location` başlığını oxuya bilmir). Consent ekranında seçilmiş hesabın parolu soruşulur.
@@ -506,5 +511,4 @@ Bu, **yalnız sxem səviyyəsindədir**: API server runtime-da SQLite işlədir 
 ## Hələ edilməyənlər
 
 - **External APIs (RapidAPI, W4)** — API seçimi təsdiq gözləyir; `/external/*` proxy və portal səhifəsi hələ yoxdur.
-- W5 QA-da tapılmış Medium/Low problemlər — [`docs/qa/W5-report.md`](docs/qa/W5-report.md) (təsdiq gözləyir).
 - **Real Google OAuth** — `GOOGLE_CLIENT_ID/SECRET` `.env.example`-da ayrılıb, amma hələ istifadə olunmur; mock tam işləyir.

@@ -10,11 +10,8 @@ import { fileURLToPath } from 'node:url'
 
 // Məlum, triage olunmuş (Medium/Low — təsdiq gözləyir) axe qaydaları: hesabata yazılır, testi qırmır.
 // Siyahıdan çıxarılan qayda yenidən regresiya kimi yoxlanır. Yeni qayda pozuntusu dərhal testi qırır.
-const KNOWN_AXE: Record<string, string> = {
-  'color-contrast': 'QA-M01',
-  'link-name': 'QA-M02',
-  'scrollable-region-focusable': 'QA-L01',
-}
+// QA-M01 (kontrast), QA-M02 (link-name), QA-L01 (scrollable-region) düzəldilib — siyahı boşdur, hər pozuntu testi qırır.
+const KNOWN_AXE: Record<string, string> = {}
 
 const ARTIFACTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../artifacts/e2e')
 
@@ -69,6 +66,7 @@ for (const role of ROLES) {
       for (const lang of LANGS) {
         for (const theme of THEMES) {
           await setLanguage(page, lang)
+          await expect(page.locator('html')).toHaveAttribute('lang', lang) // QA-M03
           await setTheme(page, theme)
           for (const target of PAGES) {
             where = `${role.name}/${vp.name}/${lang}-${theme}/${target}`

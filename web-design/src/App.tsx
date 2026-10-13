@@ -47,17 +47,19 @@ import {
 } from "./lib/api";
 import { subscribeNetwork } from "./lib/http";
 import { runTests, SAMPLE_TESTS, type TestResult } from "./lib/assertions";
+import { parseRoute, pathOf, PROTECTED_PAGES, type AppId, type Page } from "./lib/routes";
 
 type Language = "az" | "en";
 type Theme = "light" | "dark";
-type Page =
-  | "home"
-  | "explorer"
-  | "apps"
-  | "auth"
-  | "sql"
-  | "materials"
-  | "signin";
+
+const LANGUAGE_KEY = "api-lab-language";
+const storedLanguage = (): Language => {
+  try {
+    return localStorage.getItem(LANGUAGE_KEY) === "en" ? "en" : "az";
+  } catch {
+    return "az";
+  }
+};
 
 const translations = {
   az: {
@@ -175,7 +177,7 @@ const translations = {
     accounts: "3 HESAB",
     quickStartKicker: "SÜRƏTLİ BAŞLANĞIC",
     terminal: "Terminal",
-    copyright: "© 2025 API Lab",
+    copyright: `© ${new Date().getFullYear()} API Lab`,
     explorerTitle: "API Explorer",
     explorerSubtitle:
       "Endpoint seç, request-i hazırla və response-u real vaxtda araşdır.",
@@ -570,6 +572,11 @@ const translations = {
     accessDenied: "Girişə icazə verilmədi",
     accessDeniedText: "Consent ləğv edildi. Heç bir data paylaşılmadı.",
     tryAgain: "Yenidən cəhd et",
+    loadFailed: "Məlumat yüklənmədi",
+    deleteFailed: "Silmək alınmadı",
+    prevPage: "Əvvəlki",
+    nextPage: "Növbəti",
+    pageOf: "səhifə",
     invalidCode: "Kod yanlışdır və ya vaxtı bitib",
     invalidCodeText: "Authorization Code və ya state yoxlaması uğursuz oldu.",
     exchangingCode: "Code token ilə dəyişdirilir...",
@@ -703,7 +710,7 @@ const translations = {
     accounts: "3 ACCOUNTS",
     quickStartKicker: "QUICK START",
     terminal: "Terminal",
-    copyright: "© 2025 API Lab",
+    copyright: `© ${new Date().getFullYear()} API Lab`,
     explorerTitle: "API Explorer",
     explorerSubtitle:
       "Choose an endpoint, build a request, and inspect the response in real time.",
@@ -1098,6 +1105,11 @@ const translations = {
     accessDenied: "Access denied",
     accessDeniedText: "Consent was cancelled. No data was shared.",
     tryAgain: "Try again",
+    loadFailed: "Could not load data",
+    deleteFailed: "Delete failed",
+    prevPage: "Previous",
+    nextPage: "Next",
+    pageOf: "page",
     invalidCode: "Invalid or expired code",
     invalidCodeText: "The Authorization Code or state verification failed.",
     exchangingCode: "Exchanging code for token...",
@@ -1422,7 +1434,7 @@ function Header({
   return (
     <header className="site-header">
       <div className="header-inner">
-        <a className="brand" href="#top" aria-label="API Lab Home" onClick={() => navigate("home")}>
+        <a className="brand" href="/" aria-label="API Lab Home" onClick={(event) => { event.preventDefault(); navigate("home"); }}>
           <span className="brand-mark">
             <Icon name="code" size={21} />
           </span>
@@ -1434,7 +1446,7 @@ function Header({
           {navItems.map((item) => (
             <a
               className={item.page === currentPage ? "nav-link active" : "nav-link"}
-              href={item.page ? `#${item.page}` : "#"}
+              href={item.page ? pathOf(item.page) : "/"}
               key={item.label}
               onClick={(event) => {
                 if (item.page) event.preventDefault();
@@ -1544,7 +1556,7 @@ function Header({
           {navItems.map((item) => (
             <a
               className={item.page === currentPage ? "mobile-nav-link active" : "mobile-nav-link"}
-              href={item.page ? `#${item.page}` : "#"}
+              href={item.page ? pathOf(item.page) : "/"}
               key={item.label}
               onClick={(event) => {
                 if (item.page) event.preventDefault();
@@ -1583,6 +1595,31 @@ const formatClock = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 const toBase64 = (value: string) => btoa(String.fromCharCode(...new TextEncoder().encode(value)));
+
+// Modal fonu: kənara klik və Escape bağlayır (QA-M05); açılanda fokus dialoqa keçir, bağlananda əvvəlki elementə qayıdır
+function ModalBackdrop({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const first = ref.current?.querySelector<HTMLElement>("input, select, textarea, button, [href], [tabindex]:not([tabindex='-1'])");
+    first?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      previous?.focus?.();
+    };
+  }, []);
+  return (
+    <div className="modal-backdrop" onMouseDown={() => closeRef.current()} ref={ref} role="presentation">
+      {children}
+    </div>
+  );
+}
 
 function StatusChip({ status }: { status: number }) {
   return (
@@ -2074,7 +2111,7 @@ function ExplorerPage({ t }: { t: Translation }) {
           {history.length === 0 ? (
             <div className="history-empty">{t.noHistory}</div>
           ) : (
-            <div className="table-scroll">
+            <div aria-label={t.history} className="table-scroll" role="region" tabIndex={0}>
               <table>
                 <thead>
                   <tr>
@@ -2103,15 +2140,6 @@ function ExplorerPage({ t }: { t: Translation }) {
   );
 }
 
-type AppId =
-  | "bank"
-  | "currency"
-  | "flights"
-  | "hotels"
-  | "books"
-  | "music"
-  | "google"
-  | "customers";
 
 function NetworkPanel({
   calls,
@@ -2229,6 +2257,20 @@ const dateShort = (iso: string) => new Date(iso).toLocaleDateString([], { day: "
 // Xəta mesajı UI üçün: "422 INSUFFICIENT_FUNDS — Hesabda kifayət qədər vəsait yoxdur"
 const errorText = (error: unknown) =>
   error instanceof AuthClientError ? `${error.status} ${error.code} — ${error.message}` : String((error as Error)?.message ?? error);
+
+// Ortaq xəta halı (QA-M06/M07/M08): boş və ya yanlış data əvəzinə kod + mesaj + "Yenidən cəhd et"
+function LoadError({ error, onRetry, t }: { error: string; onRetry: () => void; t: Translation }) {
+  return (
+    <div className="load-error" role="alert">
+      <Icon name="network" size={18} />
+      <div>
+        <strong>{t.loadFailed}</strong>
+        <code>{error}</code>
+      </div>
+      <button onClick={onRetry} type="button">{t.tryAgain}</button>
+    </div>
+  );
+}
 
 function BankApp({ t }: { t: Translation }) {
   const [data, setData] = useState<Dashboard | null>(null);
@@ -2466,7 +2508,7 @@ function BankApp({ t }: { t: Translation }) {
       </section>
 
       {blockCardId !== null && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setBlockCardId(null)}>
+        <ModalBackdrop onClose={() => setBlockCardId(null)}>
           <div
             aria-labelledby="block-card-title"
             aria-modal="true"
@@ -2494,7 +2536,7 @@ function BankApp({ t }: { t: Translation }) {
               <button aria-busy={blockPending} disabled={blockPending} onClick={blockCard} type="button">{t.confirmBlock}</button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
     </div>
   );
@@ -2507,17 +2549,20 @@ function CurrencyApp({ t }: { t: Translation }) {
   const [rates, setRates] = useState<Record<string, number>>({ AZN: 1 });
   const [rateDate, setRateDate] = useState("");
   const [points, setPoints] = useState<{ date: string; rate: number }[]>([]);
+  const [ratesError, setRatesError] = useState("");
 
   // Məzənnələr base=AZN (X-API-Key); çarpaz kurs client-də: (AZN→to) / (AZN→from)
-  useEffect(() => {
+  const loadRates = () => {
+    setRatesError("");
     currency
       .rates("AZN")
       .then((result) => {
         setRates({ AZN: 1, ...result.rates });
         setRateDate(result.date);
       })
-      .catch(() => undefined);
-  }, []);
+      .catch((caught) => setRatesError(errorText(caught))); // QA-M08: "0.0000 · İndicə yeniləndi" göstərilməsin
+  };
+  useEffect(loadRates, []);
 
   useEffect(() => {
     if (from === to) {
@@ -2528,7 +2573,9 @@ function CurrencyApp({ t }: { t: Translation }) {
   }, [from, to]);
 
   const rate = rates[from] && rates[to] ? rates[to] / rates[from] : 0;
-  const converted = (amount * rate).toFixed(2);
+  const known = rate > 0; // məzənnə yoxdursa rəqəm əvəzinə "—"
+  const fmt = (value: number) => (known ? value.toFixed(4) : "—");
+  const converted = known ? (amount * rate).toFixed(2) : "—";
   const values = points.map((p) => p.rate);
   const low = values.length ? Math.min(...values) : rate;
   const high = values.length ? Math.max(...values) : rate;
@@ -2549,6 +2596,7 @@ function CurrencyApp({ t }: { t: Translation }) {
 
   return (
     <div className="currency-app">
+      {ratesError && <LoadError error={ratesError} onRetry={loadRates} t={t} />}
       <div className="currency-grid">
         <section className="converter-card">
           <div className="currency-card-head">
@@ -2588,7 +2636,7 @@ function CurrencyApp({ t }: { t: Translation }) {
           </div>
           <div className="rate-summary">
             <span>{t.exchangeRate}</span>
-            <strong>1 {from} = {rate.toFixed(4)} {to}</strong>
+            <strong>1 {from} = {fmt(rate)} {to}</strong>
             <small>{t.rateDisclaimer} {rateDate}</small>
           </div>
         </section>
@@ -2599,8 +2647,8 @@ function CurrencyApp({ t }: { t: Translation }) {
             <span className="trend-up">{change >= 0 ? "+" : ""}{change.toFixed(2)}%</span>
           </div>
           <div className="trend-value">
-            <strong>{rate.toFixed(4)}</strong>
-            <small>{rateDate || t.updatedNow}</small>
+            <strong>{fmt(rate)}</strong>
+            <small>{rateDate || (known ? t.updatedNow : "—")}</small>
           </div>
           <div className="mini-chart">
             <svg aria-label={t.marketTrend} preserveAspectRatio="none" role="img" viewBox="0 0 600 230">
@@ -2618,9 +2666,9 @@ function CurrencyApp({ t }: { t: Translation }) {
             <div className="chart-labels">{points.map((p) => <span key={p.date}>{p.date.slice(5)}</span>)}</div>
           </div>
           <div className="trend-stats">
-            <div><span>{t.low}</span><strong>{low.toFixed(4)}</strong></div>
-            <div><span>{t.high}</span><strong>{high.toFixed(4)}</strong></div>
-            <div><span>{t.exchangeRate}</span><strong>{rate.toFixed(4)}</strong></div>
+            <div><span>{t.low}</span><strong>{fmt(low)}</strong></div>
+            <div><span>{t.high}</span><strong>{fmt(high)}</strong></div>
+            <div><span>{t.exchangeRate}</span><strong>{fmt(rate)}</strong></div>
           </div>
         </section>
       </div>
@@ -2729,7 +2777,7 @@ function FlightsApp({ t }: { t: Translation }) {
       </div>
 
       {selectedFlight && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={closeModal}>
+        <ModalBackdrop onClose={closeModal}>
           <div className="booking-modal" role="dialog" aria-modal="true" aria-labelledby="flight-booking-title" onMouseDown={(event) => event.stopPropagation()}>
             {booking ? (
               <div className="booking-success">
@@ -2767,7 +2815,7 @@ function FlightsApp({ t }: { t: Translation }) {
               </>
             )}
           </div>
-        </div>
+        </ModalBackdrop>
       )}
     </div>
   );
@@ -2881,7 +2929,7 @@ function HotelsApp({ t }: { t: Translation }) {
       </div>
 
       {selectedHotel && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={close}>
+        <ModalBackdrop onClose={close}>
           <div className="booking-modal hotel-booking-modal" role="dialog" aria-modal="true" aria-labelledby="hotel-booking-title" onMouseDown={(event) => event.stopPropagation()}>
             {bookingError ? (
               <div className="booking-error-state">
@@ -2914,7 +2962,7 @@ function HotelsApp({ t }: { t: Translation }) {
               </>
             )}
           </div>
-        </div>
+        </ModalBackdrop>
       )}
     </div>
   );
@@ -3002,7 +3050,7 @@ function BooksApp({ t }: { t: Translation }) {
         ))}
       </div>
       {reviewBook && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setReviewBook(null)}>
+        <ModalBackdrop onClose={() => setReviewBook(null)}>
           <form className="review-modal" onSubmit={publishReview} onMouseDown={(event) => event.stopPropagation()}>
             <div className="booking-modal-head"><div><span>{t.reviewTitle}</span><h2>{reviewBook.title}</h2></div><button aria-label={t.closeMenu} onClick={() => setReviewBook(null)} type="button"><Icon name="close" size={18} /></button></div>
             <div className="review-form-content">
@@ -3012,7 +3060,7 @@ function BooksApp({ t }: { t: Translation }) {
               <button className={reviewed ? "success" : ""} type="submit"><Icon name={reviewed ? "check" : "edit"} size={16} />{reviewed ? t.reviewPublished : t.publishReview}</button>
             </div>
           </form>
-        </div>
+        </ModalBackdrop>
       )}
     </div>
   );
@@ -3121,18 +3169,35 @@ function CustomersApp({ t }: { t: Translation }) {
   const [deleting, setDeleting] = useState<CustomerRowView | null>(null);
   const [updateMethod, setUpdateMethod] = useState<"PUT" | "PATCH">("PATCH");
   const [formError, setFormError] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [loading, setLoading] = useState(true);
+  // QA-L10: səhifələmə (GET /customers?page=&size=) — total/totalPages backend-dən
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const toRow = (c: Customer): CustomerRowView => ({ id: c.id, name: `${c.firstName} ${c.lastName}`, email: c.email, city: c.city ?? "—", created: dateShort(c.createdAt), source: c });
-  const load = async () => {
+  const load = async (target = page) => {
+    setLoading(true);
     try {
-      setCustomersList((await customers.list()).items.map(toRow));
-    } catch {
-      setCustomersList([]);
+      const result = await customers.list(target);
+      // Son səhifədəki yeganə sətir silinibsə — bir əvvəlki səhifəyə
+      if (result.items.length === 0 && target > 1) return load(target - 1);
+      setCustomersList(result.items.map(toRow));
+      setTotal(result.total);
+      setTotalPages(Math.max(1, result.totalPages));
+      setPage(target);
+      setLoadError("");
+    } catch (error) {
+      setLoadError(errorText(error)); // QA-M06: xəta boş cədvəl kimi görünməsin
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    void load();
+    void load(1);
   }, []);
 
   // "Ad Soyad" → firstName + lastName (backend v1 sxemi)
@@ -3146,8 +3211,9 @@ function CustomersApp({ t }: { t: Translation }) {
       if (editing === "new") await customers.create(input);
       else if (editing && updateMethod === "PUT") await customers.replace(editing.source, input);
       else if (editing) await customers.patch(editing.id, input);
+      const created = editing === "new";
       setEditing(null);
-      await load();
+      await load(created ? 1 : page); // yeni müştəri ən üstdə (sort=-createdAt)
     } catch (error) {
       setFormError(errorText(error));
     }
@@ -3155,24 +3221,34 @@ function CustomersApp({ t }: { t: Translation }) {
 
   const remove = async () => {
     if (!deleting) return;
+    setDeleteError("");
     try {
       await customers.remove(deleting.id);
-    } finally {
       setDeleting(null);
       await load();
+    } catch (error) {
+      setDeleteError(errorText(error)); // QA-M06: modal açıq qalır, səbəb göstərilir
     }
   };
 
   return (
     <div className="customers-app">
       <div className="customers-head"><div><span className="section-kicker"><Icon name="users" size={16} />CUSTOMER API</span><h1>{t.customerDirectory}</h1><p>{t.customerSubtitle}</p></div><button onClick={() => { setEditing("new"); setFormError(""); }} type="button"><Icon name="plus" size={17} />{t.createCustomer}</button></div>
-      <div className="customer-table-card table-scroll">
+      {loadError && <LoadError error={loadError} onRetry={() => void load()} t={t} />}
+      <div aria-busy={loading} aria-label={t.customerDirectory} className="customer-table-card table-scroll" role="region" tabIndex={0}>
         <table><thead><tr><th>{t.fullName}</th><th>{t.email}</th><th>{t.city}</th><th>{t.created}</th><th>{t.actions}</th></tr></thead>
           <tbody>{customersList.map((customer) => <tr key={customer.id}><td><span className="table-avatar">{initialsOf(customer.name)}</span><div><strong>{customer.name}</strong><code>#{customer.id}</code></div></td><td>{customer.email}</td><td>{customer.city}</td><td>{customer.created}</td><td><div className="customer-actions"><button aria-label={t.editCustomer} onClick={() => { setEditing(customer); setFormError(""); }} type="button"><Icon name="edit" size={15} /></button><button aria-label={t.deleteCustomer} onClick={() => setDeleting(customer)} type="button"><Icon name="trash" size={15} /></button></div></td></tr>)}</tbody>
         </table>
       </div>
+      {totalPages > 1 && (
+        <nav aria-label={t.customerDirectory} className="table-pager">
+          <button disabled={page <= 1 || loading} onClick={() => void load(page - 1)} type="button">{t.prevPage}</button>
+          <span>{page} / {totalPages} {t.pageOf} · {total}</span>
+          <button disabled={page >= totalPages || loading} onClick={() => void load(page + 1)} type="button">{t.nextPage}</button>
+        </nav>
+      )}
       {editing && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setEditing(null)}>
+        <ModalBackdrop onClose={() => setEditing(null)}>
           <form className="customer-modal" onSubmit={save} onMouseDown={(event) => event.stopPropagation()}>
             <div className="booking-modal-head"><div><span>CUSTOMER API</span><h2>{editing === "new" ? t.createCustomer : t.editCustomer}</h2></div><button aria-label={t.closeMenu} onClick={() => setEditing(null)} type="button"><Icon name="close" size={18} /></button></div>
             <div className="customer-form">
@@ -3184,12 +3260,12 @@ function CustomersApp({ t }: { t: Translation }) {
               <button type="submit">{t.saveCustomer}<Icon name="arrow" size={16} /></button>
             </div>
           </form>
-        </div>
+        </ModalBackdrop>
       )}
       {deleting && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleting(null)}>
-          <div className="delete-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="modal-danger-icon"><Icon name="trash" size={22} /></div><h2>{t.deleteCustomerTitle}</h2><p>{t.deleteCustomerText}</p><strong>{deleting.name}</strong><div className="modal-actions"><button onClick={() => setDeleting(null)} type="button">{t.cancel}</button><button onClick={() => void remove()} type="button">{t.confirmDelete}</button></div></div>
-        </div>
+        <ModalBackdrop onClose={() => { setDeleting(null); setDeleteError(""); }}>
+          <div className="delete-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}><div className="modal-danger-icon"><Icon name="trash" size={22} /></div><h2>{t.deleteCustomerTitle}</h2><p role={deleteError ? "alert" : undefined}>{deleteError ? `${t.deleteFailed}: ${deleteError}` : t.deleteCustomerText}</p><strong>{deleting.name}</strong><div className="modal-actions"><button onClick={() => setDeleting(null)} type="button">{t.cancel}</button><button onClick={() => void remove()} type="button">{t.confirmDelete}</button></div></div>
+        </ModalBackdrop>
       )}
     </div>
   );
@@ -3258,13 +3334,18 @@ function GoogleAuthApp({ t }: { t: Translation }) {
 }
 
 function AppsPage({
+  appId,
+  onSelectApp,
   onOpenExplorer,
   t,
 }: {
+  appId: AppId | null; // URL-dən (/apps/bank) — reload və paylaşılan link eyni tətbiqi açır
+  onSelectApp: (app: AppId | null) => void;
   onOpenExplorer: () => void;
   t: Translation;
 }) {
-  const [selectedApp, setSelectedApp] = useState<AppId | null>(null);
+  const selectedApp = appId;
+  const setSelectedApp = onSelectApp;
   const [networkOpen, setNetworkOpen] = useState(true);
   const [calls, setCalls] = useState<NetworkCall[]>([]);
   const apps: {
@@ -4048,11 +4129,20 @@ function SqlPlaygroundPage({ t }: { t: Translation }) {
   const [error, setError] = useState<{ code: string; message: string } | null>(null);
   const [tables, setTables] = useState<DbTable[]>([]);
   const [selectedTable, setSelectedTable] = useState("users");
+  const [schemaError, setSchemaError] = useState("");
 
   // Sxem ağacı real DB-dən (GET /api/v1/_db/schema); gizli sütunlar (hash) işarələnir
-  useEffect(() => {
-    sql.schema().then(setTables).catch(() => setTables([]));
-  }, []);
+  const loadSchema = () => {
+    setSchemaError("");
+    sql
+      .schema()
+      .then(setTables)
+      .catch((caught) => {
+        setTables([]);
+        setSchemaError(errorText(caught)); // QA-M07: "0 cədvəl" əvəzinə xəta
+      });
+  };
+  useEffect(loadSchema, []);
 
   const execute = async (nextQuery = query) => {
     setQuery(nextQuery);
@@ -4085,6 +4175,7 @@ function SqlPlaygroundPage({ t }: { t: Translation }) {
   return (
     <main className="sql-page" id="main-content">
       <div className="sql-titlebar"><div><span className="section-kicker"><Icon name="code" size={16} />{t.dataLab}</span><h1>{t.sqlPlayground}</h1><p>{t.sqlSubtitle}</p></div><div className="select-only-badge"><Icon name="lock" size={15} /><span><strong>{t.selectOnly}</strong><small>{t.selectOnlyNotice}</small></span></div></div>
+      {schemaError && <LoadError error={schemaError} onRetry={loadSchema} t={t} />}
       <div className="quick-query-row"><span>{t.quickQueries}</span>{quickQueries.map(([label, text]) => <button key={label} onClick={() => void execute(text)} type="button"><Icon name="play" size={12} />{label}</button>)}</div>
       <div className="sql-workspace">
         <aside className="schema-panel">
@@ -4103,7 +4194,7 @@ function SqlPlaygroundPage({ t }: { t: Translation }) {
           {error && <div className="sql-error"><span>!</span><strong>{error.message}</strong><code>{error.code}</code></div>}
           <div className="sql-results">
             <div className="results-head"><span>{t.queryResults}</span>{result && <small>{result.rows.length}{result.truncated ? "+" : ""} {t.rowsReturned} · {t.queryTime}: {result.durationMs} ms</small>}</div>
-            {running ? <div className="sql-result-skeleton"><i /><i /><i /></div> : result ? <div className="table-scroll"><table><thead><tr>{result.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}><code>{cell}</code></td>)}</tr>)}</tbody></table></div> : <div className="sql-empty"><span><Icon name="code" size={24} /></span><h3>{t.sqlEmptyTitle}</h3><p>{t.sqlEmptyText}</p></div>}
+            {running ? <div className="sql-result-skeleton"><i /><i /><i /></div> : result ? <div aria-label={t.queryResults} className="table-scroll" role="region" tabIndex={0}><table><thead><tr>{result.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}><code>{cell}</code></td>)}</tr>)}</tbody></table></div> : <div className="sql-empty"><span><Icon name="code" size={24} /></span><h3>{t.sqlEmptyTitle}</h3><p>{t.sqlEmptyText}</p></div>}
           </div>
         </section>
       </div>
@@ -4283,7 +4374,7 @@ function MaterialCard({ material, admin, onOpen, onChanged, onDeleted, t }: { ma
         )}
       </div>
       {confirming && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={() => setConfirming(false)}>
+        <ModalBackdrop onClose={() => setConfirming(false)}>
           <div className="delete-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
             <div className="modal-danger-icon"><Icon name="trash" size={22} /></div>
             <h2>{t.matDeleteConfirm}</h2>
@@ -4293,7 +4384,7 @@ function MaterialCard({ material, admin, onOpen, onChanged, onDeleted, t }: { ma
               <button onClick={() => void act(async () => { await learning.remove(material.id); setConfirming(false); onDeleted(); })} type="button">{t.confirmDelete}</button>
             </div>
           </div>
-        </div>
+        </ModalBackdrop>
       )}
     </article>
   );
@@ -4385,6 +4476,31 @@ function LessonTaskList({ tasks, onToggle, onOpen, t }: { tasks: LessonTask[]; o
   );
 }
 
+const MATERIALS_REFRESH_MS = 30_000;
+const LESSON_FILTER_KEY = "api-lab-lesson-filter";
+const validLesson = (value: string | null) => (value && ["1", "2", "3"].includes(value) ? Number(value) : null);
+function storedLessonFilter(): number | null {
+  const fromUrl = validLesson(new URLSearchParams(window.location.search).get("lesson"));
+  if (fromUrl) return fromUrl;
+  try {
+    return validLesson(localStorage.getItem(LESSON_FILTER_KEY));
+  } catch {
+    return null;
+  }
+}
+function rememberLessonFilter(lesson: number | null) {
+  const url = new URL(window.location.href);
+  if (lesson) url.searchParams.set("lesson", String(lesson));
+  else url.searchParams.delete("lesson");
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}`);
+  try {
+    if (lesson) localStorage.setItem(LESSON_FILTER_KEY, String(lesson));
+    else localStorage.removeItem(LESSON_FILTER_KEY);
+  } catch {
+    // storage bloklanıbsa yalnız URL-də qalır
+  }
+}
+
 function MaterialsPage({
   onNavigate,
   session,
@@ -4399,7 +4515,12 @@ function MaterialsPage({
   const [tasks, setTasks] = useState<LessonTask[]>([]);
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
-  const [lessonFilter, setLessonFilter] = useState<number | null>(() => handoffs.take().lesson ?? null);
+  // QA-L03: dərs filteri URL-də (?lesson=2 — paylaşıla bilər) və localStorage-da yadda qalır
+  const [lessonFilter, setLessonFilterState] = useState<number | null>(() => handoffs.take().lesson ?? storedLessonFilter());
+  const setLessonFilter = (lesson: number | null) => {
+    setLessonFilterState(lesson);
+    rememberLessonFilter(lesson);
+  };
   const [openId, setOpenId] = useState<number | null>(null);
 
   const load = async () => {
@@ -4415,6 +4536,21 @@ function MaterialsPage({
 
   useEffect(() => {
     void load();
+    rememberLessonFilter(lessonFilter); // handoff-dan gələn filter də URL-ə yazılsın
+  }, []);
+
+  // QA-L11: yeni hazır olan materiallar reload-suz görünsün — hər 30 san və vərəqə qayıdanda siyahı yenilənir
+  // (yalnız materiallar; tapşırıqların optimistic vəziyyətinə toxunulmur)
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === "visible") learning.materials().then(setItems).catch(() => undefined);
+    };
+    const timer = window.setInterval(refresh, MATERIALS_REFRESH_MS);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
 
   // 202 Accepted-dən sonra polling: UPLOADED / CONVERTING → READY | READY_NO_PREVIEW | FAILED
@@ -4519,15 +4655,26 @@ function MaterialsPage({
   );
 }
 
+// URL → ilkin vəziyyət: qorunan səhifə sessiyasız açılırsa sign-in, sonra ora qayıdılır
+function initialRoute(hasSession: boolean) {
+  const route = parseRoute(window.location.pathname);
+  if (PROTECTED_PAGES.includes(route.page) && !hasSession) return { page: "signin" as Page, app: null, intended: route };
+  return { page: route.page, app: route.app, intended: { page: "home" as Page, app: null } };
+}
+
 function App() {
-  const [language, setLanguage] = useState<Language>("az");
-  const [currentPage, setCurrentPage] = useState<Page>(() =>
-    window.location.pathname === "/signin" ? "signin" : "home",
-  );
-  const [intendedPage, setIntendedPage] = useState<Page>("home");
+  const [language, setLanguage] = useState<Language>(storedLanguage);
   const [session, setSession] = useState<AuthSession | null>(() =>
     authClient.getStoredSession(),
   );
+  const [initial] = useState(() => initialRoute(Boolean(authClient.getStoredSession())));
+  const [currentPage, setCurrentPage] = useState<Page>(initial.page);
+  const [currentApp, setCurrentApp] = useState<AppId | null>(initial.app);
+  const [intendedPage, setIntendedPage] = useState<{ page: Page; app: AppId | null }>(initial.intended);
+  // Qorunan link sessiyasız açılıbsa URL də /signin olsun (girişdən sonra intendedPage-ə qayıdılır)
+  useEffect(() => {
+    if (initial.page === "signin" && window.location.pathname !== "/signin") window.history.replaceState({}, "", "/signin");
+  }, [initial]);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [refreshingSession, setRefreshingSession] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => {
@@ -4569,12 +4716,16 @@ function App() {
   }, []);
 
   useEffect(() => {
+    // Brauzerin Geri/İrəli düymələri: URL-dən səhifə (qorunan səhifə sessiyasız → sign-in)
     const handlePopState = () => {
-      if (window.location.pathname === "/signin" && !session) {
+      const route = parseRoute(window.location.pathname);
+      if (PROTECTED_PAGES.includes(route.page) && !session) {
+        setIntendedPage(route);
         setCurrentPage("signin");
-      } else {
-        setCurrentPage("home");
+        return;
       }
+      setCurrentPage(route.page === "signin" && session ? "home" : route.page);
+      setCurrentApp(route.app);
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -4587,6 +4738,16 @@ function App() {
     }
   }, [currentPage, session]);
 
+  // QA-M03: ekran oxuyucuları üçün səhifənin dili; QA-L02: seçim yadda qalır
+  useEffect(() => {
+    document.documentElement.lang = language;
+    try {
+      localStorage.setItem(LANGUAGE_KEY, language);
+    } catch {
+      // storage bloklanıbsa dil yalnız bu sessiyada qalır
+    }
+  }, [language]);
+
   useEffect(() => {
     if (!session) {
       setSessionExpired(false);
@@ -4598,40 +4759,35 @@ function App() {
     return () => window.clearInterval(timer);
   }, [session]);
 
-  const protectedPages: Page[] = [
-    "explorer",
-    "apps",
-    "auth",
-    "sql",
-    "materials",
-  ];
-
-  const navigateTo = (page: Page) => {
-    if (protectedPages.includes(page) && !session) {
-      setIntendedPage(page);
+  const navigateTo = (page: Page, app: AppId | null = null) => {
+    if (PROTECTED_PAGES.includes(page) && !session) {
+      setIntendedPage({ page, app });
       setCurrentPage("signin");
-      window.history.pushState({}, "", "/signin");
+      window.history.pushState({}, "", pathOf("signin"));
       return;
     }
     setCurrentPage(page);
-    window.history.pushState({}, "", page === "signin" ? "/signin" : "/");
+    setCurrentApp(app);
+    const path = pathOf(page, app);
+    if (window.location.pathname !== path) window.history.pushState({}, "", path);
   };
 
   const completeSignIn = (nextSession: AuthSession) => {
-    const destination =
-      intendedPage === "signin" ? "home" : intendedPage;
+    const destination = intendedPage.page === "signin" ? { page: "home" as Page, app: null } : intendedPage;
     setSession(nextSession);
     setSessionExpired(false);
-    setCurrentPage(destination);
-    setIntendedPage("home");
-    window.history.replaceState({}, "", "/");
+    setCurrentPage(destination.page);
+    setCurrentApp(destination.app);
+    setIntendedPage({ page: "home", app: null });
+    window.history.replaceState({}, "", pathOf(destination.page, destination.app));
   };
 
   const signOut = () => {
     void authClient.signOut();
     setSession(null);
     setCurrentPage("home");
-    setIntendedPage("home");
+    setCurrentApp(null);
+    setIntendedPage({ page: "home", app: null });
     window.history.replaceState({}, "", "/");
   };
 
@@ -4719,7 +4875,7 @@ function App() {
                 </a>
                 <a
                   className="secondary-button"
-                  href="#explorer"
+                  href="/explorer"
                   onClick={(event) => {
                     event.preventDefault();
                     navigateTo("explorer");
@@ -4820,7 +4976,7 @@ function App() {
               <span className="account-count">{t.accounts}</span>
             </div>
             <div className="table-card">
-              <div className="table-scroll">
+              <div aria-label={t.demoUsers} className="table-scroll" role="region" tabIndex={0}>
                 <table>
                   <thead>
                     <tr>
@@ -4886,7 +5042,8 @@ function App() {
                   <div className="lesson-footer">
                     <span>{lesson.meta}</span>
                     <a
-                      href="#materials"
+                      aria-label={`${t.continueLesson}: ${lesson.title}`}
+                      href="/materials"
                       onClick={(event) => {
                         event.preventDefault();
                         handoffs.set({ lesson: index + 1 });
@@ -4944,7 +5101,7 @@ function App() {
       ) : currentPage === "explorer" ? (
         <ExplorerPage t={t} />
       ) : currentPage === "apps" ? (
-        <AppsPage onOpenExplorer={() => navigateTo("explorer")} t={t} />
+        <AppsPage appId={currentApp} onSelectApp={(app) => navigateTo("apps", app)} onOpenExplorer={() => navigateTo("explorer")} t={t} />
       ) : currentPage === "auth" ? (
         <AuthLabPage t={t} />
       ) : currentPage === "sql" ? (
@@ -4955,7 +5112,7 @@ function App() {
 
       <footer>
         <div className="footer-inner">
-          <a className="brand brand--footer" href="#top">
+          <a aria-label="API Lab" className="brand brand--footer" href="/" onClick={(event) => { event.preventDefault(); navigateTo("home"); window.scrollTo({ top: 0 }); }}>
             <span className="brand-mark"><Icon name="code" size={18} /></span>
             <span>API Lab</span>
           </a>

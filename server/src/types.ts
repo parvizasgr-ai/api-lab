@@ -7,6 +7,8 @@ export interface AuthContext {
   role: 'USER' | 'ADMIN';
   scopes: string[];
   via: 'bearer' | 'apiKey' | 'basic';
+  jti?: string; // yalnız Bearer: logout bu token-i ləğv edir
+  exp?: number;
 }
 
 export interface ValidatedRequest {

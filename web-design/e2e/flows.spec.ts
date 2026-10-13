@@ -164,38 +164,44 @@ test('klaviatura: ilk Tab → "Əsas məzmuna keç", Enter → main; nav linklə
     expect(info.visible, `fokus göstəricisi görünmür: ${info.text || info.href}`).toBe(true)
     reached.push(info.href)
   }
-  for (const target of ['#home', '#explorer', '#apps', '#auth', '#sql', '#materials']) expect(reached).toContain(target)
+  for (const target of ['/', '/explorer', '/apps', '/auth', '/sql', '/materials']) expect(reached).toContain(target)
   // Enter ilə naviqasiya
-  await page.locator('.desktop-nav a[href="#sql"]').focus()
+  await page.locator('.desktop-nav a[href="/sql"]').focus()
   await page.keyboard.press('Enter')
   await expect(page.locator('.schema-panel')).toBeVisible()
 })
 
-test('modal: Escape bağlayır — QA-M05', async ({ page }) => {
-  test.fixme(true, 'QA-M05: Bank blok modalı Escape ilə bağlanmır (Medium — təsdiq gözləyir)')
+test('QA-M05: modal Escape ilə bağlanır, fokus dialoqa keçir və sonra düyməyə qayıdır', async ({ page }) => {
   await signIn(page, 'student', 'student123')
   await openApp(page, 'Bank')
   await page.locator('.payment-card:not(.blocked) button').first().click()
   await expect(page.locator('.block-modal')).toBeVisible()
+  await expect(page.locator('.block-modal select')).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(page.locator('.block-modal')).toHaveCount(0)
+  await expect(page.locator('.payment-card:not(.blocked) button').first()).toBeFocused()
+  // Müştərilər modalı da
+  await openApp(page, 'Müştərilər')
+  await page.locator('.customers-head button').click()
+  await expect(page.locator('.customer-modal')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('.customer-modal')).toHaveCount(0)
 })
 
 // Backend 500 qaytaranda hər ekran çökməməli və xətanı (kod/mesaj) göstərməlidir
 const FAIL_500 = (route: import('@playwright/test').Route) =>
   route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ timestamp: new Date().toISOString(), status: 500, code: 'INTERNAL_ERROR', message: 'E2E simulyasiya', details: [], traceId: 'req_e2e' }) })
 const ERROR_SHOWN = /500|INTERNAL_ERROR|E2E simulyasiya/
-const errorScreens: { name: string; open: (page: Page) => Promise<void>; scope: string; fixme?: string }[] = [
+const errorScreens: { name: string; open: (page: Page) => Promise<void>; scope: string }[] = [
   { name: 'Bank', open: (page) => openApp(page, 'Bank'), scope: '.bank-summary' },
-  { name: 'SQL Playground (schema)', open: (page) => go(page, 'sql'), scope: 'main', fixme: 'QA-M07' },
+  { name: 'SQL Playground (schema)', open: (page) => go(page, 'sql'), scope: 'main' },
   { name: 'Materials', open: (page) => go(page, 'materials'), scope: 'main' },
-  { name: 'Müştərilər', open: (page) => openApp(page, 'Müştərilər'), scope: '.customers-app', fixme: 'QA-M06' },
+  { name: 'Müştərilər', open: (page) => openApp(page, 'Müştərilər'), scope: '.customers-app' },
   { name: 'Kitablar', open: (page) => openApp(page, 'Kitablar'), scope: '.app-detail, main' },
-  { name: 'Valyuta', open: (page) => openApp(page, 'Valyuta'), scope: '.currency-app', fixme: 'QA-M08' },
+  { name: 'Valyuta', open: (page) => openApp(page, 'Valyuta'), scope: '.currency-app' },
 ]
 for (const screen of errorScreens) {
-  test(`xəta halı (500): ${screen.name} çökmür və xətanı göstərir${screen.fixme ? ` — ${screen.fixme}` : ''}`, async ({ page }) => {
-    test.fixme(Boolean(screen.fixme), `${screen.fixme}: xəta halı yoxdur (Medium — təsdiq gözləyir)`)
+  test(`xəta halı (500): ${screen.name} çökmür və xətanı göstərir (QA-M06/M07/M08)`, async ({ page }) => {
     await signIn(page, 'student', 'student123')
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(e.message))

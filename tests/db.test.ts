@@ -24,7 +24,7 @@ describe('migrations + seed', () => {
   });
 
   it('bütün cədvəl, view və trigger-ləri yaradır', () => {
-    expect(userTables(db)).toHaveLength(36);
+    expect(userTables(db)).toHaveLength(37);
     const views = db.prepare(`SELECT name FROM sqlite_master WHERE type='view'`).pluck().all();
     expect(views).toHaveLength(6);
     const triggers = db.prepare(`SELECT name FROM sqlite_master WHERE type='trigger'`).pluck().all();

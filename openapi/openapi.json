@@ -97,7 +97,7 @@
         ],
         "operationId": "authLogin",
         "summary": "Login — access və refresh token al",
-        "description": "Username/parol yoxlanılır. Cavabda **access_token** (JWT, HS256, 15 dəqiqə; claim-lər: `sub`, `username`, `role`, `scope`, `iat`, `exp`)\nvə **refresh_token** (7 gün, DB-də yalnız SHA-256 hash-i saxlanır) qaytarılır.\n",
+        "description": "Username/parol yoxlanılır. Eyni username üçün 5 dəqiqədə `LOGIN_MAX_FAILURES` (default 10) uğursuz cəhddən sonra pəncərə bitənə qədər **429** + `Retry-After` (brute-force qoruması).\nCavabda **access_token** (JWT, HS256, 15 dəqiqə; claim-lər: `sub`, `jti`, `username`, `role`, `scope`, `iat`, `exp`)\nvə **refresh_token** (7 gün, DB-də yalnız SHA-256 hash-i saxlanır) qaytarılır.\n",
         "x-db-impact": {
           "reads": [
             "users",
@@ -283,8 +283,8 @@
           "Auth"
         ],
         "operationId": "authLogout",
-        "summary": "Logout — refresh token-i ləğv et",
-        "description": "Access token (JWT) stateless-dir və vaxtı bitənə qədər etibarlı qalır; logout yalnız refresh token-i ləğv edir.",
+        "summary": "Logout — refresh token-i və cari access token-i ləğv et",
+        "description": "Refresh token ləğv olunur. Access token (JWT) imza baxımından exp-ə qədər etibarlı olsa da, onun `jti`-si denylist-ə (`revoked_access_tokens`) yazılır — logout-dan sonra həmin token 401 `INVALID_TOKEN` alır.",
         "security": [
           {
             "bearerAuth": []
@@ -11364,7 +11364,7 @@
       "CustomerPatch": {
         "type": "object",
         "additionalProperties": false,
-        "description": "PATCH — ən azı 1 sahə",
+        "description": "PATCH — ən azı 1 sahə. `phone`/`city` üçün `null` dəyəri silir.",
         "minProperties": 1,
         "properties": {
           "firstName": {
@@ -11379,10 +11379,15 @@
             "maxLength": 100
           },
           "phone": {
-            "$ref": "#/components/schemas/Phone"
+            "type": "string",
+            "nullable": true,
+            "description": "E.164 (+994...) və ya null (silmək)",
+            "pattern": "^\\+994(10|50|51|55|60|70|77|99)[0-9]{7}$",
+            "example": "+994501234567"
           },
           "city": {
             "type": "string",
+            "nullable": true,
             "minLength": 1,
             "maxLength": 50
           },

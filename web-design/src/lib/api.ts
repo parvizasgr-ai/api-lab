@@ -244,7 +244,8 @@ export const music = {
 export type Customer = { id: number; firstName: string; lastName: string; email: string; phone: string | null; city: string | null; active: boolean; createdAt: string; updatedAt: string };
 export type CustomerInput = { firstName: string; lastName: string; email: string; city: string };
 export const customers = {
-  list: async () => (await api.get<{ items: Customer[]; total: number }>("/api/v1/customers?size=20&sort=-createdAt")).data,
+  list: async (page = 1, size = 20) =>
+    (await api.get<{ items: Customer[]; page: number; size: number; total: number; totalPages: number }>(`/api/v1/customers?page=${page}&size=${size}&sort=-createdAt`)).data,
   create: async (body: CustomerInput) => (await api.post<Customer>("/api/v1/customers", body)).data,
   // PUT — bütün sahələr (phone, active da) göndərilməlidir; PATCH — yalnız dəyişənlər
   replace: async (current: Customer, body: CustomerInput) =>

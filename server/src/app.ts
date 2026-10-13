@@ -93,13 +93,14 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
   app.locals.unimplemented = listOperations(spec)
     .filter((op) => !handlers[op.operationId] && op.method !== 'options')
     .map((op) => op.operationId);
-  app.set('trust proxy', 'loopback');
+  // Yalnız TRUSTED_PROXIES-dən gələn X-Forwarded-For nəzərə alınır; digər mənbələrdə req.ip = socket ünvanı
+  app.set('trust proxy', config.trustedProxies);
   app.set('json spaces', 2);
   app.set('etag', false); // ETag-ları özümüz idarə edirik (customers) — Express-in avtomatik ETag-ı söndürülür
 
   app.use(requestId);
   app.use(API_PREFIXES, requestLog(ctx.db, config));
-  app.use(security());
+  app.use(security(config));
   app.use(API_PREFIXES, rateLimit(ctx.db, config, ctx.auth));
   app.use(API_PREFIXES, simulate(config));
 

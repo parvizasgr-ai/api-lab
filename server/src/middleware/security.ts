@@ -2,6 +2,18 @@
 import type { RequestHandler } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import type { Config } from '../config.js';
+
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
+// Origin icazəlidirmi? Origin-siz sorğular (Postman, curl, server-to-server) CORS-a aid deyil — həmişə keçir.
+export function corsOriginAllowed(origin: string | undefined, config: Pick<Config, 'corsOrigins' | 'publicUrl'>): boolean {
+  if (!origin) return true;
+  if (config.corsOrigins.includes('*')) return true;
+  if (config.corsOrigins.includes(origin)) return true;
+  if (origin === new URL(config.publicUrl).origin) return true;
+  return config.corsOrigins.length === 0 && LOCAL_ORIGIN.test(origin);
+}
 
 // Brauzerdəki JS (portal) bu cavab başlıqlarını oxuya bilsin deyə "expose" edirik.
 const EXPOSED_HEADERS = [
@@ -9,7 +21,7 @@ const EXPOSED_HEADERS = [
   'Location', 'ETag', 'Idempotent-Replayed', 'Deprecation', 'Sunset', 'Link', 'Allow', 'WWW-Authenticate',
 ];
 
-export function security(): RequestHandler[] {
+export function security(config: Config): RequestHandler[] {
   return [
     helmet({
       contentSecurityPolicy: {
@@ -25,7 +37,7 @@ export function security(): RequestHandler[] {
       },
       crossOriginEmbedderPolicy: false,
     }),
-    // Lokal təlim mühiti: istənilən origin. preflightContinue — OPTIONS-u router özü cavablandırır (Allow başlığı ilə).
-    cors({ origin: true, exposedHeaders: EXPOSED_HEADERS, preflightContinue: true }),
+    // İcazəsiz origin-ə CORS başlıqları verilmir → brauzer cavabı JS-ə oxutmur. preflightContinue — OPTIONS-u router cavablandırır.
+    cors({ origin: (origin, cb) => cb(null, corsOriginAllowed(origin, config)), exposedHeaders: EXPOSED_HEADERS, preflightContinue: true }),
   ];
 }

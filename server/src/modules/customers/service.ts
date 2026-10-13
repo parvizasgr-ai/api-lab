@@ -13,8 +13,8 @@ export interface CustomerInput {
   firstName: string;
   lastName: string;
   email: string;
-  phone?: string;
-  city?: string;
+  phone?: string | null;
+  city?: string | null;
   active?: boolean;
 }
 
@@ -104,7 +104,7 @@ export class CustomersService {
     return this.get(id);
   }
 
-  // PATCH: mövcud sətir + yalnız göndərilən sahələr.
+  // PATCH: mövcud sətir + yalnız göndərilən sahələr. phone/city: null göndərmək dəyəri silir (JSON Merge Patch məntiqi).
   patch(id: number, input: Partial<CustomerInput>): CustomerRow {
     const c = this.get(id);
     const email = input.email ?? c.email;
@@ -114,8 +114,8 @@ export class CustomersService {
         first_name: input.firstName ?? c.first_name,
         last_name: input.lastName ?? c.last_name,
         email,
-        phone: input.phone ?? c.phone,
-        city: input.city ?? c.city,
+        phone: input.phone === undefined ? c.phone : input.phone,
+        city: input.city === undefined ? c.city : input.city,
         active: input.active === undefined ? c.active : input.active ? 1 : 0,
         updated_at: isoNow(this.config.now()),
       }),

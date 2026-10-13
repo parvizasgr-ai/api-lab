@@ -298,6 +298,13 @@ CREATE TABLE request_log (
   created_at  TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+CREATE TABLE revoked_access_tokens (
+  jti        TEXT    PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT    NOT NULL,
+  revoked_at TEXT    NOT NULL
+);
+
 CREATE TABLE schema_migrations (
     version    TEXT PRIMARY KEY,
     applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now'))
@@ -422,6 +429,8 @@ CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
 CREATE INDEX idx_request_log_created ON request_log(created_at);
 
 CREATE INDEX idx_request_log_user ON request_log(user_id, created_at);
+
+CREATE INDEX idx_revoked_access_expires ON revoked_access_tokens(expires_at);
 
 CREATE INDEX idx_task_progress_task ON task_progress(task_id);
 

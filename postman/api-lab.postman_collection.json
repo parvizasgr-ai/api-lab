@@ -36,7 +36,7 @@
               "query": [],
               "variable": []
             },
-            "description": "Username/parol yoxlanılır. Cavabda **access_token** (JWT, HS256, 15 dəqiqə; claim-lər: `sub`, `username`, `role`, `scope`, `iat`, `exp`)\nvə **refresh_token** (7 gün, DB-də yalnız SHA-256 hash-i saxlanır) qaytarılır.\n",
+            "description": "Username/parol yoxlanılır. Eyni username üçün 5 dəqiqədə `LOGIN_MAX_FAILURES` (default 10) uğursuz cəhddən sonra pəncərə bitənə qədər **429** + `Retry-After` (brute-force qoruması).\nCavabda **access_token** (JWT, HS256, 15 dəqiqə; claim-lər: `sub`, `jti`, `username`, `role`, `scope`, `iat`, `exp`)\nvə **refresh_token** (7 gün, DB-də yalnız SHA-256 hash-i saxlanır) qaytarılır.\n",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"username\": \"student\",\n  \"password\": \"student123\"\n}",
@@ -119,7 +119,7 @@
           ]
         },
         {
-          "name": "POST /api/v1/auth/logout — Logout — refresh token-i ləğv et",
+          "name": "POST /api/v1/auth/logout — Logout — refresh token-i və cari access token-i ləğv et",
           "request": {
             "method": "POST",
             "auth": {
@@ -152,7 +152,7 @@
               "query": [],
               "variable": []
             },
-            "description": "Access token (JWT) stateless-dir və vaxtı bitənə qədər etibarlı qalır; logout yalnız refresh token-i ləğv edir.",
+            "description": "Refresh token ləğv olunur. Access token (JWT) imza baxımından exp-ə qədər etibarlı olsa da, onun `jti`-si denylist-ə (`revoked_access_tokens`) yazılır — logout-dan sonra həmin token 401 `INVALID_TOKEN` alır.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",

@@ -18,7 +18,7 @@ export function authHandlers({ db, config, auth }: AppContext): Handlers {
     },
 
     authLogout: (req, res) => {
-      auth.logout(req.auth!.userId, req.valid.body.refresh_token);
+      auth.logout(req.auth!, req.valid.body.refresh_token);
       res.status(204).end();
     },
 

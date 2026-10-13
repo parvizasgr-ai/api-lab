@@ -28,15 +28,18 @@ export async function signIn(page: Page, username: string, password: string) {
   await expect(page.locator('.user-chip')).toBeVisible()
 }
 
+export const pathOf = (target: string) => (target === 'home' ? '/' : `/${target}`)
+
 export async function go(page: Page, target: string) {
-  const desktop = page.locator(`.desktop-nav a[href="#${target}"]`)
+  const desktop = page.locator(`.desktop-nav a[href="${pathOf(target)}"]`)
   if (await desktop.isVisible()) {
     await desktop.click()
   } else {
     await page.locator('.menu-button').click()
-    await page.locator(`.mobile-nav a[href="#${target}"]`).click()
+    await page.locator(`.mobile-nav a[href="${pathOf(target)}"]`).click()
   }
   await expect(page.locator('main')).toBeVisible()
+  await expect(page).toHaveURL(new RegExp(`${pathOf(target).replace('/', '\\/')}(\\?.*)?$`)) // QA-M04: real URL
   await page.waitForLoadState('networkidle')
 }
 

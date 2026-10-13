@@ -60,4 +60,26 @@ export const authRepo = {
          WHERE k.key_hash = ? AND k.active = 1`,
       )
       .get(keyHash) as ApiKeyRow | undefined,
+
+  // ---- logout edilmiş access token-lər (jti denylist)
+  isAccessTokenRevoked: (db: DB, jti: string) => db.prepare(`SELECT 1 FROM revoked_access_tokens WHERE jti = ?`).get(jti) !== undefined,
+
+  revokeAccessToken: (db: DB, jti: string, userId: number, expiresAt: string, at: string) => {
+    db.prepare(`DELETE FROM revoked_access_tokens WHERE expires_at < ?`).run(at); // vaxtı keçmişlər artıq lazım deyil
+    db.prepare(`INSERT OR IGNORE INTO revoked_access_tokens (jti, user_id, expires_at, revoked_at) VALUES (?, ?, ?, ?)`).run(jti, userId, expiresAt, at);
+  },
+
+  // ---- login uğursuzluqları (rate_limit_counters-də, fixed window)
+  loginFailures: (db: DB, subject: string, windowStart: string) =>
+    (db.prepare(`SELECT count FROM rate_limit_counters WHERE subject = ? AND window_start = ?`).pluck().get(subject, windowStart) as number | undefined) ?? 0,
+
+  recordLoginFailure: (db: DB, subject: string, windowStart: string) =>
+    db
+      .prepare(
+        `INSERT INTO rate_limit_counters (subject, window_start, count) VALUES (?, ?, 1)
+         ON CONFLICT (subject, window_start) DO UPDATE SET count = count + 1`,
+      )
+      .run(subject, windowStart),
+
+  clearLoginFailures: (db: DB, subject: string) => db.prepare(`DELETE FROM rate_limit_counters WHERE subject = ?`).run(subject),
 };

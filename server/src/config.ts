@@ -13,6 +13,11 @@ try {
 
 const env = process.env;
 
+function parseTrustedProxies(value: string): string[] | false {
+  const list = value.split(',').map((v) => v.trim()).filter(Boolean);
+  return list.length === 0 || list.includes('none') ? false : list;
+}
+
 export const config = {
   port: Number(env.PORT ?? 3000),
   publicUrl: env.PUBLIC_URL ?? `http://localhost:${env.PORT ?? 3000}`,
@@ -37,6 +42,15 @@ export const config = {
   fetch: globalThis.fetch as typeof fetch, // testlərdə əvəz olunur
 
   rateLimit: { limit: Number(env.RATE_LIMIT_PER_MIN ?? 60), windowSec: 60 },
+  // Brute-force qoruması: eyni username üçün N uğursuz login → pəncərə bitənə qədər 429 (sayğac rate_limit_counters-də)
+  loginLockout: { maxFailures: Number(env.LOGIN_MAX_FAILURES ?? 10), windowSec: 300 },
+
+  // X-Forwarded-For yalnız bu proxy-lərdən gələndə nəzərə alınır (Express "trust proxy").
+  // Vergüllə: 'loopback', IP, CIDR (məs. "loopback,10.0.0.0/8"). Boş və ya 'none' → heç bir proxy-yə etibar yoxdur.
+  trustedProxies: parseTrustedProxies(env.TRUSTED_PROXIES ?? 'loopback'),
+
+  // CORS: icazəli origin-lər (vergüllə). Default — yalnız localhost/127.0.0.1 (istənilən port) və PUBLIC_URL. '*' → hamısı.
+  corsOrigins: (env.CORS_ORIGINS ?? '').split(',').map((o) => o.trim()).filter(Boolean),
   idempotencyTtlSec: 24 * 60 * 60,
 
   // Dərs materialları: fayllar web root-un XARİCİNDƏ saxlanılır (data/materials/)

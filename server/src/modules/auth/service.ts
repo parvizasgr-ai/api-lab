@@ -1,5 +1,5 @@
 // Auth service: JWT (access token) + refresh token rotation + API key + Basic.
-//   * Access token — JWT HS256, 15 dəq, stateless (DB-yə baxmadan yoxlanılır).
+//   * Access token — JWT HS256, 15 dəq. İmza DB-siz yoxlanılır; yalnız logout edilmiş token-lərin jti-si denylist-ə baxılır.
 //   * Refresh token — təsadüfi string, DB-də yalnız SHA-256 hash-i, 7 gün. Hər istifadədə yenisi verilir (rotation).
 //   * Ləğv edilmiş refresh token yenidən gəlirsə → oğurlanma şübhəsi: istifadəçinin BÜTÜN refresh token-ləri ləğv olunur.
 import { SignJWT, jwtVerify, errors as joseErrors } from 'jose';
@@ -42,6 +42,7 @@ export class AuthService {
     return new SignJWT({ username: user.username, role: user.role, scope: scopes.join(' ') })
       .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
       .setSubject(String(user.id))
+      .setJti(randomToken('at'))
       .setIssuer(this.config.jwtIssuer)
       .setIssuedAt(iat)
       .setExpirationTime(iat + (options.ttlSec ?? this.config.accessTokenTtlSec))
@@ -56,12 +57,15 @@ export class AuthService {
         issuer: this.config.jwtIssuer,
         currentDate: this.config.now(),
       });
+      if (payload.jti && authRepo.isAccessTokenRevoked(this.db, payload.jti)) throw new Error('REVOKED');
       return {
         userId: Number(payload.sub),
         username: String(payload.username),
         role: payload.role === 'ADMIN' ? 'ADMIN' : 'USER',
         scopes: String(payload.scope ?? '').split(' ').filter(Boolean),
         via: 'bearer',
+        jti: payload.jti,
+        exp: payload.exp,
       };
     } catch (err) {
       throw new Error(err instanceof joseErrors.JWTExpired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN', { cause: err });
@@ -88,9 +92,15 @@ export class AuthService {
   }
 
   async login(username: string, password: string): Promise<{ user: UserRow; tokens: TokenPair }> {
+    this.assertNotLocked(username); // kilid aktivdirsə düzgün parol da yoxlanmır
     const user = this.verifyCredentials(username, password);
+    const subject = `login-fail:${username.toLowerCase()}`;
     // İstifadəçi yoxdur və ya parol səhvdir — eyni mesaj (user enumeration-un qarşısı alınır).
-    if (!user) throw new ApiError(401, 'INVALID_CREDENTIALS', 'Username və ya parol səhvdir');
+    if (!user) {
+      authRepo.recordLoginFailure(this.db, subject, this.loginWindow().start);
+      throw new ApiError(401, 'INVALID_CREDENTIALS', 'Username və ya parol səhvdir');
+    }
+    authRepo.clearLoginFailures(this.db, subject);
     return { user, tokens: await this.issueTokenPair(user) };
   }
 
@@ -111,10 +121,31 @@ export class AuthService {
     return this.issueTokenPair(user, row.scope);
   }
 
-  logout(userId: number, refreshToken: string): void {
+  logout(auth: AuthContext, refreshToken: string): void {
+    const now = this.config.now();
     const row = authRepo.findRefreshToken(this.db, sha256(refreshToken));
     // Logout idempotentdir: token tapılmasa da 204 qaytarırıq.
-    if (row && row.user_id === userId) authRepo.revokeRefreshToken(this.db, row.id, isoNow(this.config.now()));
+    if (row && row.user_id === auth.userId) authRepo.revokeRefreshToken(this.db, row.id, isoNow(now));
+    // Cari access token da dərhal etibarsız olur (exp-ə qədər denylist-də qalır)
+    if (auth.jti && auth.exp) authRepo.revokeAccessToken(this.db, auth.jti, auth.userId, isoNow(new Date(auth.exp * 1000)), isoNow(now));
+  }
+
+  // ---- Login brute-force qoruması: username üzrə uğursuz cəhdlər (rate_limit_counters, subject 'login-fail:<username>')
+  private loginWindow() {
+    const { windowSec } = this.config.loginLockout;
+    const nowSec = Math.floor(this.config.now().getTime() / 1000);
+    const startSec = nowSec - (nowSec % windowSec);
+    return { start: isoNow(new Date(startSec * 1000)), retryAfter: Math.max(1, startSec + windowSec - nowSec) };
+  }
+
+  private assertNotLocked(username: string) {
+    const { start, retryAfter } = this.loginWindow();
+    const failures = authRepo.loginFailures(this.db, `login-fail:${username.toLowerCase()}`, start);
+    if (failures >= this.config.loginLockout.maxFailures) {
+      throw new ApiError(429, 'TOO_MANY_REQUESTS', `Bu istifadəçi üçün çox sayda uğursuz giriş — ${retryAfter} saniyə sonra yenidən cəhd edin`, [], {
+        'Retry-After': String(retryAfter),
+      });
+    }
   }
 
   profile(userId: number) {

@@ -1,26 +1,30 @@
 # W5 — Avtomatik QA hesabatı
 
+> **W5.1 yeniləməsi (2026-10-13):** bütün Medium (M01–M10) və Low (L01–L11) maddələri düzəldildi, hər biri üçün regresiya testi var. Yalnız QA-B01 (W4) qalır.
+
 Tarix: 2026-10-13 · Əhatə: backend API, təhlükəsizlik, portal (e2e + a11y matrisi) · Əmr: `npm run test:all`
 
-## Nəticə
+## Nəticə (W5.1 — son qaçış)
 
 | Qat | Keçdi | Skip | Qeyd |
 |---|---|---|---|
-| Backend (vitest, contract + security daxil) | 521 | 3 | skip: 2 multipart happy path (materials.test.ts-də real fayllarla yoxlanır), 1 PPTX (soffice yoxdur) |
-| — onlardan contract (`tests/contract.test.ts`) | 257 | 2 | 90 əməliyyatın hamısı avtomatik |
-| — onlardan security (`tests/security.test.ts`) | 42 | 0 | |
-| Portal unit (vitest + happy-dom) | 43 | 0 | |
-| E2E (Playwright, Chrome) | 31 | 4 | skip = `test.fixme`: QA-M05, QA-M06, QA-M07, QA-M08 (Medium, təsdiq gözləyir). Ümumi: 35 test (13 köhnə + 16 yeni axın + 6 matris) |
-| E2E matris | 144 görünüş | — | 6 səhifə × 2 rol × 2 dil × 2 tema × 3 en; ekran görüntüləri `artifacts/e2e/` |
+| Backend (vitest; contract + security + qa-fixes daxil) | 534 | 3 | skip: 2 multipart happy path (materials.test.ts-də real fayllarla yoxlanır), 1 PPTX (soffice yoxdur) |
+| — contract (`tests/contract.test.ts`) | 257 | 2 | 90 əməliyyatın hamısı avtomatik |
+| — security (`tests/security.test.ts`) | 42 | 0 | |
+| — QA düzəlişləri (`tests/qa-fixes.test.ts`) | 13 | 0 | M04 fallback, M10, L05–L09 |
+| Portal unit (vitest + happy-dom) | 46 | 0 | `routes.test.ts` daxil |
+| E2E (Playwright, Chrome) | 42 | 0 | `fixme` qalmayıb; matris 144 görünüş — axe istisnasız |
 
 **Coverage**
 
 | | Statements | Branches | Functions | Lines |
 |---|---|---|---|---|
-| Backend (`server/src`) | 93.97% | 85.68% | 97.59% | 96.59% |
-| Portal unit (`src/lib`, `src/api`) | 79.80% | 78.35% | 61.66% | 81.89% |
+| Backend (`server/src`) | 94.07% | 85.88% | 97.63% | 96.65% |
+| Portal unit (`src/lib`, `src/api`) | 80.28% | 78.79% | 62.60% | 82.30% |
 
 Portal UI komponentləri (`App.tsx`) unit coverage-ə daxil deyil — onlar e2e axınları və matrislə yoxlanır.
+
+**Qeyd (mühit):** macOS-da uzun e2e zamanı sistem yuxuya gedərsə testlər asılı qalır (timeout). `pmset` logu ilə təsdiqləndi — kod problemi deyil. macOS-da `caffeinate -i npm run test:all` istifadə edin.
 
 ## Tapılan problemlər
 
@@ -37,26 +41,26 @@ Critical tapılmadı. Auth bypass, IDOR, SQLi, path traversal və XSS ssenarilə
 | QA-H05 | High | OpenAPI | `GET /materials/{id}/download` spec-də `application/octet-stream` yazılıb, real cavab `application/pdf` / PPTX MIME-dır. | ✅ Spec düzəldildi. Regresiya: contract (Content-Type yoxlaması) |
 | QA-H06 | High | API/OpenAPI + Portal Customers | Telefonsuz müştəri üçün PUT 422 qaytarırdı: `Customer.phone` null ola bilir, `CustomerReplace` isə null qəbul etmirdi. Portalda PUT işləmirdi, GET→PUT round-trip pozulurdu. | ✅ `CustomerReplace.phone/city` nullable oldu. Regresiya: `customers.test.ts`, `flows.spec.ts` (CRUD) |
 | QA-M09 | Medium | API auth | API key ilə qorunan endpoint-lərin 401 cavabında `WWW-Authenticate` yox idi (RFC 9110). | ✅ Düzəldildi (contract uyğunluğu üçün, bir sətir): `ApiKey realm="API Lab", header="X-API-Key"`. Regresiya: contract |
-| QA-M01 | Medium | Portal, a11y | WCAG AA kontrast pozuntuları: Explorer `.environment-chip code` və mobil tab-lar; Home `.account-count`, `.table-avatar`; Auth Lab `.sequence-step` (light) və submit düymələri (dark); SQL `strong/small` (dark), `.sql-panel-head code` (light); Materials `small`, bölmə başlıqları, aktiv dərs filteri. | ⏳ Təsdiq gözləyir (design token-ləri dəyişir). Matrisdə "məlum" kimi qeyd olunur: `artifacts/e2e/known-*.json` |
-| QA-M02 | Medium | Portal, a11y | Mobil endə Home dərs kartlarındakı ox linklərinin (`.lesson-footer a`) və footer brend linkinin əlçatan adı yoxdur. | ⏳ Təsdiq gözləyir |
-| QA-M03 | Medium | Portal, a11y | `<html lang>` həmişə `az` qalır. EN rejimində ekran oxuyucusu mətni Azərbaycan dili kimi oxuyur (WCAG 3.1.1). | ⏳ Təsdiq gözləyir (1 sətir) |
-| QA-M04 | Medium | Portal | URL routing yoxdur: nav linkləri `#explorer` göstərir, amma reload və ya paylaşılan link həmişə Home-u açır. | ⏳ Təsdiq gözləyir (hash routing) |
-| QA-M05 | Medium | Portal → Bank | "Kartı blokla" modalı Escape ilə bağlanmır. | ⏳ `test.fixme` (flows.spec.ts) |
-| QA-M06 | Medium | Portal → Müştərilər | Siyahı yüklənməyəndə xəta əvəzinə boş cədvəl görünür. Silmə xətası da göstərilmir (`finally` udur). | ⏳ `test.fixme` |
-| QA-M07 | Medium | Portal → SQL | Schema yüklənməyəndə xəta göstərilmir ("Cədvəllər 0"). | ⏳ `test.fixme` |
-| QA-M08 | Medium | Portal → Valyuta | Məzənnə yüklənməyəndə "1 AZN = 0.0000 USD · İndicə yeniləndi" göstərilir. Yanlış məlumatdır, xəta yoxdur. | ⏳ `test.fixme` |
-| QA-M10 | Medium | API rate limit | `trust proxy = loopback`: eyni maşından (loopback) gələn klient `X-Forwarded-For` dəyişdirərək anonim rate limit-dən qaça bilir. Uzaq klientlərə təsir etmir. | ⏳ Təklif: `TRUST_PROXY` env, default söndürülmüş |
-| QA-L01 | Low | Portal, a11y | Mobil endə `.table-scroll` klaviatura ilə scroll olunmur (`tabindex` yoxdur). | ⏳ |
-| QA-L02 | Low | Portal | Dil seçimi yadda qalmır: reload-dan sonra yenə AZ açılır (tema isə yadda qalır). | ⏳ |
-| QA-L03 | Low | Portal → Materials | Dərs filteri yadda qalmır (W3-dən məlum). | ⏳ |
-| QA-L04 | Low | Portal footer | "© 2025 API Lab" yazılıb, il köhnədir. | ⏳ |
-| QA-L05 | Low | Auth | Login üçün hesab üzrə kilidləmə yoxdur, yalnız ümumi 60/dəq IP limiti var. Seed parolları onsuz da açıqdır, ona görə tədris mühitində qəbul olunandır. | ⏳ Sənədləşdirmək |
-| QA-L06 | Low | API logging | Material pre-signed URL-lərinin `exp&sig` hissəsi `request_log.path`-də saxlanılır. TTL bitənə qədər SQL Playground / `/_history` vasitəsilə görünür. | ⏳ Təklif: query-ni loga yazarkən `sig`-i maskalamaq |
-| QA-L07 | Low | API CORS | CORS istənilən origin-i əks etdirir, amma `credentials` yoxdur (token başlıqdadır). Lokal lab üçün qəsdən belədir. | ℹ️ Qəbul edilmiş qərar |
-| QA-L08 | Low | Auth | Logout-dan sonra access token ≤15 dəq etibarlı qalır (stateless JWT). Refresh token isə dərhal ləğv olunur. | ℹ️ Dizayn qərarı, dərsdə izah üçün |
-| QA-L09 | Low | API Customers | PATCH `{"phone": null}` telefonu silə bilmir (sxem null qəbul etmir). | ⏳ |
-| QA-L10 | Low | Portal → Müştərilər | Yalnız ilk 20 müştəri göstərilir, pagination UI yoxdur. | ⏳ |
-| QA-L11 | Low | Portal → Materials (student) | Student yalnız READY materialları görür, siyahı da avtomatik yenilənmir. Konvertasiya bitəndən sonra material yalnız reload-dan sonra görünür. E2E-də bu, flaky test kimi üzə çıxdı. | ✅ Test düzəldildi (READY gözlənilir). ⏳ UX: təsdiq gözləyir |
+| QA-M01 | Medium | Portal, a11y | WCAG AA kontrast pozuntuları: Explorer `.environment-chip code` və mobil tab-lar; Home `.account-count`, `.table-avatar`; Auth Lab `.sequence-step` (light) və submit düymələri (dark); SQL `strong/small` (dark), `.sql-panel-head code` (light); Materials `small`, bölmə başlıqları, aktiv dərs filteri. | ✅ Düzəldildi (W5.1): minimal token düzəlişləri — light `--accent-blue` #006ce4→#0063d1, `--success` #008234→#00742e, `--danger` #d4111e→#cf111d; dark `--accent-blue` #4c8dff→#5593ff (mətn), primary fonda tünd mətn `--on-primary` (fon rəngi eyni qalır), dark `--warning-text`; OAuth diaqramında passiv addım opacity 0.43→0.86, kurs irəliləyişi mətni 0.58→0.72. Regresiya: matris (144 görünüş, axe — istisnasız) |
+| QA-M02 | Medium | Portal, a11y | Mobil endə Home dərs kartlarındakı ox linklərinin (`.lesson-footer a`) və footer brend linkinin əlçatan adı yoxdur. | ✅ Düzəldildi: dərs kartı linkinə və footer brendinə `aria-label`. Regresiya: matris (axe link-name) |
+| QA-M03 | Medium | Portal, a11y | `<html lang>` həmişə `az` qalır. EN rejimində ekran oxuyucusu mətni Azərbaycan dili kimi oxuyur (WCAG 3.1.1). | ✅ Düzəldildi: `document.documentElement.lang` dilə uyğun. Regresiya: matris + `qa-fixes.spec.ts` |
+| QA-M04 | Medium | Portal | URL routing yoxdur: nav linkləri `#explorer` göstərir, amma reload və ya paylaşılan link həmişə Home-u açır. | ✅ Düzəldildi: History API routing (`/explorer`, `/apps/bank`, `/materials?lesson=2` …), Geri/İrəli, sessiyasız qorunan link → `/signin` → girişdən sonra həmin səhifə; server SPA fallback. Regresiya: `routes.test.ts`, `qa-fixes.test.ts` (fallback), `qa-fixes.spec.ts`, bütün e2e naviqasiyası URL-i yoxlayır |
+| QA-M05 | Medium | Portal → Bank | "Kartı blokla" modalı Escape ilə bağlanmır. | ✅ Düzəldildi: ortaq `ModalBackdrop` — 7 modalın hamısı Escape ilə bağlanır, fokus dialoqa keçir və geri qayıdır. Regresiya: `flows.spec.ts` |
+| QA-M06 | Medium | Portal → Müştərilər | Siyahı yüklənməyəndə xəta əvəzinə boş cədvəl görünür. Silmə xətası da göstərilmir (`finally` udur). | ✅ Düzəldildi: `LoadError` (kod + mesaj + "Yenidən cəhd et"); silmə xətası modalda göstərilir. Regresiya: `flows.spec.ts`, `qa-fixes.spec.ts` |
+| QA-M07 | Medium | Portal → SQL | Schema yüklənməyəndə xəta göstərilmir ("Cədvəllər 0"). | ✅ Düzəldildi: schema xətası göstərilir. Regresiya: `flows.spec.ts` |
+| QA-M08 | Medium | Portal → Valyuta | Məzənnə yüklənməyəndə "1 AZN = 0.0000 USD · İndicə yeniləndi" göstərilir. Yanlış məlumatdır, xəta yoxdur. | ✅ Düzəldildi: xəta halında `LoadError`, rəqəmlər əvəzinə "—". Regresiya: `flows.spec.ts` |
+| QA-M10 | Medium | API rate limit | `trust proxy = loopback`: eyni maşından (loopback) gələn klient `X-Forwarded-For` dəyişdirərək anonim rate limit-dən qaça bilir. Uzaq klientlərə təsir etmir. | ✅ Düzəldildi: `trust proxy` yalnız `TRUSTED_PROXIES` env-dən (vergüllə: loopback/IP/CIDR; default `loopback`; `none` → heç biri). Qeyd: default loopback-da eyni maşındakı proses hələ də XFF göndərə bilər — server birbaşa açıqdırsa `TRUSTED_PROXIES=none`. Regresiya: `qa-fixes.test.ts` |
+| QA-L01 | Low | Portal, a11y | Mobil endə `.table-scroll` klaviatura ilə scroll olunmur (`tabindex` yoxdur). | ✅ Düzəldildi: scroll olunan cədvəllər `role="region"` + `tabIndex=0` + görünən fokus. Regresiya: matris (axe) |
+| QA-L02 | Low | Portal | Dil seçimi yadda qalmır: reload-dan sonra yenə AZ açılır (tema isə yadda qalır). | ✅ Düzəldildi: dil `localStorage`-da. Regresiya: `qa-fixes.spec.ts` |
+| QA-L03 | Low | Portal → Materials | Dərs filteri yadda qalmır (W3-dən məlum). | ✅ Düzəldildi: filter URL-də (`?lesson=2`, paylaşıla bilər) və `localStorage`-da. Regresiya: `qa-fixes.spec.ts` |
+| QA-L04 | Low | Portal footer | "© 2025 API Lab" yazılıb, il köhnədir. | ✅ Düzəldildi: il dinamikdir. Regresiya: `qa-fixes.spec.ts` |
+| QA-L05 | Low | Auth | Login üçün hesab üzrə kilidləmə yoxdur, yalnız ümumi 60/dəq IP limiti var. Seed parolları onsuz da açıqdır, ona görə tədris mühitində qəbul olunandır. | ✅ Düzəldildi: username üzrə kilid — 5 dəq-də `LOGIN_MAX_FAILURES` (10) uğursuz cəhd → 429 + Retry-After (düzgün parol da), uğurlu giriş sıfırlayır; sayğac `rate_limit_counters`-də (`login-fail:<username>`). Regresiya: `qa-fixes.test.ts` |
+| QA-L06 | Low | API logging | Material pre-signed URL-lərinin `exp&sig` hissəsi `request_log.path`-də saxlanılır. TTL bitənə qədər SQL Playground / `/_history` vasitəsilə görünür. | ✅ Yanlış pozitiv: `request_log.path` query-siz yazılır (`exp`/`sig` saxlanmır) — test ilə təsdiqləndi. Regresiya: `qa-fixes.test.ts` |
+| QA-L07 | Low | API CORS | CORS istənilən origin-i əks etdirir, amma `credentials` yoxdur (token başlıqdadır). Lokal lab üçün qəsdən belədir. | ✅ Düzəldildi: CORS allowlist — default yalnız localhost/127.0.0.1 (istənilən port) + `PUBLIC_URL`; `CORS_ORIGINS` (vergüllə, `*` — hamısı). Regresiya: `qa-fixes.test.ts` |
+| QA-L08 | Low | Auth | Logout-dan sonra access token ≤15 dəq etibarlı qalır (stateless JWT). Refresh token isə dərhal ləğv olunur. | ✅ Düzəldildi: access token-də `jti`; logout onu `revoked_access_tokens` denylist-inə yazır (exp-ə qədər; migration 005). Regresiya: `qa-fixes.test.ts` |
+| QA-L09 | Low | API Customers | PATCH `{"phone": null}` telefonu silə bilmir (sxem null qəbul etmir). | ✅ Düzəldildi: `CustomerPatch.phone/city` nullable, `null` dəyəri silir. Regresiya: `qa-fixes.test.ts` |
+| QA-L10 | Low | Portal → Müştərilər | Yalnız ilk 20 müştəri göstərilir, pagination UI yoxdur. | ✅ Düzəldildi: səhifələmə (Əvvəlki / Növbəti, `page / totalPages · total`). Regresiya: `qa-fixes.spec.ts` |
+| QA-L11 | Low | Portal → Materials (student) | Student yalnız READY materialları görür, siyahı da avtomatik yenilənmir. Konvertasiya bitəndən sonra material yalnız reload-dan sonra görünür. E2E-də bu, flaky test kimi üzə çıxdı. | ✅ Düzəldildi: siyahı hər 30 san və vərəqəyə qayıdanda yenilənir (flaky test də düzəldilib). Regresiya: `qa-fixes.spec.ts` |
 | QA-B01 | — | W4 External APIs | `/external/*` proxy və portal səhifəsi hələ yoxdur (W4 API seçimi təsdiq gözləyir). SSRF testləri və "External APIs" axını tətbiq olunmur. | ⛔ W4-dən asılıdır |
 
 ## Yoxlanmış və qorunan (problem tapılmadı)

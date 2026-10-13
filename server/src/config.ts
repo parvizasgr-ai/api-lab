@@ -31,6 +31,9 @@ export const config = {
   rateLimit: { limit: Number(env.RATE_LIMIT_PER_MIN ?? 60), windowSec: 60 },
   idempotencyTtlSec: 24 * 60 * 60,
 
+  // SQL Playground: icra limiti, maks. sətir və nəticə ölçüsü
+  sqlPlayground: { timeoutMs: 2000, maxRows: 200, maxBytes: 1_000_000 },
+
   // BFF-in hər daxili çağırışı üçün limit
   bffCallTimeoutMs: 3000,
 

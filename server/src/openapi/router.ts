@@ -13,6 +13,7 @@ export interface RouterDeps {
   handlers: Handlers;
   authenticate: (op: OperationInfo) => RequestHandler;
   requireScopes: (op: OperationInfo) => RequestHandler;
+  operationRateLimit: (op: OperationInfo) => RequestHandler;
   idempotency: RequestHandler;
 }
 
@@ -69,6 +70,7 @@ export function mountOperations(app: Express, deps: RouterDeps): void {
         },
         deps.authenticate(op),
         deps.requireScopes(op),
+        deps.operationRateLimit(op),
         ...bodyParsers,
         (req, res, next) => {
           req.valid = validator.validate(op, req);

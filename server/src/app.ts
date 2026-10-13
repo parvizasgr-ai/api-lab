@@ -10,7 +10,7 @@ import { mountOperations, type Handlers } from './openapi/router.js';
 import { requestId } from './middleware/requestId.js';
 import { requestLog } from './middleware/requestLog.js';
 import { security } from './middleware/security.js';
-import { rateLimit } from './middleware/rateLimit.js';
+import { operationRateLimit, rateLimit } from './middleware/rateLimit.js';
 import { simulate } from './middleware/simulate.js';
 import { authenticate, requireScopes } from './middleware/auth.js';
 import { idempotency } from './middleware/idempotency.js';
@@ -28,6 +28,7 @@ import { booksHandlers } from './modules/books/routes.js';
 import { musicHandlers } from './modules/music/routes.js';
 import { adminHandlers } from './modules/admin/routes.js';
 import { bffHandlers } from './modules/bff/routes.js';
+import { sqlHandlers } from './modules/sql/routes.js';
 
 export interface AppContext {
   db: DB;
@@ -68,6 +69,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...musicHandlers(ctx),
     ...adminHandlers(ctx),
     ...bffHandlers(ctx),
+    ...sqlHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 
@@ -91,6 +93,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     handlers,
     authenticate: (op) => authenticate(op, spec, ctx.auth),
     requireScopes,
+    operationRateLimit: operationRateLimit(ctx.db, config),
     idempotency: idempotency(ctx.db, config),
   });
 

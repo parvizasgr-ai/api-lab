@@ -30,6 +30,8 @@ import { musicHandlers } from './modules/music/routes.js';
 import { adminHandlers } from './modules/admin/routes.js';
 import { bffHandlers } from './modules/bff/routes.js';
 import { sqlHandlers } from './modules/sql/routes.js';
+import { externalHandlers } from './modules/external/routes.js';
+import { pathGuard } from './modules/external/proxy.js';
 import { MaterialsService } from './modules/materials/service.js';
 import { materialsHandlers } from './modules/materials/routes.js';
 import { tasksHandlers } from './modules/tasks/routes.js';
@@ -43,7 +45,7 @@ export interface AppContext {
   materials: MaterialsService;
 }
 
-const API_PREFIXES = ['/api', '/oauth', '/bff'];
+const API_PREFIXES = ['/api', '/oauth', '/bff', '/external'];
 
 // Runtime parametrlərinə görə spec-in nüsxəsi dəyişdirilir — /api/openapi.json və Swagger da bunu göstərir.
 function applyRuntimeOptions(spec: OpenApiDoc, config: Config): OpenApiDoc {
@@ -82,6 +84,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...adminHandlers(ctx),
     ...bffHandlers(ctx),
     ...sqlHandlers(ctx),
+    ...externalHandlers(ctx),
     ...materialsHandlers(ctx, ctx.materials),
     ...tasksHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
@@ -103,6 +106,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
   app.use(security(config));
   app.use(API_PREFIXES, rateLimit(ctx.db, config, ctx.auth));
   app.use(API_PREFIXES, simulate(config));
+  app.use('/external', pathGuard()); // SSRF: xam URL-də .., //, @, \, %2e, %2f, CR/LF → 400 (routing-dən əvvəl)
 
   mountOperations(app, {
     spec,

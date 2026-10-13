@@ -2827,6 +2827,640 @@
       ]
     },
     {
+      "name": "External APIs",
+      "item": [
+        {
+          "name": "GET /external/catalog — Kataloq — aktiv (verified) external API-lər və nümunə sorğular",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/external/catalog",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "catalog"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Tələbə yalnız `verified: true` API-ləri görür; ADMIN hamısını (`unverified` siyahısı ilə). Açar heç vaxt qaytarılmır — yalnız `serverKeyAvailable` bayrağı."
+          }
+        },
+        {
+          "name": "GET /external/jokes/joke/{category} — JokeAPI — təsadüfi zarafat",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/jokes/joke/:category?type=single&amount=1&lang=en",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "jokes",
+                "joke",
+                ":category"
+              ],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "single",
+                  "disabled": false
+                },
+                {
+                  "key": "amount",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "lang",
+                  "value": "en",
+                  "disabled": false
+                }
+              ],
+              "variable": [
+                {
+                  "key": "category",
+                  "value": "Programming"
+                }
+              ]
+            },
+            "description": "Upstream: `GET https://jokeapi-v2.p.rapidapi.com/joke/{category}`"
+          }
+        },
+        {
+          "name": "GET /external/geodb/v1/geo/cities — GeoDB — şəhər axtarışı (pagination)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/geodb/v1/geo/cities?namePrefix=Bak&countryIds=AZ&minPopulation=100000&limit=5&offset=0&sort=-population",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "geodb",
+                "v1",
+                "geo",
+                "cities"
+              ],
+              "query": [
+                {
+                  "key": "namePrefix",
+                  "value": "Bak",
+                  "disabled": false
+                },
+                {
+                  "key": "countryIds",
+                  "value": "AZ",
+                  "disabled": false
+                },
+                {
+                  "key": "minPopulation",
+                  "value": "100000",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "5",
+                  "disabled": false
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "-population",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Upstream: `GET https://wft-geo-db.p.rapidapi.com/v1/geo/cities`. Basic planda `limit` ≤ 10, 1 sorğu/san."
+          }
+        },
+        {
+          "name": "GET /external/geodb/v1/geo/countries/{countryId} — GeoDB — ölkə haqqında",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/geodb/v1/geo/countries/:countryId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "geodb",
+                "v1",
+                "geo",
+                "countries",
+                ":countryId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "countryId",
+                  "value": "AZ"
+                }
+              ]
+            },
+            "description": "Upstream: `GET https://wft-geo-db.p.rapidapi.com/v1/geo/countries/{countryId}`"
+          }
+        },
+        {
+          "name": "GET /external/weather/current.json — WeatherAPI — cari hava",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/weather/current.json?q=Baku&lang=az",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "weather",
+                "current.json"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Baku",
+                  "disabled": false
+                },
+                {
+                  "key": "lang",
+                  "value": "az",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Upstream: `GET https://weatherapi-com.p.rapidapi.com/current.json`"
+          }
+        },
+        {
+          "name": "GET /external/weather/forecast.json — WeatherAPI — proqnoz (1–3 gün)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/weather/forecast.json?q=Baku&days=3&lang=az",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "weather",
+                "forecast.json"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Baku",
+                  "disabled": false
+                },
+                {
+                  "key": "days",
+                  "value": "3",
+                  "disabled": false
+                },
+                {
+                  "key": "lang",
+                  "value": "az",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Upstream: `GET https://weatherapi-com.p.rapidapi.com/forecast.json`"
+          }
+        },
+        {
+          "name": "GET /external/movies — OMDb — film axtarışı (s) və ya detal (i)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/movies?s=Inception&i=tt1375666&t=Inception&type=movie&y=2010&page=1&r=json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "movies"
+              ],
+              "query": [
+                {
+                  "key": "s",
+                  "value": "Inception",
+                  "disabled": false
+                },
+                {
+                  "key": "i",
+                  "value": "tt1375666",
+                  "disabled": false
+                },
+                {
+                  "key": "t",
+                  "value": "Inception",
+                  "disabled": false
+                },
+                {
+                  "key": "type",
+                  "value": "movie",
+                  "disabled": false
+                },
+                {
+                  "key": "y",
+                  "value": "2010",
+                  "disabled": false
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "r",
+                  "value": "json",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Upstream: `GET https://movie-database-alternative.p.rapidapi.com/`. Diqqət: tapılmayanda da HTTP 200 + `\"Response\": \"False\"`."
+          }
+        },
+        {
+          "name": "GET /external/numbers/{number}/trivia — Numbers API — rəqəm faktı",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/numbers/:number/trivia?json=true&fragment=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "numbers",
+                ":number",
+                "trivia"
+              ],
+              "query": [
+                {
+                  "key": "json",
+                  "value": "true",
+                  "disabled": false
+                },
+                {
+                  "key": "fragment",
+                  "value": "true",
+                  "disabled": false
+                }
+              ],
+              "variable": [
+                {
+                  "key": "number",
+                  "value": "42"
+                }
+              ]
+            },
+            "description": "Upstream: `GET https://numbersapi.p.rapidapi.com/{number}/trivia`"
+          }
+        },
+        {
+          "name": "GET /external/numbers/{month}/{day}/date — Numbers API — tarix faktı",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/numbers/:month/:day/date?json=true&fragment=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "numbers",
+                ":month",
+                ":day",
+                "date"
+              ],
+              "query": [
+                {
+                  "key": "json",
+                  "value": "true",
+                  "disabled": false
+                },
+                {
+                  "key": "fragment",
+                  "value": "true",
+                  "disabled": false
+                }
+              ],
+              "variable": [
+                {
+                  "key": "month",
+                  "value": "5"
+                },
+                {
+                  "key": "day",
+                  "value": "28"
+                }
+              ]
+            },
+            "description": "Upstream: `GET https://numbersapi.p.rapidapi.com/{month}/{day}/date`"
+          }
+        },
+        {
+          "name": "POST /external/translate/language/translate/v2 — Deep Translate — tərcümə (POST + JSON body)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "disabled": false
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/translate/language/translate/v2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "translate",
+                "language",
+                "translate",
+                "v2"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Upstream: `POST https://deep-translate1.p.rapidapi.com/language/translate/v2`. `Idempotency-Key` (opsional, daxil olmuş istifadəçi üçün) təkrar sorğunu upstream-ə göndərmədən saxlanmış cavabla qaytarır.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"Salam, dünya!\",\n  \"source\": \"az\",\n  \"target\": \"en\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /external/translate/language/translate/v2/languages — Deep Translate — dillərin siyahısı",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/translate/language/translate/v2/languages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "translate",
+                "language",
+                "translate",
+                "v2",
+                "languages"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Upstream: `GET https://deep-translate1.p.rapidapi.com/language/translate/v2/languages`"
+          }
+        },
+        {
+          "name": "GET /external/qr/generate — QR Code Factory — QR kod şəkli (image/png)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "X-RapidAPI-Key",
+                "value": "{{rapidApiKey}}",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/external/qr/generate?d=https://apilab.az&size=300&type=png",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "external",
+                "qr",
+                "generate"
+              ],
+              "query": [
+                {
+                  "key": "d",
+                  "value": "https://apilab.az",
+                  "disabled": false
+                },
+                {
+                  "key": "size",
+                  "value": "300",
+                  "disabled": false
+                },
+                {
+                  "key": "type",
+                  "value": "png",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Upstream: `GET https://qr-code-factory.p.rapidapi.com/generate`. JSON olmayan cavab — Explorer-də `Content-Type: image/png`."
+          }
+        }
+      ]
+    },
+    {
       "name": "SQL Playground",
       "item": [
         {

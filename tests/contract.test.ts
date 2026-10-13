@@ -12,6 +12,7 @@ import { listOperations, resolveRef, type OperationInfo } from '../server/src/op
 import { config as baseConfig } from '../server/src/config.js';
 import { detectTools } from '../server/src/modules/materials/tools.js';
 import { makePdf } from './fixtures/files.js';
+import { externalConfig, mockUpstream, STUDENT_KEY } from './fixtures/external.js';
 import { createTestApp, expectMatchesSpec, spec } from './helpers.js';
 
 const tools = detectTools(baseConfig);
@@ -69,12 +70,17 @@ const skipHappy = (op: OperationInfo) => buildRequest(op).contentType === 'multi
 
 type Ctx = ReturnType<typeof createTestApp>;
 
-type Overrides = { body?: unknown; query?: Record<string, string>; path?: Record<string, string | number> };
+type Overrides = { body?: unknown; query?: Record<string, string>; path?: Record<string, string | number>; headers?: Record<string, string> };
+
+// External proxy əməliyyatları: upstream mock + verified kataloq + tələbə açarı (real RapidAPI-yə getmirik)
+const isExternalProxy = (op: OperationInfo) => op.path.startsWith('/external/') && op.operationId !== 'externalCatalog';
+const appFor = (op: OperationInfo) => (isExternalProxy(op) ? createTestApp({ config: externalConfig(mockUpstream().fetchFn) }) : createTestApp());
+const externalHeaders = (op: OperationInfo) => (isExternalProxy(op) ? { 'X-RapidAPI-Key': STUDENT_KEY } : {});
 
 async function send(ctx: Ctx, op: OperationInfo, auth: Auth | 'student-bearer', overrides: Overrides = {}) {
   const r = buildRequest(op, overrides.path);
   let req = (ctx.api() as any)[op.method](r.url).query({ ...r.query, ...overrides.query }) as request.Test;
-  for (const [k, v] of Object.entries(r.headers)) req = req.set(k, v);
+  for (const [k, v] of Object.entries({ ...r.headers, ...externalHeaders(op), ...overrides.headers })) req = req.set(k, v);
   if (auth === 'bearer' || auth === 'student-bearer') {
     const user = auth === 'bearer' && needsAdmin(op) ? 'admin' : 'student';
     req = req.set('Authorization', `Bearer ${(await ctx.login(user)).access_token}`);
@@ -158,7 +164,7 @@ describe('contract: bütün əməliyyatlar spec-də nümunələrlə', () => {
     const auth = authOf(op);
 
     it.skipIf(skipHappy(op) || (needsPdftoppm(op) && !tools.pdftoppm))(`happy path: ${name}`, async () => {
-      const ctx = createTestApp();
+      const ctx = appFor(op);
       const res = await send(ctx, op, auth, await PREPARE[op.operationId]?.(ctx));
       expect(res.status, `${name} → ${res.status} ${JSON.stringify(res.body)}`).toBeGreaterThanOrEqual(200);
       expect(res.status, `${name} → ${res.status} ${JSON.stringify(res.body)}`).toBeLessThan(400);
@@ -187,7 +193,7 @@ describe('contract: bütün əməliyyatlar spec-də nümunələrlə', () => {
     const r = buildRequest(op);
     if (r.contentType === 'application/json' && r.body && typeof r.body === 'object' && !Array.isArray(r.body)) {
       it(`422 naməlum body sahəsi: ${name}`, async () => {
-        const ctx = createTestApp();
+        const ctx = appFor(op);
         const res = await send(ctx, op, auth, { body: { ...(r.body as object), __unknown: 1 } });
         expect(res.status, JSON.stringify(res.body)).toBe(422);
         expectContract(res, op);
@@ -197,7 +203,7 @@ describe('contract: bütün əməliyyatlar spec-də nümunələrlə', () => {
 
     if (r.contentType === 'application/json' || r.contentType === 'application/x-www-form-urlencoded') {
       it(`413 100 KB-dan böyük body: ${name}`, async () => {
-        const ctx = createTestApp();
+        const ctx = appFor(op);
         const big = 'x'.repeat(110 * 1024);
         const res = await send(ctx, op, auth, { body: r.contentType === 'application/json' ? { padding: big } : { padding: big } });
         expect(res.status, JSON.stringify(res.body)).toBe(413);
@@ -207,7 +213,7 @@ describe('contract: bütün əməliyyatlar spec-də nümunələrlə', () => {
 
     if (op.method === 'get' && !oauthFormat(op)) {
       it(`422 naməlum query parametri: ${name}`, async () => {
-        const ctx = createTestApp();
+        const ctx = appFor(op);
         const res = await send(ctx, op, auth, { query: { pgae: '2' } });
         expect(res.status, JSON.stringify(res.body)).toBe(422);
         expectContract(res, op);

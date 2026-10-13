@@ -1,6 +1,7 @@
 // Konfiqurasiya: bütün parametrlər env dəyişənlərindən oxunur (12-factor app prinsipi).
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { EXTERNAL_CATALOG, type ExternalApi } from './modules/external/catalog.js';
 
 export const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -62,6 +63,17 @@ export const config = {
     signedUrlTtlSec: 3600,
     // 'auto' — PATH-də axtarılır; testlərdə { soffice: null, pdftoppm: null } ilə söndürülür
     tools: 'auto' as 'auto' | { soffice: string | null; pdftoppm: string | null },
+  },
+
+  // External APIs (RapidAPI) proxy. Standart rejim: tələbə öz X-RapidAPI-Key başlığını göndərir (saxlanmır).
+  // Server key yalnız EXTERNAL_SERVER_KEY_ENABLED=true olanda, yalnız Hard Limit-li API-lər və daxil olmuş istifadəçilər üçün ehtiyatdır.
+  external: {
+    serverKey: env.RAPIDAPI_KEY ?? '',
+    serverKeyEnabled: env.EXTERNAL_SERVER_KEY_ENABLED === 'true',
+    timeoutMs: 8000,
+    maxResponseBytes: 1024 * 1024,
+    cacheTtlSec: 60,
+    catalog: EXTERNAL_CATALOG as ExternalApi[], // testlərdə əvəz olunur (verified:true + mock upstream)
   },
 
   // SQL Playground: icra limiti, maks. sətir və nəticə ölçüsü

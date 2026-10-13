@@ -1,7 +1,7 @@
 // E2E ümumi köməkçilər: giriş, naviqasiya (desktop nav və ya mobil menyu), problem toplayıcı
 import { expect, type Page } from '@playwright/test'
 
-export const PAGES = ['home', 'explorer', 'apps', 'auth', 'sql', 'materials'] as const
+export const PAGES = ['home', 'explorer', 'apps', 'auth', 'sql', 'materials', 'external'] as const
 
 export type Issue = { where: string; kind: string; detail: string }
 
@@ -28,7 +28,7 @@ export async function signIn(page: Page, username: string, password: string) {
   await expect(page.locator('.user-chip')).toBeVisible()
 }
 
-export const pathOf = (target: string) => (target === 'home' ? '/' : `/${target}`)
+export const pathOf = (target: string) => (target === 'home' ? '/' : target === 'external' ? '/external-apis' : `/${target}`)
 
 export async function go(page: Page, target: string) {
   const desktop = page.locator(`.desktop-nav a[href="${pathOf(target)}"]`)

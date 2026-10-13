@@ -89,6 +89,7 @@ export type RequestOptions = {
   apiKey?: boolean; // X-API-Key göndər
   retryOn401?: boolean; // default true
   accept?: string;
+  binary?: boolean; // şəkil cavabı (image/*) → Blob (External APIs: QR)
 };
 
 export type HttpResult<T> = { data: T; status: number; headers: Headers; call: NetworkCall };
@@ -103,7 +104,8 @@ const pathOf = (url: string) => {
   }
 };
 
-async function parseBody(response: Response): Promise<unknown> {
+async function parseBody(response: Response, binary = false): Promise<unknown> {
+  if (binary && response.ok && (response.headers.get("content-type") ?? "").startsWith("image/")) return response.blob();
   const text = await response.text();
   if (!text) return null;
   if ((response.headers.get("content-type") ?? "").includes("json")) {
@@ -146,7 +148,7 @@ export async function request<T = unknown>(method: string, url: string, options:
   } catch {
     throw new AuthClientError("Server-ə qoşulmaq olmadı", 0, "NETWORK_ERROR", "");
   }
-  const data = await parseBody(response);
+  const data = await parseBody(response, options.binary);
   const id = `call-${Date.now()}-${++callCounter}`;
   const call: NetworkCall = {
     id,

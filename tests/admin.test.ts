@@ -89,7 +89,7 @@ describe('Postman', () => {
     const c = res.body;
     expect(c.info.schema).toBe('https://schema.getpostman.com/json/collection/v2.1.0/collection.json');
     expect(c.item.map((f: { name: string }) => f.name)).toContain('Cards');
-    expect(c.item.reduce((n: number, f: { item: unknown[] }) => n + f.item.length, 0)).toBe(90);
+    expect(c.item.reduce((n: number, f: { item: unknown[] }) => n + f.item.length, 0)).toBe(102);
 
     const auth = c.item.find((f: { name: string }) => f.name === 'Auth');
     const login = auth.item.find((i: { name: string }) => i.name.startsWith('POST /api/v1/auth/login'));
@@ -104,12 +104,20 @@ describe('Postman', () => {
 
     const rates = c.item.find((f: { name: string }) => f.name === 'Currencies').item.find((i: { name: string }) => i.name.includes('/rates'));
     expect(rates.request.auth.type).toBe('apikey');
+
+    // External APIs: açar environment dəyişənindən — kolleksiyada real/nümunə açar yoxdur
+    const external = c.item.find((f: { name: string }) => f.name === 'External APIs');
+    expect(external.item).toHaveLength(12);
+    const joke = external.item.find((i: { name: string }) => i.name.includes('/joke/'));
+    expect(joke.request.header).toContainEqual({ key: 'X-RapidAPI-Key', value: '{{rapidApiKey}}', disabled: false });
+    expect(JSON.stringify(c)).not.toContain('your-own-rapidapi-key');
   });
 
-  it('environment: baseUrl, token, refreshToken, apiKey', async () => {
+  it('environment: baseUrl, token, refreshToken, apiKey, rapidApiKey (boş)', async () => {
     const res = await t.api().get('/api/postman/environment.json');
     expect(res.status).toBe(200);
-    expect(res.body.values.map((v: { key: string }) => v.key)).toEqual(['baseUrl', 'token', 'refreshToken', 'apiKey']);
+    expect(res.body.values.map((v: { key: string }) => v.key)).toEqual(['baseUrl', 'token', 'refreshToken', 'apiKey', 'rapidApiKey']);
+    expect(res.body.values.find((v: { key: string }) => v.key === 'rapidApiKey').value).toBe('');
     expect(res.body.values[0].value).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
   });
 });

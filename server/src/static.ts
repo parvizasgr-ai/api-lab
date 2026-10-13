@@ -61,7 +61,7 @@ export function mountStatic(app: Express, config: Config): void {
   app.use(express.static(config.webDist, { index: false }));
 
   // SPA fallback: API olmayan GET sorğuları portalın index.html-inə (/signin və s. client tərəfdə idarə olunur)
-  app.get(/^\/(?!api\/|oauth\/|bff\/|docs\/).*/, (req, res, next) => {
+  app.get(/^\/(?!api\/|oauth\/|bff\/|docs\/|external\/|external$).*/, (req, res, next) => {
     if (!req.accepts('html')) return next();
     if (fs.existsSync(portalIndex)) return res.sendFile(portalIndex);
     res.type('html').send(PLACEHOLDER);

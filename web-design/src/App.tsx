@@ -47,6 +47,7 @@ import {
 } from "./lib/api";
 import { subscribeNetwork } from "./lib/http";
 import { runTests, SAMPLE_TESTS, type TestResult } from "./lib/assertions";
+import { exampleUrl, external, externalKey, type ExternalApi, type ExternalCatalog, type ExternalEndpoint, type ExternalResult } from "./lib/external";
 import { parseRoute, pathOf, PROTECTED_PAGES, type AppId, type Page } from "./lib/routes";
 
 type Language = "az" | "en";
@@ -71,6 +72,39 @@ const translations = {
     authLab: "Auth Lab",
     sql: "SQL",
     materials: "Materials",
+    externalApis: "External APIs",
+    extKicker: "RAPIDAPI HUB",
+    extTitle: "Real external API-lər",
+    extSubtitle: "RapidAPI-dəki pulsuz API-ləri API Lab proxy-si ilə çağır. Öz açarını yaz — server onu yalnız ötürür, saxlamır.",
+    extKeyLabel: "Öz RapidAPI açarım",
+    extKeyPlaceholder: "rapidapi.com → Apps → Authorization → X-RapidAPI-Key",
+    extKeyHint: "Açar yalnız bu vərəqənin yaddaşındadır (localStorage yoxdur) — səhifəni yeniləyəndə silinir.",
+    extKeyUse: "İstifadə et",
+    extKeyClear: "Sil",
+    extKeyShow: "Göstər",
+    extKeyHide: "Gizlət",
+    extKeyActive: "Açar aktivdir (yaddaşda)",
+    extKeyNone: "Açar daxil edilməyib",
+    extFreeLimit: "Pulsuz limit",
+    extHardLimit: "Hard Limit",
+    extNotVerified: "Yoxlanmayıb",
+    extTry: "Sına",
+    extOpenExplorer: "Explorer-də aç",
+    extSubscribe: "RapidAPI-də abunə ol",
+    extEmpty: "Hələ təsdiqlənmiş external API yoxdur.",
+    extEmptyAdmin: "Kataloqdakı API-lər yoxlanmayıb. Serverdə RAPIDAPI_KEY ilə `npm run external:verify` işlədin və təklif olunan verified bayraqlarını catalog.ts-də təsdiqləyin.",
+    extServerKey: "Server açarı (ehtiyat) bu API üçün aktivdir",
+    extErrKeyMissing: "Açar lazımdır",
+    extErrKeyMissingText: "Yuxarıda öz RapidAPI açarını yaz. Açarı rapidapi.com → Apps → Authorization bölməsindən götür.",
+    extErrNotSubscribed: "Bu API-yə abunə deyilsən",
+    extErrNotSubscribedText: "RapidAPI-də API səhifəsini aç → Pricing → Basic ($0) → Subscribe. \"Hard Limit\" yazısını yoxla.",
+    extErrRateLimited: "Limit bitib",
+    extErrRateLimitedText: "Pulsuz planın limiti tükənib. Yenidən cəhd et:",
+    extErrKeyInvalid: "Açar etibarsızdır",
+    extErrKeyInvalidText: "Açarı yenidən kopyala (rapidapi.com → Apps → Authorization).",
+    extErrUpstream: "External API əlçatan deyil",
+    extErrUpstreamText: "Upstream cavab vermədi və ya xəta qaytardı. Bir az sonra yenidən cəhd et.",
+    extSeconds: "san",
     language: "Dil seçimi",
     themeToDark: "Dark mode-a keç",
     themeToLight: "Light mode-a keç",
@@ -604,6 +638,39 @@ const translations = {
     authLab: "Auth Lab",
     sql: "SQL",
     materials: "Materials",
+    externalApis: "External APIs",
+    extKicker: "RAPIDAPI HUB",
+    extTitle: "Real external APIs",
+    extSubtitle: "Call free RapidAPI APIs through the API Lab proxy. Enter your own key — the server only forwards it, never stores it.",
+    extKeyLabel: "My own RapidAPI key",
+    extKeyPlaceholder: "rapidapi.com → Apps → Authorization → X-RapidAPI-Key",
+    extKeyHint: "The key lives only in this tab's memory (no localStorage) — it is gone after a reload.",
+    extKeyUse: "Use",
+    extKeyClear: "Clear",
+    extKeyShow: "Show",
+    extKeyHide: "Hide",
+    extKeyActive: "Key is active (in memory)",
+    extKeyNone: "No key entered",
+    extFreeLimit: "Free limit",
+    extHardLimit: "Hard Limit",
+    extNotVerified: "Not verified",
+    extTry: "Try",
+    extOpenExplorer: "Open in Explorer",
+    extSubscribe: "Subscribe on RapidAPI",
+    extEmpty: "No verified external APIs yet.",
+    extEmptyAdmin: "The catalog APIs are not verified. Run `npm run external:verify` on the server with RAPIDAPI_KEY and confirm the proposed verified flags in catalog.ts.",
+    extServerKey: "Server key (fallback) is active for this API",
+    extErrKeyMissing: "A key is required",
+    extErrKeyMissingText: "Enter your own RapidAPI key above. Get it at rapidapi.com → Apps → Authorization.",
+    extErrNotSubscribed: "You are not subscribed to this API",
+    extErrNotSubscribedText: "Open the API page on RapidAPI → Pricing → Basic ($0) → Subscribe. Check for the \"Hard Limit\" label.",
+    extErrRateLimited: "Limit reached",
+    extErrRateLimitedText: "The free plan quota is used up. Try again in",
+    extErrKeyInvalid: "Invalid key",
+    extErrKeyInvalidText: "Copy the key again (rapidapi.com → Apps → Authorization).",
+    extErrUpstream: "External API unavailable",
+    extErrUpstreamText: "The upstream did not respond or returned an error. Try again later.",
+    extSeconds: "s",
     language: "Language selection",
     themeToDark: "Switch to dark mode",
     themeToLight: "Switch to light mode",
@@ -1405,6 +1472,7 @@ function Header({
     { label: t.authLab, page: "auth" },
     { label: t.sql, page: "sql" },
     { label: t.materials, page: "materials" },
+    { label: t.externalApis, page: "external" },
   ];
 
   useEffect(() => {
@@ -1658,6 +1726,15 @@ function ExplorerPage({ t }: { t: Translation }) {
     if (pending) {
       setMethod(pending.method);
       setUrl(`${baseUrl}${pending.path}`);
+      // External APIs: X-RapidAPI-Key (yalnız yaddaşdan) və JSON body
+      if (pending.headers) {
+        setHeaders([{ key: "Accept", value: "application/json", description: "" }, ...Object.entries(pending.headers).map(([key, value]) => ({ key, value, description: "" }))]);
+        setRequestTab("headers");
+      }
+      if (pending.body) {
+        setBody(pending.body);
+        setRequestTab("body");
+      }
     }
   }, [baseUrl]);
 
@@ -4476,6 +4553,195 @@ function LessonTaskList({ tasks, onToggle, onOpen, t }: { tasks: LessonTask[]; o
   );
 }
 
+// ---------------------------------------------------------------- External APIs (RapidAPI, W4)
+type ExternalErrorView = { title: string; text: string; code: string; retryAfter?: number; subscribe?: boolean };
+
+function externalErrorView(error: unknown, t: Translation): ExternalErrorView {
+  if (!(error instanceof AuthClientError)) return { title: t.extErrUpstream, text: String(error), code: "ERROR" };
+  const code = error.code;
+  if (code === "EXTERNAL_KEY_MISSING") return { title: t.extErrKeyMissing, text: t.extErrKeyMissingText, code };
+  if (code === "EXTERNAL_NOT_SUBSCRIBED") return { title: t.extErrNotSubscribed, text: t.extErrNotSubscribedText, code, subscribe: true };
+  if (code === "EXTERNAL_RATE_LIMITED") return { title: t.extErrRateLimited, text: t.extErrRateLimitedText, code, retryAfter: error.retryAfter ?? 60 };
+  if (code === "EXTERNAL_KEY_INVALID") return { title: t.extErrKeyInvalid, text: t.extErrKeyInvalidText, code };
+  return { title: t.extErrUpstream, text: `${error.status} ${code} — ${error.message}`, code, retryAfter: error.retryAfter };
+}
+
+function ExternalKeyPanel({ t }: { t: Translation }) {
+  const [draft, setDraft] = useState("");
+  const [visible, setVisible] = useState(false);
+  const [active, setActive] = useState(() => externalKey.get());
+  useEffect(() => externalKey.subscribe(setActive), []);
+  return (
+    <section className="ext-key-panel" aria-labelledby="ext-key-label">
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          externalKey.set(draft);
+          setDraft("");
+        }}
+      >
+        <label htmlFor="ext-key-input" id="ext-key-label">{t.extKeyLabel}</label>
+        <div className="ext-key-row">
+          <input
+            autoComplete="off"
+            id="ext-key-input"
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder={t.extKeyPlaceholder}
+            spellCheck={false}
+            type={visible ? "text" : "password"}
+            value={draft}
+          />
+          <button onClick={() => setVisible(!visible)} type="button">{visible ? t.extKeyHide : t.extKeyShow}</button>
+          <button disabled={!draft.trim()} type="submit">{t.extKeyUse}</button>
+          <button disabled={!active} onClick={() => externalKey.clear()} type="button">{t.extKeyClear}</button>
+        </div>
+      </form>
+      <p className={active ? "ext-key-status active" : "ext-key-status"} role="status">
+        <Icon name={active ? "check" : "lock"} size={14} />
+        {active ? `${t.extKeyActive}: ••••${active.slice(-4)}` : t.extKeyNone}
+      </p>
+      <small>{t.extKeyHint}</small>
+    </section>
+  );
+}
+
+function ExternalApiCard({ api, language, onOpenExplorer, t }: { api: ExternalApi; language: Language; onOpenExplorer: (endpoint: ExternalEndpoint) => void; t: Translation }) {
+  const [running, setRunning] = useState<string | null>(null);
+  const [result, setResult] = useState<{ endpoint: ExternalEndpoint; data: ExternalResult } | null>(null);
+  const [error, setError] = useState<ExternalErrorView | null>(null);
+  const [countdown, setCountdown] = useState(0);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = window.setInterval(() => setCountdown((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [countdown]);
+  useEffect(() => () => { if (result?.data.imageUrl) URL.revokeObjectURL(result.data.imageUrl); }, [result]);
+
+  const tryEndpoint = async (endpoint: ExternalEndpoint) => {
+    setRunning(endpoint.operationId);
+    setError(null);
+    setResult(null);
+    try {
+      setResult({ endpoint, data: await external.run(endpoint) });
+    } catch (caught) {
+      const view = externalErrorView(caught, t);
+      setError(view);
+      if (view.retryAfter) setCountdown(view.retryAfter);
+    } finally {
+      setRunning(null);
+    }
+  };
+
+  return (
+    <article className="ext-card" data-api={api.id}>
+      <header className="ext-card-head">
+        <div>
+          <h2>{api.name}</h2>
+          <code>{api.host}</code>
+        </div>
+        <div className="ext-badges">
+          {api.hardLimit && <span className="ext-badge hard">{t.extHardLimit}</span>}
+          {!api.verified && <span className="ext-badge unverified">{t.extNotVerified}</span>}
+        </div>
+      </header>
+      <p>{api.description[language]}</p>
+      <dl className="ext-meta">
+        <div><dt>{t.extFreeLimit}</dt><dd>{api.freeLimit[language]}</dd></div>
+      </dl>
+      {api.serverKeyAvailable && <p className="ext-server-key"><Icon name="lock" size={13} />{t.extServerKey}</p>}
+      <ul className="ext-endpoints">
+        {api.endpoints.map((endpoint) => (
+          <li key={endpoint.operationId}>
+            <div>
+              <span className={`mini-method method-${endpoint.method.toLowerCase()}`}>{endpoint.method}</span>
+              <span>{endpoint.summary[language]}</span>
+              <code>{exampleUrl(endpoint)}</code>
+            </div>
+            <div className="ext-actions">
+              <button aria-busy={running === endpoint.operationId} disabled={!api.verified || running !== null || countdown > 0} onClick={() => void tryEndpoint(endpoint)} title={api.verified ? undefined : t.extNotVerified} type="button">
+                <Icon name="play" size={13} />{t.extTry}
+              </button>
+              <button onClick={() => onOpenExplorer(endpoint)} type="button">
+                <Icon name="code" size={13} />{t.extOpenExplorer}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+      {error && (
+        <div className="ext-error" data-code={error.code} role="alert">
+          <strong>{error.title}</strong>
+          <span>
+            {error.text}
+            {error.retryAfter ? ` ${countdown || error.retryAfter} ${t.extSeconds}` : ""}
+          </span>
+          <code>{error.code}</code>
+          {error.subscribe && <a href={`${api.rapidApiUrl}/pricing`} rel="noreferrer noopener" target="_blank">{t.extSubscribe}</a>}
+        </div>
+      )}
+      {result && (
+        <div className="ext-result" role="status">
+          <div className="ext-result-head">
+            <StatusChip status={result.data.status} />
+            <code>{result.data.contentType.split(";")[0]}</code>
+            <span>{result.data.time} ms · X-Cache: {result.data.headers.get("x-cache") ?? "—"}</span>
+          </div>
+          {result.data.imageUrl ? (
+            <img alt={`${api.name} — ${result.endpoint.summary[language]}`} className="ext-image" src={result.data.imageUrl} />
+          ) : (
+            <pre aria-label={result.endpoint.summary[language]} className="ext-json" tabIndex={0}>{JSON.stringify(result.data.body, null, 2)}</pre>
+          )}
+        </div>
+      )}
+      <a className="ext-rapidapi-link" href={api.rapidApiUrl} rel="noreferrer noopener" target="_blank">rapidapi.com ↗</a>
+    </article>
+  );
+}
+
+function ExternalApisPage({ language, onNavigate, session, t }: { language: Language; onNavigate: (page: Page) => void; session: AuthSession | null; t: Translation }) {
+  const [catalog, setCatalog] = useState<ExternalCatalog | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const load = () => {
+    setLoadError("");
+    external.catalog().then(setCatalog).catch((caught) => setLoadError(errorText(caught)));
+  };
+  useEffect(load, []);
+  const openExplorer = (endpoint: ExternalEndpoint) => {
+    handoffs.set({ explorer: external.handoff(endpoint) });
+    onNavigate("explorer");
+  };
+  const admin = session?.user.role === "admin";
+
+  return (
+    <main className="ext-page" id="main-content">
+      <div className="ext-hero">
+        <span className="section-kicker"><Icon name="globe" size={16} />{t.extKicker}</span>
+        <h1>{t.extTitle}</h1>
+        <p>{t.extSubtitle}</p>
+      </div>
+      <ExternalKeyPanel t={t} />
+      {loadError && <LoadError error={loadError} onRetry={load} t={t} />}
+      {admin && catalog?.unverified && catalog.unverified.length > 0 && (
+        <div className="ext-admin-note" role="note">
+          <Icon name="lock" size={15} />
+          <span>{t.extEmptyAdmin} ({catalog.unverified.join(", ")})</span>
+        </div>
+      )}
+      {catalog && catalog.items.length === 0 && (
+        <div className="ext-empty" role="status">
+          <strong>{t.extEmpty}</strong>
+        </div>
+      )}
+      {catalog && catalog.items.length > 0 && (
+        <div className="ext-grid">
+          {catalog.items.map((api) => <ExternalApiCard api={api} key={api.id} language={language} onOpenExplorer={openExplorer} t={t} />)}
+        </div>
+      )}
+    </main>
+  );
+}
+
 const MATERIALS_REFRESH_MS = 30_000;
 const LESSON_FILTER_KEY = "api-lab-lesson-filter";
 const validLesson = (value: string | null) => (value && ["1", "2", "3"].includes(value) ? Number(value) : null);
@@ -5107,7 +5373,11 @@ function App() {
       ) : currentPage === "sql" ? (
         <SqlPlaygroundPage t={t} />
       ) : (
-        <MaterialsPage onNavigate={navigateTo} session={session} t={t} />
+        currentPage === "external" ? (
+          <ExternalApisPage language={language} onNavigate={navigateTo} session={session} t={t} />
+        ) : (
+          <MaterialsPage onNavigate={navigateTo} session={session} t={t} />
+        )
       )}
 
       <footer>

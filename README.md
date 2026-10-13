@@ -103,6 +103,7 @@ Seed **deterministikdir** (eyni gündə hər reset eyni datanı verir), tarixlə
 | `npm run openapi:lint` / `openapi:bundle` | Spec lint / YAML → JSON |
 | `npm run postman:export` | Postman fayllarını `postman/` qovluğuna yazır |
 | `npm run rates:refresh` | Bu günün məzənnələrini ECB-dən (Frankfurter) yeniləyir; şəbəkə yoxdursa seed qalır |
+| `npm run external:verify` | `RAPIDAPI_KEY` ilə hər external API-yə 1 sorğu → status cədvəli və `verified` təklifi (`catalog.ts`-i dəyişmir) |
 | `npm run pg:up` / `pg:down` | Opsional PostgreSQL (Docker) |
 
 ## Testlər və QA (CI)
@@ -199,7 +200,7 @@ erDiagram
 
 ---
 
-## Endpoint-lər (90)
+## Endpoint-lər (102)
 
 Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/docs**.
 
@@ -208,7 +209,7 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 | **Auth** | | | | |
 | `POST` | `/api/v1/auth/login` | Login — access və refresh token al | — |  |
 | `POST` | `/api/v1/auth/refresh` | Refresh token ilə yeni access token al (rotation) | — |  |
-| `POST` | `/api/v1/auth/logout` | Logout — refresh token-i ləğv et | Bearer |  |
+| `POST` | `/api/v1/auth/logout` | Logout — refresh token-i və cari access token-i ləğv et | Bearer |  |
 | `GET` | `/api/v1/auth/me` | Cari istifadəçi (token-in sahibi) | Bearer |  |
 | `GET` | `/api/v1/auth/basic-demo` | Basic Auth nümunəsi | Basic |  |
 | **OAuth2** | | | | |
@@ -281,6 +282,19 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 | `GET` | `/bff/dashboard` | Bank dashboard — 1 sorğuda hesablar + kartlar + son 5 əməliyyat + AZN/USD/EUR məzənnələri | Bearer | accounts:read, cards:read |
 | `GET` | `/bff/travel/search` | Reys + otel paralel axtarışı (partial failure → 207) | Bearer | bookings:read |
 | `GET` | `/bff/music/home` | Musiqi ana səhifəsi — populyar treklər + mənim playlist-lərim | Bearer | music:read |
+| **External APIs** | | | | |
+| `GET` | `/external/catalog` | Kataloq — aktiv (verified) external API-lər və nümunə sorğular | Bearer (opsional) |  |
+| `GET` | `/external/jokes/joke/{category}` | JokeAPI — təsadüfi zarafat | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `GET` | `/external/geodb/v1/geo/cities` | GeoDB — şəhər axtarışı (pagination) | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `GET` | `/external/geodb/v1/geo/countries/{countryId}` | GeoDB — ölkə haqqında | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `GET` | `/external/weather/current.json` | WeatherAPI — cari hava | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `GET` | `/external/weather/forecast.json` | WeatherAPI — proqnoz (1–3 gün) | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `GET` | `/external/movies` | OMDb — film axtarışı (s) və ya detal (i) | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `GET` | `/external/numbers/{number}/trivia` | Numbers API — rəqəm faktı | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `GET` | `/external/numbers/{month}/{day}/date` | Numbers API — tarix faktı | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `POST` | `/external/translate/language/translate/v2` | Deep Translate — tərcümə (POST + JSON body) | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `GET` | `/external/translate/language/translate/v2/languages` | Deep Translate — dillərin siyahısı | Bearer (opsional) + `X-RapidAPI-Key` |  |
+| `GET` | `/external/qr/generate` | QR Code Factory — QR kod şəkli (image/png) | Bearer (opsional) + `X-RapidAPI-Key` |  |
 | **SQL Playground** | | | | |
 | `GET` | `/api/v1/_db/schema` | DB sxemi — cədvəllər, view-lar, sütunlar (tip, PK, gizli), FK-lar, index-lər | — |  |
 | `POST` | `/api/v1/_db/query` | SQL sorğusu icra et (YALNIZ SELECT / WITH ... SELECT) | Bearer (opsional) |  |
@@ -439,6 +453,73 @@ Faylda bir xəta olsa belə heç nə yazılmır (transaction) → **422** `INVAL
 
 ---
 
+## External APIs (RapidAPI)
+
+Portalın **External APIs** səhifəsi (`/external-apis`) və `/external/*` endpoint-ləri RapidAPI Hub-dakı 7 real API-ni API Lab proxy-si ilə çağırır:
+JokeAPI, GeoDB Cities, WeatherAPI.com, OMDb (Movie Database Alternative), Numbers API, Deep Translate, QR Code Factory.
+
+**Standart rejim: hər tələbə öz açarı ilə işləyir.** Açar `X-RapidAPI-Key` başlığında göndərilir. Server onu yalnız RapidAPI-yə ötürür: DB-yə, loglara və `/_history`-ə yazmır, cavabda əks olunsa `***` ilə əvəz edir. Portal açarı yalnız vərəqənin yaddaşında saxlayır (localStorage yoxdur), səhifə yenilənəndə açar silinir.
+
+### 1. RapidAPI açarını necə almaq olar
+
+1. https://rapidapi.com saytında qeydiyyatdan keçin (Google/GitHub ilə də olar).
+2. Yuxarıda **Apps** → default tətbiqiniz (`default-application_...`) → **Authorization** bölməsinə keçin.
+3. **Application Key** (`X-RapidAPI-Key`) sətirini kopyalayın. Açar şəxsidir: onu repo-ya, ekran görüntüsünə və ya qrup çatına qoymayın.
+
+### 2. Hər API-yə abunə olun (bir dəfə)
+
+RapidAPI-də plan **pulsuz** olsa belə, hər API-yə ayrıca abunə olmaq lazımdır. Abunə yoxdursa proxy **502 `EXTERNAL_NOT_SUBSCRIBED`** qaytarır.
+
+> ⚠️ **Hard Limit xəbərdarlığı.** Pricing səhifəsində Basic planın limitinin yanında **"Hard Limit"** yazılmalıdır. Hard Limit-də limit bitəndə sorğular sadəcə bloklanır (429).
+> "Soft Limit" və ya "+ $0.0x per request" yazılıbsa, limitdən sonrakı hər sorğu **pul** tutur və kart tələb olunur. Belə planı seçməyin və kart məlumatı daxil etməyin.
+
+| API | Abunə səhifəsi (Pricing → Basic → Subscribe) | Pulsuz limit |
+|---|---|---|
+| JokeAPI | https://rapidapi.com/Sv443/api/jokeapi-v2/pricing | Pulsuz (~120 sorğu/dəq) |
+| GeoDB Cities | https://rapidapi.com/wirefreethought/api/geodb-cities/pricing | 1 000/gün, 1 sorğu/san — **Hard Limit** |
+| WeatherAPI.com | https://rapidapi.com/weatherapi/api/weatherapi-com/pricing | Səhifədə yoxlayın |
+| OMDb (Movie Database Alternative) | https://rapidapi.com/rapidapi/api/movie-database-alternative/pricing | 1 000/gün |
+| Numbers API | https://rapidapi.com/divad12/api/numbers-1/pricing | Səhifədə yoxlayın |
+| Deep Translate | https://rapidapi.com/gatzuma/api/deep-translate1/pricing | Simvol kvotası |
+| QR Code Factory | https://rapidapi.com/kodice/api/qr-code-factory/pricing | 500 000/ay |
+
+### 3. Tələbə öz açarını necə yazır
+
+- **Portal:** **External APIs** səhifəsində "Öz RapidAPI açarım" sahəsinə açarı yapışdırın və **İstifadə et** düyməsini basın. Sonra kartda **Sına** düyməsi ilə cavabı orada görün, ya da **Explorer-də aç** ilə sorğunu Explorer-ə köçürün. Explorer sorğunu `X-RapidAPI-Key` başlığı ilə doldurur.
+- **Postman:** environment-də `rapidApiKey` dəyişənini doldurun (Current value). Kolleksiyadakı **External APIs** sorğuları `X-RapidAPI-Key: {{rapidApiKey}}` istifadə edir.
+- **curl:**
+  ```bash
+  curl -H "X-RapidAPI-Key: SİZİN_AÇARINIZ" "http://localhost:3000/external/geodb/v1/geo/countries/AZ"
+  ```
+
+### 4. Xətalar (vahid format)
+
+| Status | `code` | Nə vaxt |
+|---|---|---|
+| 503 | `EXTERNAL_KEY_MISSING` | `X-RapidAPI-Key` göndərilməyib (server key söndürülüb) |
+| 502 | `EXTERNAL_NOT_SUBSCRIBED` | Bu API-yə abunə yoxdur |
+| 502 | `EXTERNAL_KEY_INVALID` | Açar səhvdir |
+| 502 | `EXTERNAL_RATE_LIMITED` | Pulsuz limit bitib (`Retry-After` ilə) |
+| 502 | `EXTERNAL_UPSTREAM_ERROR` / `EXTERNAL_UNAVAILABLE` / `EXTERNAL_RESPONSE_TOO_LARGE` | Upstream 5xx, şəbəkə xətası, cavab 1 MB-dan böyükdür |
+| 504 | `EXTERNAL_TIMEOUT` | Upstream 8 saniyədə cavab vermədi |
+| 404 | `EXTERNAL_API_NOT_FOUND` | API kataloqda aktiv deyil (`verified: false`) |
+| 400 | `EXTERNAL_PATH_REJECTED` | Yolda `..`, `//`, `@`, `\`, `%2e`, `%2f`, CR/LF var (SSRF qoruması) |
+
+Bunlardan başqa ümumi qaydalar da işləyir: ümumi rate limit (60/dəq), translate POST-da `Idempotency-Key` və 60 saniyəlik GET cache (`X-Cache: HIT|MISS`). Upstream limitləri `X-Upstream-RateLimit-Limit/Remaining` başlıqlarında görünür.
+
+### 5. Müəllim: API-ləri yoxlamaq və server key
+
+- **Kataloq:** `server/src/modules/external/catalog.ts` proxy-nin yeganə allowlist-idir (host, path pattern, query). `verified: false` olan API tələbələrə göstərilmir, proxy isə 404 qaytarır. Başlanğıcda bütün API-lər `false`-dur.
+- **Yoxlama:** `.env`-ə öz `RAPIDAPI_KEY`-inizi yazın, hər API-yə abunə olun və `npm run external:verify` işlədin. Skript hər API-yə bir sorğu göndərir, status və host cədvəlini çap edir, hansı API üçün `verified: true` qoymağı **təklif edir**. Faylı özü dəyişmir: təklifə baxıb `catalog.ts`-də bayrağı özünüz dəyişin.
+- **Server key (ehtiyat):** default olaraq **söndürülüb** (`EXTERNAL_SERVER_KEY_ENABLED=false`). `true` olanda `RAPIDAPI_KEY` yalnız üç şərt birlikdə ödənəndə istifadə olunur:
+  - API Hard Limit-lidir (`hardLimit: true`, hazırda yalnız GeoDB);
+  - istifadəçi daxil olub;
+  - tələbə öz açarını göndərməyib.
+
+  Cavab başlığı `X-External-Key-Source: student|server` hansı açarın istifadə olunduğunu göstərir. Açar heç vaxt frontend-ə və kataloq cavabına düşmür.
+
+---
+
 ## SQL ilə yoxlama nümunələri
 
 SQL Playground (`POST /api/v1/_db/query`) — **yalnız SELECT**, read-only, maks. 200 sətir, 2 san, hash sütunları gizli. Hazır sorğular: [`db/queries/`](db/queries) (18 fayl).
@@ -510,5 +591,5 @@ Bu, **yalnız sxem səviyyəsindədir**: API server runtime-da SQLite işlədir 
 
 ## Hələ edilməyənlər
 
-- **External APIs (RapidAPI, W4)** — API seçimi təsdiq gözləyir; `/external/*` proxy və portal səhifəsi hələ yoxdur.
+- **External APIs** — kataloqdakı API-lər real açarla yoxlanana qədər `verified: false`-dur (`npm run external:verify`).
 - **Real Google OAuth** — `GOOGLE_CLIENT_ID/SECRET` `.env.example`-da ayrılıb, amma hələ istifadə olunmur; mock tam işləyir.

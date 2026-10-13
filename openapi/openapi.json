@@ -69,6 +69,10 @@
       "description": "Backend-for-Frontend — UI üçün aqreqasiya, `meta.calls`, partial failure (207)"
     },
     {
+      "name": "External APIs",
+      "description": "RapidAPI Hub-dakı real API-lər proxy ilə (`/external/*`). Tələbə **öz** RapidAPI açarını `X-RapidAPI-Key` başlığı ilə göndərir —\nserver onu yalnız ötürür, heç yerdə saxlamır (DB, log, `/_history`). Proxy yalnız kataloqdakı host/path/query-lərə gedir (SSRF qoruması);\n`verified: false` API-lər 404 qaytarır. Upstream 401/403/429/5xx → 502/504 (vahid xəta formatı).\n"
+    },
+    {
       "name": "SQL Playground",
       "description": "Tələbələrin DB-ni yalnız SELECT ilə yoxlaması"
     },
@@ -6283,6 +6287,1329 @@
         }
       }
     },
+    "/external/catalog": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalCatalog",
+        "summary": "Kataloq — aktiv (verified) external API-lər və nümunə sorğular",
+        "description": "Tələbə yalnız `verified: true` API-ləri görür; ADMIN hamısını (`unverified` siyahısı ilə). Açar heç vaxt qaytarılmır — yalnız `serverKeyAvailable` bayrağı.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "responses": {
+          "200": {
+            "description": "Kataloq",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalCatalog"
+                },
+                "example": {
+                  "serverKeyEnabled": false,
+                  "items": [
+                    {
+                      "id": "geodb",
+                      "name": "GeoDB Cities",
+                      "host": "wft-geo-db.p.rapidapi.com",
+                      "rapidApiUrl": "https://rapidapi.com/wirefreethought/api/geodb-cities",
+                      "description": {
+                        "az": "Şəhərlər və ölkələr",
+                        "en": "Cities and countries"
+                      },
+                      "freeLimit": {
+                        "az": "1 000 sorğu/gün (Hard Limit)",
+                        "en": "1,000 requests/day (Hard Limit)"
+                      },
+                      "hardLimit": true,
+                      "verified": true,
+                      "serverKeyAvailable": false,
+                      "endpoints": [
+                        {
+                          "operationId": "externalGeoCountry",
+                          "method": "GET",
+                          "path": "/external/geodb/v1/geo/countries/AZ",
+                          "produces": "json",
+                          "summary": {
+                            "az": "Ölkə haqqında",
+                            "en": "Country details"
+                          },
+                          "example": {
+                            "path": "/external/geodb/v1/geo/countries/AZ"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/external/jokes/joke/{category}": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalJoke",
+        "summary": "JokeAPI — təsadüfi zarafat",
+        "description": "Upstream: `GET https://jokeapi-v2.p.rapidapi.com/joke/{category}`",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "name": "category",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "Any",
+                "Programming",
+                "Misc",
+                "Pun",
+                "Spooky",
+                "Christmas"
+              ]
+            },
+            "example": "Programming"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "single",
+                "twopart"
+              ]
+            },
+            "example": "single"
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "example": 1
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$"
+            },
+            "example": "en"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "error": false,
+                  "category": "Programming",
+                  "type": "single",
+                  "joke": "There are only 10 kinds of people in this world...",
+                  "id": 30,
+                  "safe": true,
+                  "lang": "en"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/geodb/v1/geo/cities": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalGeoCities",
+        "summary": "GeoDB — şəhər axtarışı (pagination)",
+        "description": "Upstream: `GET https://wft-geo-db.p.rapidapi.com/v1/geo/cities`. Basic planda `limit` ≤ 10, 1 sorğu/san.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "name": "namePrefix",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50,
+              "pattern": "^[^\\r\\n]*$"
+            },
+            "example": "Bak"
+          },
+          {
+            "name": "countryIds",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}(,[A-Z]{2})*$"
+            },
+            "example": "AZ"
+          },
+          {
+            "name": "minPopulation",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 100000
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "example": 5
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            },
+            "example": 0
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "name",
+                "-name",
+                "population",
+                "-population"
+              ]
+            },
+            "example": "-population"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": 3453,
+                      "city": "Baku",
+                      "country": "Azerbaijan",
+                      "countryCode": "AZ",
+                      "population": 2300500
+                    }
+                  ],
+                  "metadata": {
+                    "currentOffset": 0,
+                    "totalCount": 3
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/geodb/v1/geo/countries/{countryId}": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalGeoCountry",
+        "summary": "GeoDB — ölkə haqqında",
+        "description": "Upstream: `GET https://wft-geo-db.p.rapidapi.com/v1/geo/countries/{countryId}`",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "name": "countryId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            },
+            "example": "AZ"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "data": {
+                    "code": "AZ",
+                    "name": "Azerbaijan",
+                    "capital": "Baku",
+                    "callingCode": "+994",
+                    "currencyCodes": [
+                      "AZN"
+                    ],
+                    "numRegions": 14
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/weather/current.json": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalWeatherCurrent",
+        "summary": "WeatherAPI — cari hava",
+        "description": "Upstream: `GET https://weatherapi-com.p.rapidapi.com/current.json`",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Şəhər, koordinat (40.4,49.8) və ya IATA",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[^\\r\\n]*$"
+            },
+            "example": "Baku"
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$"
+            },
+            "example": "az"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "location": {
+                    "name": "Baku",
+                    "country": "Azerbaijan",
+                    "localtime": "2026-10-13 13:00"
+                  },
+                  "current": {
+                    "temp_c": 18.2,
+                    "condition": {
+                      "text": "Sunny"
+                    },
+                    "wind_kph": 14.4,
+                    "humidity": 55
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/weather/forecast.json": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalWeatherForecast",
+        "summary": "WeatherAPI — proqnoz (1–3 gün)",
+        "description": "Upstream: `GET https://weatherapi-com.p.rapidapi.com/forecast.json`",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[^\\r\\n]*$"
+            },
+            "example": "Baku"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3
+            },
+            "example": 3
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$"
+            },
+            "example": "az"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "location": {
+                    "name": "Baku"
+                  },
+                  "forecast": {
+                    "forecastday": [
+                      {
+                        "date": "2026-10-13",
+                        "day": {
+                          "maxtemp_c": 21,
+                          "mintemp_c": 14.1,
+                          "condition": {
+                            "text": "Sunny"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/movies": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalMovies",
+        "summary": "OMDb — film axtarışı (s) və ya detal (i)",
+        "description": "Upstream: `GET https://movie-database-alternative.p.rapidapi.com/`. Diqqət: tapılmayanda da HTTP 200 + `\"Response\": \"False\"`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "name": "s",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[^\\r\\n]*$"
+            },
+            "example": "Inception"
+          },
+          {
+            "name": "i",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "pattern": "^tt\\d{7,9}$"
+            },
+            "example": "tt1375666"
+          },
+          {
+            "name": "t",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[^\\r\\n]*$"
+            },
+            "example": "Inception"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "movie",
+                "series",
+                "episode"
+              ]
+            },
+            "example": "movie"
+          },
+          {
+            "name": "y",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1888,
+              "maximum": 2100
+            },
+            "example": 2010
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "example": 1
+          },
+          {
+            "name": "r",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json"
+              ]
+            },
+            "example": "json"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "Search": [
+                    {
+                      "Title": "Inception",
+                      "Year": "2010",
+                      "imdbID": "tt1375666",
+                      "Type": "movie"
+                    }
+                  ],
+                  "totalResults": "30",
+                  "Response": "True"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/numbers/{number}/trivia": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalNumberTrivia",
+        "summary": "Numbers API — rəqəm faktı",
+        "description": "Upstream: `GET https://numbersapi.p.rapidapi.com/{number}/trivia`",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(random|-?\\d{1,9})$"
+            },
+            "example": "42"
+          },
+          {
+            "name": "json",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": true
+          },
+          {
+            "name": "fragment",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "text": "the number of spots on a pair of standard six-sided dice",
+                  "number": 42,
+                  "found": true,
+                  "type": "trivia"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/numbers/{month}/{day}/date": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalDateFact",
+        "summary": "Numbers API — tarix faktı",
+        "description": "Upstream: `GET https://numbersapi.p.rapidapi.com/{month}/{day}/date`",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "name": "month",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0?[1-9]|1[0-2])$"
+            },
+            "example": "5"
+          },
+          {
+            "name": "day",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(0?[1-9]|[12]\\d|3[01])$"
+            },
+            "example": "28"
+          },
+          {
+            "name": "json",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": true
+          },
+          {
+            "name": "fragment",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "text": "May 28th is the day in 1918 that Azerbaijan declares independence",
+                  "year": 1918,
+                  "number": 149,
+                  "found": true,
+                  "type": "date"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/translate/language/translate/v2": {
+      "post": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalTranslate",
+        "summary": "Deep Translate — tərcümə (POST + JSON body)",
+        "description": "Upstream: `POST https://deep-translate1.p.rapidapi.com/language/translate/v2`. `Idempotency-Key` (opsional, daxil olmuş istifadəçi üçün) təkrar sorğunu upstream-ə göndərmədən saxlanmış cavabla qaytarır.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyOptional"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalTranslateRequest"
+              },
+              "example": {
+                "q": "Salam, dünya!",
+                "source": "az",
+                "target": "en"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "data": {
+                    "translations": {
+                      "translatedText": "Hello, world!"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/translate/language/translate/v2/languages": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalTranslateLanguages",
+        "summary": "Deep Translate — dillərin siyahısı",
+        "description": "Upstream: `GET https://deep-translate1.p.rapidapi.com/language/translate/v2/languages`",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExternalJson"
+                },
+                "example": {
+                  "languages": [
+                    {
+                      "language": "az",
+                      "name": "Azerbaijani"
+                    },
+                    {
+                      "language": "en",
+                      "name": "English"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
+    "/external/qr/generate": {
+      "get": {
+        "tags": [
+          "External APIs"
+        ],
+        "operationId": "externalQr",
+        "summary": "QR Code Factory — QR kod şəkli (image/png)",
+        "description": "Upstream: `GET https://qr-code-factory.p.rapidapi.com/generate`. JSON olmayan cavab — Explorer-də `Content-Type: image/png`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RapidApiKey"
+          },
+          {
+            "name": "d",
+            "in": "query",
+            "required": true,
+            "description": "QR-a yazılacaq mətn/URL",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "pattern": "^[^\\r\\n]*$"
+            },
+            "example": "https://apilab.az"
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 100,
+              "maximum": 1000
+            },
+            "example": 300
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "png",
+                "jpg"
+              ]
+            },
+            "example": "png"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upstream cavabı (dəyişdirilmədən). `X-Cache`, `X-External-Key-Source`, `X-Upstream-RateLimit-*` başlıqları ilə.",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-External-Key-Source": {
+                "$ref": "#/components/headers/X-External-Key-Source"
+              }
+            },
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "(binary)"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ExternalPathRejected"
+          },
+          "404": {
+            "$ref": "#/components/responses/ExternalNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/ExternalBadGateway"
+          },
+          "503": {
+            "$ref": "#/components/responses/ExternalKeyMissing"
+          },
+          "504": {
+            "$ref": "#/components/responses/ExternalTimeout"
+          }
+        }
+      }
+    },
     "/api/v1/_db/schema": {
       "get": {
         "tags": [
@@ -8585,6 +9912,19 @@
           "pattern": "^[a-f0-9]{64}$"
         }
       },
+      "RapidApiKey": {
+        "name": "X-RapidAPI-Key",
+        "in": "header",
+        "required": false,
+        "description": "Sizin şəxsi RapidAPI açarınız (rapidapi.com → Apps → Authorization). Server onu **yalnız upstream-ə ötürür** —\nDB-də, loglarda və `/_history`-də saxlanmır. Yoxdursa → 503 `EXTERNAL_KEY_MISSING` (server key standart olaraq söndürülüb).\n",
+        "schema": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 100,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "example": "your-own-rapidapi-key-here-0000000000"
+      },
       "IdempotencyKeyOptional": {
         "name": "Idempotency-Key",
         "in": "header",
@@ -8705,6 +10045,28 @@
           "type": "integer"
         },
         "example": 1792141260
+      },
+      "X-Cache": {
+        "description": "External proxy cache-i: HIT (60 san ərzində eyni sorğu) və ya MISS",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "HIT",
+            "MISS"
+          ]
+        },
+        "example": "MISS"
+      },
+      "X-External-Key-Source": {
+        "description": "Hansı açar istifadə olundu: student (sizin X-RapidAPI-Key) və ya server (admin açıbsa, yalnız Hard Limit API)",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "student",
+            "server"
+          ]
+        },
+        "example": "student"
       },
       "Retry-After": {
         "description": "Neçə saniyədən sonra yenidən cəhd etmək olar",
@@ -9044,6 +10406,158 @@
               "status": 406,
               "code": "NOT_ACCEPTABLE",
               "message": "Dəstəklənən formatlar: application/json, application/xml",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "ExternalPathRejected": {
+        "description": "Yol və ya parametr icazəli pattern-ə uyğun deyil (.., //, @, \\, %2e, %2f, CR/LF) — SSRF qoruması",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 400,
+              "code": "EXTERNAL_PATH_REJECTED",
+              "message": "Yol icazəsiz simvollar daşıyır",
+              "details": [
+                {
+                  "field": "path",
+                  "message": "Proxy yalnız kataloqdakı path pattern-lərini qəbul edir"
+                }
+              ],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "ExternalNotFound": {
+        "description": "API kataloqda aktiv deyil (verified false)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 404,
+              "code": "EXTERNAL_API_NOT_FOUND",
+              "message": "Bu external API kataloqda aktiv deyil (verified: false)",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "ExternalBadGateway": {
+        "description": "Upstream (RapidAPI) xətası — abunə yoxdur, açar etibarsızdır, limit bitib (Retry-After ilə), 5xx və ya cavab çox böyükdür",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "notSubscribed": {
+                "summary": "Abunə yoxdur",
+                "value": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 502,
+                  "code": "EXTERNAL_NOT_SUBSCRIBED",
+                  "message": "Bu API-yə abunə deyilsiniz",
+                  "details": [
+                    {
+                      "field": "upstream",
+                      "message": "HTTP 403: You are not subscribed to this API."
+                    }
+                  ],
+                  "traceId": "req_7f2c9a"
+                }
+              },
+              "rateLimited": {
+                "summary": "Limit bitib",
+                "value": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 502,
+                  "code": "EXTERNAL_RATE_LIMITED",
+                  "message": "RapidAPI limiti bitib — 60 saniyə sonra yenidən cəhd edin",
+                  "details": [
+                    {
+                      "field": "upstream",
+                      "message": "HTTP 429"
+                    }
+                  ],
+                  "traceId": "req_7f2c9a"
+                }
+              },
+              "upstream": {
+                "summary": "Upstream 5xx",
+                "value": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 502,
+                  "code": "EXTERNAL_UPSTREAM_ERROR",
+                  "message": "Upstream xətası (HTTP 503)",
+                  "details": [
+                    {
+                      "field": "upstream",
+                      "message": "HTTP 503"
+                    }
+                  ],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ExternalKeyMissing": {
+        "description": "RapidAPI key yoxdur (X-RapidAPI-Key göndərilməyib, server key söndürülüb)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 503,
+              "code": "EXTERNAL_KEY_MISSING",
+              "message": "RapidAPI key yoxdur — öz açarınızı X-RapidAPI-Key başlığı ilə göndərin",
+              "details": [
+                {
+                  "field": "header X-RapidAPI-Key",
+                  "message": "Server key söndürülüb (standart rejim)"
+                }
+              ],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "ExternalTimeout": {
+        "description": "Upstream 8 saniyədə cavab vermədi",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 504,
+              "code": "EXTERNAL_TIMEOUT",
+              "message": "Upstream 8 saniyədə cavab vermədi",
               "details": [],
               "traceId": "req_7f2c9a"
             }
@@ -9594,6 +11108,182 @@
           }
         }
       },
+      "ExternalJson": {
+        "type": "object",
+        "description": "Upstream JSON cavabı — proxy dəyişdirmir (yalnız açar əks olunubsa *** ilə əvəzlənir)",
+        "additionalProperties": true
+      },
+      "ExternalTranslateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "q",
+          "source",
+          "target"
+        ],
+        "properties": {
+          "q": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "source": {
+            "type": "string",
+            "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+          },
+          "target": {
+            "type": "string",
+            "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+          }
+        }
+      },
+      "Localized": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "az",
+          "en"
+        ],
+        "properties": {
+          "az": {
+            "type": "string"
+          },
+          "en": {
+            "type": "string"
+          }
+        }
+      },
+      "ExternalCatalog": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "serverKeyEnabled"
+        ],
+        "properties": {
+          "serverKeyEnabled": {
+            "type": "boolean"
+          },
+          "unverified": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Yalnız ADMIN üçün"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "name",
+                "host",
+                "rapidApiUrl",
+                "description",
+                "freeLimit",
+                "hardLimit",
+                "verified",
+                "serverKeyAvailable",
+                "endpoints"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "host": {
+                  "type": "string"
+                },
+                "rapidApiUrl": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "description": {
+                  "$ref": "#/components/schemas/Localized"
+                },
+                "freeLimit": {
+                  "$ref": "#/components/schemas/Localized"
+                },
+                "hardLimit": {
+                  "type": "boolean"
+                },
+                "verified": {
+                  "type": "boolean"
+                },
+                "serverKeyAvailable": {
+                  "type": "boolean"
+                },
+                "endpoints": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "operationId",
+                      "method",
+                      "path",
+                      "produces",
+                      "summary",
+                      "example"
+                    ],
+                    "properties": {
+                      "operationId": {
+                        "type": "string"
+                      },
+                      "method": {
+                        "type": "string",
+                        "enum": [
+                          "GET",
+                          "POST"
+                        ]
+                      },
+                      "path": {
+                        "type": "string"
+                      },
+                      "produces": {
+                        "type": "string",
+                        "enum": [
+                          "json",
+                          "image"
+                        ]
+                      },
+                      "summary": {
+                        "$ref": "#/components/schemas/Localized"
+                      },
+                      "example": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "path"
+                        ],
+                        "properties": {
+                          "path": {
+                            "type": "string"
+                          },
+                          "query": {
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "string"
+                            }
+                          },
+                          "body": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "ErrorDetail": {
         "type": "object",
         "required": [
@@ -9617,6 +11307,7 @@
           "BAD_REQUEST",
           "MALFORMED_JSON",
           "INVALID_REDIRECT_URI",
+          "EXTERNAL_PATH_REJECTED",
           "SQL_SYNTAX_ERROR",
           "UNAUTHORIZED",
           "INVALID_CREDENTIALS",
@@ -9647,6 +11338,7 @@
           "PAGE_NOT_FOUND",
           "NO_PDF_VERSION",
           "TASK_NOT_FOUND",
+          "EXTERNAL_API_NOT_FOUND",
           "METHOD_NOT_ALLOWED",
           "NOT_ACCEPTABLE",
           "UNSUPPORTED_MEDIA_TYPE",
@@ -9682,7 +11374,15 @@
           "SIMULATED_ERROR",
           "BAD_GATEWAY",
           "SERVICE_UNAVAILABLE",
-          "GATEWAY_TIMEOUT"
+          "GATEWAY_TIMEOUT",
+          "EXTERNAL_NOT_SUBSCRIBED",
+          "EXTERNAL_KEY_INVALID",
+          "EXTERNAL_RATE_LIMITED",
+          "EXTERNAL_UPSTREAM_ERROR",
+          "EXTERNAL_UNAVAILABLE",
+          "EXTERNAL_RESPONSE_TOO_LARGE",
+          "EXTERNAL_KEY_MISSING",
+          "EXTERNAL_TIMEOUT"
         ]
       },
       "OAuthError": {

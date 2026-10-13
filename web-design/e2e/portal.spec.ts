@@ -109,11 +109,15 @@ test('Explorer: real request + History (request_log)', async ({ page }) => {
 test('429 UI: SQL Playground limiti (20/dəq) — banner və geri sayım', async ({ page }) => {
   await signIn(page, 'student', 'student123')
   const { accessToken } = await session(page)
-  // Eyni istifadəçi (subject = user:1) adından 20 sorğu ilə limiti doldururuq
-  for (let i = 0; i < 20; i++) {
+  // Eyni istifadəçi (subject = user:1) adından limiti 429-a qədər doldururuq. Fixed window: dolum dəqiqə sərhədini
+  // keçərsə sayğac sıfırlanır — ona görə "20 sorğu" yox, "429 görünənə qədər" (maks. 45)
+  let limited = false
+  for (let i = 0; i < 45 && !limited; i++) {
     const res = await page.request.post('/api/v1/_db/query', { headers: { Authorization: `Bearer ${accessToken}` }, data: { sql: 'SELECT 1' } })
-    expect(res.status()).toBe(200)
+    expect([200, 429]).toContain(res.status())
+    limited = res.status() === 429
   }
+  expect(limited).toBe(true)
   await nav(page, 'Explorer')
   await page.locator('.request-builder select').first().selectOption('POST')
   await page.locator('.request-url-input input').fill('http://localhost:3000/api/v1/_db/query')

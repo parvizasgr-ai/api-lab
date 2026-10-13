@@ -42,7 +42,11 @@ export function buildCollection(spec: OpenApiDoc) {
       .map((p: any) => ({ key: p.name, value: p.example !== undefined ? String(p.example) : '', disabled: !p.required && p.example === undefined }));
     const header = params
       .filter((p: any) => p.in === 'header')
-      .map((p: any) => ({ key: p.name, value: p.name === 'Idempotency-Key' ? '{{$guid}}' : String(p.example ?? ''), disabled: !p.required && p.name !== 'Idempotency-Key' }));
+      .map((p: any) => {
+        // RapidAPI açarı environment dəyişənindən (tələbə öz açarını yazır) — nümunə dəyər kolleksiyaya düşmür
+        if (p.name === 'X-RapidAPI-Key') return { key: p.name, value: '{{rapidApiKey}}', disabled: false };
+        return { key: p.name, value: p.name === 'Idempotency-Key' ? '{{$guid}}' : String(p.example ?? ''), disabled: !p.required && p.name !== 'Idempotency-Key' };
+      });
 
     const rb = resolveRef(spec, o.requestBody);
     let body: any;
@@ -107,6 +111,7 @@ export function buildEnvironment(baseUrl: string) {
       { key: 'token', value: '', type: 'secret', enabled: true },
       { key: 'refreshToken', value: '', type: 'secret', enabled: true },
       { key: 'apiKey', value: 'apilab-demo-key-2026', type: 'secret', enabled: true },
+      { key: 'rapidApiKey', value: '', type: 'secret', enabled: true }, // External APIs: öz RapidAPI açarınız (rapidapi.com → Apps → Authorization)
     ],
     _postman_variable_scope: 'environment',
   };

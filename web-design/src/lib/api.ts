@@ -330,7 +330,8 @@ export const learning = {
 };
 
 // Səhifələr arası ötürmə: tapşırıqdan Explorer-ə / SQL-ə hazır sorğu ilə keçid
-type Handoff = { explorer?: { method: string; path: string }; sql?: string; lesson?: number };
+// Explorer-ə hazır sorğu: headers/body opsional (External APIs — X-RapidAPI-Key yalnız yaddaşdan gəlir)
+type Handoff = { explorer?: { method: string; path: string; headers?: Record<string, string>; body?: string }; sql?: string; lesson?: number };
 let handoff: Handoff = {};
 export const handoffs = {
   set: (next: Handoff) => (handoff = next),

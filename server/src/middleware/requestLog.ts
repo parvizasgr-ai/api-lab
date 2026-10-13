@@ -14,7 +14,8 @@ export function requestLog(db: DB, config: Config): RequestHandler {
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).run(
           req.id,
-          req.auth?.userId ?? null,
+          // login kimi tokensiz sorğularda handler res.locals.userId təyin edə bilər
+          req.auth?.userId ?? res.locals.userId ?? null,
           req.method,
           req.originalUrl.split('?')[0],
           req.operation?.path ?? null,

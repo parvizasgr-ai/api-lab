@@ -19,6 +19,14 @@ describe('login', () => {
     expect(stored).toMatch(/^[a-f0-9]{64}$/);
   });
 
+  it('uğurlu login request_log-da user_id ilə yazılır, uğursuz — user_id olmadan', async () => {
+    await t.api().post('/api/v1/auth/login').set('X-Request-Id', 'login-ok-1').send({ username: 'rauf', password: 'rauf123' });
+    await t.api().post('/api/v1/auth/login').set('X-Request-Id', 'login-fail-1').send({ username: 'rauf', password: 'wrong-pass' });
+    const userOf = (id: string) => t.db.prepare(`SELECT user_id FROM request_log WHERE request_id = ?`).pluck().get(id);
+    expect(userOf('login-ok-1')).toBe(3);
+    expect(userOf('login-fail-1')).toBeNull();
+  });
+
   it('JWT claim-ləri: sub, username, role, scope, exp = iat + 15 dəq', async () => {
     const { access_token } = await t.login();
     const payload = JSON.parse(Buffer.from(access_token.split('.')[1], 'base64url').toString());

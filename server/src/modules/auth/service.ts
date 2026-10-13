@@ -64,7 +64,7 @@ export class AuthService {
         via: 'bearer',
       };
     } catch (err) {
-      throw new Error(err instanceof joseErrors.JWTExpired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN');
+      throw new Error(err instanceof joseErrors.JWTExpired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN', { cause: err });
     }
   }
 

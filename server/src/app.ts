@@ -19,6 +19,7 @@ import { AuthService } from './modules/auth/service.js';
 import { authHandlers } from './modules/auth/routes.js';
 import { oauthHandlers } from './modules/oauth/routes.js';
 import { metaHandlers } from './modules/meta/routes.js';
+import { bankHandlers } from './modules/bank/routes.js';
 
 export interface AppContext {
   db: DB;
@@ -38,6 +39,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...authHandlers(ctx),
     ...oauthHandlers(ctx),
     ...metaHandlers(ctx),
+    ...bankHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 

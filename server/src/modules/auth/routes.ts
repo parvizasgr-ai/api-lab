@@ -9,6 +9,7 @@ export function authHandlers({ db, config, auth }: AppContext): Handlers {
       const { username, password } = req.valid.body;
       const { user, tokens } = await auth.login(username, password);
       writeAudit(db, req, config.now(), { userId: user.id, action: 'LOGIN', entity: 'users', entityId: user.id });
+      res.locals.userId = user.id; // request_log bu sorğunu istifadəçiyə bağlasın
       res.set('Cache-Control', 'no-store').json(tokens);
     },
 

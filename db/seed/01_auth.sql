@@ -46,4 +46,4 @@ INSERT INTO api_keys (id, key_hash, owner_user_id, name, active, created_at) VAL
 -- Mock Google OAuth client. client_secret = apilab-portal-secret
 INSERT INTO oauth_clients (client_id, client_secret_hash, name, redirect_uris) VALUES
   ('apilab-portal', '770f45dc12dc7aebce33bf2df9d7ba3f2adf5741af2015ceecfb540e8bab712c', 'API Lab Portal',
-   '["http://localhost:5173/oauth/callback","http://localhost:3000/oauth/callback","https://oauth.pstmn.io/v1/callback"]');
+   '["http://localhost:5173/oauth/callback","http://localhost:3000/oauth/callback","http://localhost:3000/docs/oauth2-redirect.html","https://oauth.pstmn.io/v1/callback"]');

@@ -1,7 +1,7 @@
 // Express app-ın yığılması. Middleware sırası (vacibdir!):
 //   request-id → request_log → helmet/CORS → rate limit → X-Simulate
 //   → [hər endpoint: auth → scope → body parse → validation → idempotency → handler]
-//   → 404 → vahid error handler
+//   → 404 → /docs + portal (statik) → vahid error handler
 import express from 'express';
 import { config as defaultConfig, type Config } from './config.js';
 import type { DB } from './db.js';
@@ -15,6 +15,7 @@ import { simulate } from './middleware/simulate.js';
 import { authenticate, requireScopes } from './middleware/auth.js';
 import { idempotency } from './middleware/idempotency.js';
 import { errorHandler, routeNotFound } from './middleware/errorHandler.js';
+import { mountStatic } from './static.js';
 import { AuthService } from './modules/auth/service.js';
 import { authHandlers } from './modules/auth/routes.js';
 import { oauthHandlers } from './modules/oauth/routes.js';
@@ -98,6 +99,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
   });
 
   app.use(API_PREFIXES, routeNotFound);
+  mountStatic(app); // /docs (Swagger UI) + web/dist (portal) və ya başlanğıc səhifəsi
   app.use(errorHandler(config));
   return app;
 }

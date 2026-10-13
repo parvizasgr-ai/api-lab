@@ -1,0 +1,25 @@
+# Opsional: PostgreSQL-də eyni sxem (SQL praktikası, SQLite ilə müqayisə üçün).
+#   docker compose -f docker-compose.postgres.yml up -d
+#   psql postgresql://apilab:apilab@localhost:5432/apilab -c '\dt'
+# Qeyd: API server runtime-da SQLite istifadə edir; seed faylları SQLite funksiyalarından (date('now', ...)) istifadə etdiyi üçün
+# PostgreSQL-ə yüklənmir — burada yalnız sxem (cədvəllər, constraint-lər, trigger-lər, view-lar) yaradılır.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: apilab-postgres
+    environment:
+      POSTGRES_DB: apilab
+      POSTGRES_USER: apilab
+      POSTGRES_PASSWORD: apilab
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/postgres/schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
+      - apilab-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apilab -d apilab"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  apilab-pg-data:

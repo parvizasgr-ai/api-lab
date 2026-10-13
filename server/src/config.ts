@@ -4,6 +4,13 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
+// .env faylı varsa yüklənir (Node 20.12+ daxili funksiyası, dotenv paketi lazım deyil)
+try {
+  process.loadEnvFile(path.join(ROOT_DIR, '.env'));
+} catch {
+  // .env yoxdur — default dəyərlər işləyir
+}
+
 const env = process.env;
 
 export const config = {

@@ -113,3 +113,26 @@ describe('Postman', () => {
     expect(res.body.values[0].value).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
   });
 });
+
+describe('statik səhifələr', () => {
+  const t = createTestApp();
+  it('/docs → Swagger UI (bizim spec ilə), / → başlanğıc səhifəsi (web/dist yoxdur), naməlum API yolu yenə JSON 404', async () => {
+    expect((await t.api().get('/docs')).status).toBe(301);
+    const docs = await t.api().get('/docs/');
+    expect(docs.status).toBe(200);
+    expect(docs.text).toContain('swagger-ui');
+    const init = await t.api().get('/docs/swagger-initializer.js');
+    expect(init.text).toContain("url: '/api/openapi.json'");
+    expect(init.text).toContain("clientId: 'apilab-portal'");
+    expect((await t.api().get('/docs/swagger-ui-bundle.js')).status).toBe(200);
+
+    const home = await t.api().get('/').set('Accept', 'text/html');
+    expect(home.status).toBe(200);
+    expect(home.text).toContain('web/dist');
+    expect((await t.api().get('/bank/dashboard').set('Accept', 'text/html')).text).toContain('API Lab'); // SPA fallback
+
+    const api404 = await t.api().get('/api/v1/nope').set('Accept', 'text/html');
+    expect(api404.status).toBe(404);
+    expect(api404.body.code).toBe('ROUTE_NOT_FOUND');
+  });
+});

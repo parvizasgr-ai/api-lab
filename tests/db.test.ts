@@ -24,9 +24,9 @@ describe('migrations + seed', () => {
   });
 
   it('bütün cədvəl, view və trigger-ləri yaradır', () => {
-    expect(userTables(db)).toHaveLength(32);
+    expect(userTables(db)).toHaveLength(36);
     const views = db.prepare(`SELECT name FROM sqlite_master WHERE type='view'`).pluck().all();
-    expect(views).toHaveLength(5);
+    expect(views).toHaveLength(6);
     const triggers = db.prepare(`SELECT name FROM sqlite_master WHERE type='trigger'`).pluck().all();
     expect(triggers).toEqual(expect.arrayContaining(['trg_cards_status_history', 'trg_transactions_audit']));
   });

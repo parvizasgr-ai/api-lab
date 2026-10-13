@@ -30,12 +30,17 @@ import { musicHandlers } from './modules/music/routes.js';
 import { adminHandlers } from './modules/admin/routes.js';
 import { bffHandlers } from './modules/bff/routes.js';
 import { sqlHandlers } from './modules/sql/routes.js';
+import { MaterialsService } from './modules/materials/service.js';
+import { materialsHandlers } from './modules/materials/routes.js';
+import { tasksHandlers } from './modules/tasks/routes.js';
+import { uploadParser } from './middleware/upload.js';
 
 export interface AppContext {
   db: DB;
   config: Config;
   spec: OpenApiDoc;
   auth: AuthService;
+  materials: MaterialsService;
 }
 
 const API_PREFIXES = ['/api', '/oauth', '/bff'];
@@ -55,7 +60,13 @@ function applyRuntimeOptions(spec: OpenApiDoc, config: Config): OpenApiDoc {
 export function createApp(options: { db: DB; config?: Partial<Config>; handlers?: Handlers }) {
   const config: Config = { ...defaultConfig, ...options.config };
   const spec = applyRuntimeOptions(loadOpenApi(), config);
-  const ctx: AppContext = { db: options.db, config, spec, auth: new AuthService(options.db, config) };
+  const ctx: AppContext = {
+    db: options.db,
+    config,
+    spec,
+    auth: new AuthService(options.db, config),
+    materials: new MaterialsService({ db: options.db, config }),
+  };
 
   const handlers: Handlers = {
     ...authHandlers(ctx),
@@ -71,11 +82,14 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...adminHandlers(ctx),
     ...bffHandlers(ctx),
     ...sqlHandlers(ctx),
+    ...materialsHandlers(ctx, ctx.materials),
+    ...tasksHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 
   const app = express();
   // Spec-də olub handler-i olmayan endpoint-lər (501 qaytarır) — testlər və başlanğıc log-u üçün
+  app.locals.materials = ctx.materials; // testlər üçün: konvertasiya növbəsini gözləmək
   app.locals.unimplemented = listOperations(spec)
     .filter((op) => !handlers[op.operationId] && op.method !== 'options')
     .map((op) => op.operationId);
@@ -95,6 +109,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     authenticate: (op) => authenticate(op, spec, ctx.auth),
     requireScopes,
     operationRateLimit: operationRateLimit(ctx.db, config),
+    uploadParser: uploadParser(config),
     idempotency: idempotency(ctx.db, config),
   });
 

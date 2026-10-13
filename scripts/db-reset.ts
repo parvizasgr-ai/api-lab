@@ -1,10 +1,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { ROOT_DIR } from '../server/src/config.js';
+import { ROOT_DIR, config } from '../server/src/config.js';
 import { openDb, resetDatabase, tableCounts, dumpSchema } from '../server/src/db.js';
+import { MaterialsService } from '../server/src/modules/materials/service.js';
+import { importSlides } from '../server/src/modules/materials/slides.js';
 
 const db = openDb();
 resetDatabase(db);
+// Material faylları DB ilə birlikdə sıfırlanır, materials/slides/ yenidən import olunur
+const materials = new MaterialsService({ db, config });
+materials.storage.clear();
+importSlides(db, materials, config.materials.slidesDir);
+await materials.queue.idle();
 fs.writeFileSync(path.join(ROOT_DIR, 'db', 'schema.sql'), dumpSchema(db));
 
 const counts = tableCounts(db);

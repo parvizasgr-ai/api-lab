@@ -4,7 +4,8 @@ import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['node_modules', 'data', 'web/dist', 'dist', 'coverage'] },
+  // web-design/ — ayrıca UI dizayn layihəsi (server kodu deyil)
+  { ignores: ['node_modules', 'data', 'web/dist', 'web-design', 'dist', 'coverage'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

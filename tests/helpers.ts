@@ -1,4 +1,7 @@
 // Test köməkçiləri: hər test faylı öz in-memory DB-si və "dondurulmuş" saatı ilə app yaradır.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import request from 'supertest';
 import { expect } from 'vitest';
 import { createApp } from '../server/src/app.js';
@@ -36,6 +39,16 @@ export function createTestApp(options: { config?: Partial<Config>; handlers?: Ha
     ...options.config,
     now: () => clock.now,
   };
+  // Hər test app-i HƏMİŞƏ öz müvəqqəti material qovluqları ilə işləyir (options.config.materials verilsə belə):
+  // real data/materials və materials/slides qovluqlarına heç vaxt yazılmır.
+  config.materials = {
+    ...config.materials,
+    dir: fs.mkdtempSync(path.join(os.tmpdir(), 'apilab-mat-')),
+    slidesDir: fs.mkdtempSync(path.join(os.tmpdir(), 'apilab-slides-')),
+  };
+  for (const dir of [config.materials.dir, config.materials.slidesDir]) {
+    if (!path.resolve(dir).startsWith(path.resolve(os.tmpdir()))) throw new Error(`Test material qovluğu tmp-də deyil: ${dir}`);
+  }
   const app = createApp({ db, config, handlers: options.handlers });
   const auth = new AuthService(db, config);
   const api = () => request(app);

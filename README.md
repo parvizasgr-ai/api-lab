@@ -96,6 +96,7 @@ Seed **deterministikdir** (eyni gündə hər reset eyni datanı verir), tarixlə
 | `npm run db:reset` | DB-ni sıfırlayır (drop → migrate → seed), `db/schema.sql`-i yeniləyir, cədvəl saylarını göstərir |
 | `npm run db:migrate` / `db:seed` | Yalnız yeni migration-lar / yalnız data |
 | `npm run db:shell` | `sqlite3` CLI (`.tables`, `.schema cards`) |
+| `npm run materials:seed` | `materials/slides/` qovluğundakı yeni faylları import edir və konvertasiyanı gözləyir |
 | `npm run openapi:lint` / `openapi:bundle` | Spec lint / YAML → JSON |
 | `npm run postman:export` | Postman fayllarını `postman/` qovluğuna yazır |
 | `npm run rates:refresh` | Bu günün məzənnələrini ECB-dən (Frankfurter) yeniləyir; şəbəkə yoxdursa seed qalır |
@@ -109,7 +110,7 @@ Konfiqurasiya: `cp .env.example .env` — bütün parametrlər izahlı [`.env.ex
 
 ```
 openapi/openapi.yaml        ← single source of truth (OpenAPI 3.0.3)
-db/migrations/*.sql          ← sxem (001_init — cədvəllər, 002 — view-lar və trigger-lər)
+db/migrations/*.sql          ← sxem (001 — cədvəllər, 002 — view-lar və trigger-lər, 003 — materiallar və tapşırıqlar)
 db/seed/*.sql                ← demo data;  db/queries/*.sql — tələbələr üçün hazır yoxlama sorğuları
 db/postgres/schema.sql       ← eyni sxem PostgreSQL üçün
 server/src/
@@ -120,7 +121,8 @@ server/src/
 postman/                     ← spec-dən yaradılmış Postman faylları
 tests/                       ← vitest + supertest (contract testlər daxil)
 web/                         ← React portal üçün yer (web/dist varsa server onu verir)
-materials/slides/            ← dərs slaydları üçün
+materials/slides/            ← dərs slaydları (server qalxanda avtomatik import)
+data/materials/               ← yüklənmiş material faylları və səhifə şəkilləri (git-də deyil)
 ```
 
 **Middleware sırası:** `request-id → request_log → helmet/CORS → rate limit → X-Simulate → [endpoint: auth → scope → endpoint rate limit → body parse → validation → idempotency → handler] → 404 → vahid error handler`.
@@ -162,13 +164,18 @@ erDiagram
   users ||--o{ play_history : plays
   users ||--o{ idempotency_keys : sends
   users ||--o{ audit_log : acts
+  users ||--o{ materials : uploads
+  materials ||--o{ material_pages : has
+  materials ||--o{ tasks : "lesson slides"
+  tasks ||--o{ task_progress : tracked
+  users ||--o{ task_progress : completes
 ```
 
 `customers`, `request_log`, `rate_limit_counters` müstəqil cədvəllərdir. Cədvəllərin, view-ların və trigger-lərin izahı: [`db/README.md`](db/README.md).
 
 ---
 
-## Endpoint-lər (72)
+## Endpoint-lər (90)
 
 Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/docs**.
 
@@ -253,6 +260,26 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 | **SQL Playground** | | | | |
 | `GET` | `/api/v1/_db/schema` | DB sxemi — cədvəllər, view-lar, sütunlar (tip, PK, gizli), FK-lar, index-lər | — |  |
 | `POST` | `/api/v1/_db/query` | SQL sorğusu icra et (YALNIZ SELECT / WITH ... SELECT) | Bearer (opsional) |  |
+| **Materials** | | | | |
+| `GET` | `/api/v1/materials` | Dərs materialları (tələbə — yalnız hazır olanlar, ADMIN — hamısı) | Bearer |  |
+| `POST` | `/api/v1/materials` | Material yüklə (PDF, PPTX, DOCX, MD — maks. 50 MB, yalnız ADMIN) | Bearer | admin |
+| `GET` | `/api/v1/materials/{materialId}` | Material (status polling üçün) | Bearer |  |
+| `DELETE` | `/api/v1/materials/{materialId}` | Materialı sil — fayllar diskdən, sətirlər DB-dən (ADMIN) | Bearer | admin |
+| `PATCH` | `/api/v1/materials/{materialId}` | Materialın başlığını, dərsini, növünü və ya sırasını dəyiş (ADMIN) | Bearer | admin |
+| `POST` | `/api/v1/materials/{materialId}/reconvert` | Konvertasiyanı yenidən başlat (FAILED / READY_NO_PREVIEW sonrası, ADMIN) | Bearer | admin |
+| `GET` | `/api/v1/materials/{materialId}/pages` | Səhifə şəkilləri (viewer üçün; URL-lər pre-signed) | Bearer |  |
+| `GET` | `/api/v1/materials/{materialId}/pages/{pageNo}/image` | Səhifə şəkli (PNG, eni 1600px) — Bearer və ya pre-signed URL | Bearer (opsional) |  |
+| `GET` | `/api/v1/materials/{materialId}/pages/{pageNo}/thumb` | Səhifə miniatürü (PNG, eni 320px) — Bearer və ya pre-signed URL | Bearer (opsional) |  |
+| `GET` | `/api/v1/materials/{materialId}/download` | Orijinal faylı endir (Content-Disposition attachment) — Bearer və ya pre-signed URL | Bearer (opsional) |  |
+| `GET` | `/api/v1/materials/{materialId}/pdf` | PDF versiyası (inline; PPTX/DOCX üçün konvertasiya nəticəsi) — Bearer və ya pre-signed URL | Bearer (opsional) |  |
+| **Tasks** | | | | |
+| `GET` | `/api/v1/tasks` | Tapşırıqlar (hər birində cari istifadəçi üçün done) | Bearer |  |
+| `POST` | `/api/v1/tasks` | Tapşırıq yarat (ADMIN) | Bearer | admin |
+| `DELETE` | `/api/v1/tasks/{taskId}` | Tapşırığı sil (ADMIN; irəliləyiş də silinir) | Bearer | admin |
+| `PATCH` | `/api/v1/tasks/{taskId}` | Tapşırığı yenilə (ADMIN) | Bearer | admin |
+| `PUT` | `/api/v1/tasks/{taskId}/progress` | Tapşırığı bitmiş / bitməmiş kimi işarələ (öz irəliləyişin — PUT idempotentdir) | Bearer |  |
+| `GET` | `/api/v1/tasks/progress/me` | Mənim irəliləyişim (dərslər üzrə xülasə) | Bearer |  |
+| `POST` | `/api/v1/tasks/import` | Markdown faylından tapşırıqları import et (ADMIN, upsert — dərs + başlıq üzrə) | Bearer | admin |
 | **Admin** | | | | |
 | `POST` | `/api/v1/_reset` | DB-ni seed vəziyyətinə qaytar (yalnız ADMIN) | Bearer | admin |
 | `GET` | `/api/v1/_history` | Sorğu tarixçəsi (API Explorer "History") | Bearer (opsional) |  |
@@ -285,6 +312,68 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 | BFF | `/bff/dashboard` (1 sorğuda 4 servis), `/bff/travel/search` (paralel, `X-Simulate: hotels:503` → 207), `meta.calls` |
 | Simulyator | `X-Simulate: 500 \| 503 \| slow \| timeout` — retry/timeout dərsi |
 | Dərs 3 rejimi | `AUTH_CUSTOMERS=true` → `/customers` da Bearer tələb edir |
+
+---
+
+## Dərs materialları
+
+Admin PDF / PPTX / DOCX / MD yükləyir → sistem fonda viewer üçün səhifə şəkillərinə çevirir → tələbələr portalda oxuyur.
+
+**Avtomatik import:** `materials/slides/` qovluğuna qoyulan fayllar server qalxanda (və ya `npm run materials:seed` ilə) yüklənir.
+Ad şablonu: `*Ders1*` / `*Dərs1*` / `*Lesson1*` → dərs 1 (məs. `API_Ders1_Giris.pdf`, `API_Ders2_HTTP_REST.pdf`, `API_Ders3_Security_Design_BA.pdf`).
+Eyni adlı fayl təkrar import olunmur; həmin dərsin tapşırıqları slayda avtomatik bağlanır. `npm run db:reset` və `POST /_reset` materialları da sıfırlayıb yenidən import edir.
+
+**Konvertasiya alətləri** (opsional — yoxdursa material `READY_NO_PREVIEW` olur, yalnız endirmə):
+
+| Alət | Nə üçün | Quraşdırma |
+|---|---|---|
+| `pdftoppm` (poppler) | PDF → səhifə şəkilləri (1600px + 320px thumbnail) | Ubuntu/Debian: `sudo apt install poppler-utils` · macOS: `brew install poppler` · Windows: [poppler-windows](https://github.com/oschwartz10612/poppler-windows/releases) (`bin/` PATH-ə) |
+| `soffice` (LibreOffice) | PPTX / DOCX → PDF | Ubuntu/Debian: `sudo apt install libreoffice-impress libreoffice-writer` · macOS: `brew install --cask libreoffice` · Windows: [libreoffice.org](https://www.libreoffice.org/download/) |
+
+Server başlayanda hansı alətin tapıldığını log-da yazır. Fərqli yerdədirsə: `.env`-də `PDFTOPPM_PATH=...`, `SOFFICE_PATH=...`. (Layihədə Dockerfile yoxdur; konteynerdə işlədəcəksinizsə `apt install poppler-utils libreoffice-impress libreoffice-writer` əlavə edin.)
+
+**Status axını:** `POST /api/v1/materials` dərhal **202 Accepted** + `Location` qaytarır, UI `GET /api/v1/materials/{id}`-ni polling edir:
+`UPLOADED → CONVERTING → READY` · alət yoxdur → `READY_NO_PREVIEW` · xəta → `FAILED` + `errorMessage` (orijinal qalır, `POST /materials/{id}/reconvert`). Növbə in-process-dir, eyni anda 1 iş.
+
+**Təhlükəsizlik:**
+- 3 qat yoxlama → **415**: uzantı allowlist-i (`pdf, pptx, docx, md`), MIME (uzantıya uyğun və ya `application/octet-stream`), magic bytes (`%PDF-`; ZIP + `[Content_Types].xml` + `ppt/` / `word/`; UTF-8 mətn). Maks. **50 MB** → **413**.
+- Orijinal ad heç vaxt yol kimi istifadə olunmur: disk adı təsadüfidir (`m_<hex>.<ext>`), fayllar `data/materials/` altındadır (web root xaricində). `../../evil.pdf` → yalnız `evil.pdf` metadata kimi saxlanılır.
+- Yüklənən fayl icra olunmur; LibreOffice/poppler `execFile` ilə (shell-siz, timeout ilə) çağırılır.
+- Endirmə: `Content-Disposition: attachment; filename*=UTF-8''…`, `X-Content-Type-Options: nosniff`, açıq `Content-Type`.
+- Yükləmə, dəyişmə, silmə, reconvert — yalnız ADMIN (`admin` scope). Tələbələr yalnız `READY` / `READY_NO_PREVIEW` materialları görür.
+- **Pre-signed URL:** cavablardakı `links` / `imageUrl` 1 saat etibarlı HMAC imzalı linklərdir (`?exp=…&sig=…`) — `<img src>` və `<iframe>` Authorization başlığı göndərə bilmədiyi üçün (S3 pre-signed URL ilə eyni ideya).
+
+### Tapşırıqların markdown formatı
+
+`POST /api/v1/tasks/import` (ADMIN, `multipart/form-data`, sahə: `file`, `.md`) — dərs + başlıq üzrə **upsert** (varsa yenilənir, yoxdursa yaradılır):
+
+````markdown
+# Dərs 2
+
+## Yeni müştəri yarat
+- method: POST
+- path: /api/v1/customers
+- status: 201
+- order: 1
+
+Body: `{"firstName":"Rəna","lastName":"Quliyeva","email":"rena@example.az"}`.
+Cavabdakı **Location** başlığına GET göndərin.
+
+```sql
+SELECT id, first_name, email FROM customers ORDER BY id DESC LIMIT 1
+```
+````
+
+| Element | Qayda |
+|---|---|
+| `# Dərs N` (və ya `# Ders N`, `# Lesson N`) | Sonrakı tapşırıqların dərsi (1, 2, 3) |
+| `## Başlıq` | Yeni tapşırıq; başlıq dərs daxilində unikaldır |
+| `- method:` / `- path:` / `- status:` | Məcburi: `GET\|POST\|PUT\|PATCH\|DELETE\|HEAD\|OPTIONS`, `/` ilə başlayan path, 100–599 |
+| `- order:` | Opsional sıra (yoxdursa — fayldakı sıra) |
+| Birinci ` ```sql ` bloku | SQL yoxlaması — SQL Playground qaydaları ilə (yalnız SELECT) |
+| Qalan mətn | Təsvir (markdown; digər kod blokları da daxil) |
+
+Faylda bir xəta olsa belə heç nə yazılmır (transaction) → **422** `INVALID_TASK_FILE`, `details[]`-də sətir nömrələri. Hər tələbə irəliləyişini `PUT /api/v1/tasks/{id}/progress {"done": true}` ilə işarələyir, xülasə: `GET /api/v1/tasks/progress/me`.
 
 ---
 
@@ -334,7 +423,7 @@ npm run pg:up        # docker compose -f docker-compose.postgres.yml up -d
 psql postgresql://apilab:apilab@localhost:5432/apilab -c '\dt'
 ```
 
-[`db/postgres/schema.sql`](db/postgres/schema.sql) — eyni 32 cədvəl, constraint-lər, 2 trigger (plpgsql) və 5 view; faylın əvvəlində SQLite ↔ PostgreSQL fərqləri izah olunub.
+[`db/postgres/schema.sql`](db/postgres/schema.sql) — eyni 36 cədvəl, constraint-lər, 2 trigger (plpgsql) və 6 view; faylın əvvəlində SQLite ↔ PostgreSQL fərqləri izah olunub.
 Bu, **yalnız sxem səviyyəsindədir**: API server runtime-da SQLite işlədir (better-sqlite3 sinxrondur, `pg` asinxron — ikinci driver bütün repo qatını ikiləşdirərdi), seed faylları isə SQLite tarix funksiyalarından istifadə edir.
 
 ---
@@ -355,9 +444,9 @@ Bu, **yalnız sxem səviyyəsindədir**: API server runtime-da SQLite işlədir 
 | Məzənnə | DB-də yalnız `base=AZN`; digər cütlər çarpaz kursla. `rates:refresh` ECB məlumatı (AZN və AED — USD-yə bağlı, GEL — əvvəlki dəyər) |
 | SQL Playground | Sorğu ayrıca prosesdə, DB-nin hash-ləri `[hidden#…]` ilə əvəz edilmiş read-only surətində icra olunur; 2 san sonra proses öldürülür |
 | Rate limit | Fixed window (dəqiqə), sayğac DB-də (`rate_limit_counters`) |
+| Materiallar | Fayllar DB-də yox, diskdə; konvertasiya in-process növbədə (1 iş); MD faylı çevrilmir (birbaşa oxunur); şəkillər PNG |
 
 ## Hələ edilməyənlər
 
 - **React portal** (`/web`) — UI ayrıca (Figma Make) hazırlanır; `web/dist` əlavə olunanda server onu avtomatik verir, indi isə başlanğıc səhifəsi göstərilir.
 - **Real Google OAuth** — `GOOGLE_CLIENT_ID/SECRET` `.env.example`-da ayrılıb, amma hələ istifadə olunmur; mock tam işləyir.
-- **Dərs materialları** (`/materials` tapşırıqları) — `materials/slides/` qovluğu hazırdır.

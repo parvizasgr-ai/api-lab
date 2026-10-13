@@ -38,6 +38,17 @@ export const config = {
   rateLimit: { limit: Number(env.RATE_LIMIT_PER_MIN ?? 60), windowSec: 60 },
   idempotencyTtlSec: 24 * 60 * 60,
 
+  // Dərs materialları: fayllar web root-un XARİCİNDƏ saxlanılır (data/materials/)
+  materials: {
+    dir: env.MATERIALS_DIR ?? path.join(ROOT_DIR, 'data', 'materials'),
+    slidesDir: path.join(ROOT_DIR, 'materials', 'slides'), // server qalxanda / materials:seed ilə avtomatik import
+    maxUploadBytes: 50 * 1024 * 1024,
+    convertTimeoutMs: 180_000,
+    signedUrlTtlSec: 3600,
+    // 'auto' — PATH-də axtarılır; testlərdə { soffice: null, pdftoppm: null } ilə söndürülür
+    tools: 'auto' as 'auto' | { soffice: string | null; pdftoppm: string | null },
+  },
+
   // SQL Playground: icra limiti, maks. sətir və nəticə ölçüsü
   sqlPlayground: { timeoutMs: 2000, maxRows: 200, maxBytes: 1_000_000 },
 

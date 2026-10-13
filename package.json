@@ -18,6 +18,7 @@
     "db:seed": "tsx scripts/db-seed.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:shell": "sqlite3 data/apilab.db",
+    "materials:seed": "tsx scripts/materials-seed.ts",
     "openapi:lint": "spectral lint openapi/openapi.yaml --fail-severity=warn",
     "openapi:bundle": "tsx scripts/openapi-bundle.ts",
     "postman:export": "tsx scripts/postman-export.ts",
@@ -33,6 +34,7 @@
     "express": "^5.3.0",
     "helmet": "^8.3.0",
     "jose": "^6.2.12",
+    "multer": "^2.4.0",
     "swagger-ui-dist": "^5.33.2"
   },
   "devDependencies": {
@@ -41,6 +43,7 @@
     "@types/better-sqlite3": "^9.6.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.3.0",
     "@types/node": "^26.6.5",
     "@types/supertest": "^7.2.1",
     "eslint": "^10.12.0",

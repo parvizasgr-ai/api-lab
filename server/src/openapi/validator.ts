@@ -33,6 +33,7 @@ export function createAjv(spec: OpenApiDoc, options: Record<string, unknown> = {
   const ajv: AjvInstance = new Ajv({ allErrors: true, verbose: true, strict: true, multipleOfPrecision: 6, ...options });
   addFormats(ajv);
   ajv.addFormat('password', true);
+  ajv.addFormat('binary', true); // multipart fayl sahəsi
   // OpenAPI-nin JSON Schema-dan kənar açar sözləri — validasiyaya təsir etmir.
   for (const keyword of ['example', 'xml', 'x-error-code']) ajv.addKeyword({ keyword });
   for (const [name, schema] of Object.entries(spec.components.schemas ?? {})) {
@@ -126,7 +127,9 @@ export class RequestValidator {
     if (rb) {
       const validators: Record<string, ValidateFunction> = {};
       for (const [type, media] of Object.entries<any>(rb.content)) {
-        validators[type] = this.bodyAjv.compile(rewriteRefs(media.schema));
+        // multipart sahələri həmişə string gəlir → tip çevrilməsi lazımdır (lesson: "1" → 1)
+        const ajv = type === 'multipart/form-data' ? this.paramAjv : this.bodyAjv;
+        validators[type] = ajv.compile(rewriteRefs(media.schema));
       }
       result.body = { required: !!rb.required, contentTypes: Object.keys(rb.content), validators };
     }

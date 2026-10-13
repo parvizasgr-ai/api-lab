@@ -11,7 +11,7 @@ SQLite (`data/apilab.db`), raw SQL, ORM yoxdur.
 
 ## Qovluqlar
 
-- `migrations/` — sxem dəyişiklikləri, ardıcıl nömrə ilə (`001_init.sql`, `002_views_triggers.sql`). Tətbiq olunanlar `schema_migrations` cədvəlində.
+- `migrations/` — sxem dəyişiklikləri, ardıcıl nömrə ilə (`001_init.sql`, `002_views_triggers.sql`, `003_materials_tasks.sql`). Tətbiq olunanlar `schema_migrations` cədvəlində.
 - `seed/` — demo data. **Deterministikdir**: eyni gündə hər `db:reset` eyni datanı verir. Tarixlər `date('now', ...)` ilə bu günə nisbətən hesablanır, ona görə reys/otel axtarışı həmişə gələcək tarixlərdə nəticə qaytarır.
 - `queries/` — tələbələr üçün hazır yoxlama sorğuları (SQL Playground-da istifadə olunur).
 - `schema.sql` — cari tam sxem (avtomatik yaradılır, əl ilə dəyişməyin).
@@ -76,6 +76,7 @@ erDiagram
 | Kitab | books, book_reviews | Cursor pagination, nested resurs |
 | Musiqi | tracks, playlists, playlist_tracks, play_history | Xarici API (YouTube) inteqrasiyası, kompozit PK |
 | Texniki | idempotency_keys, audit_log, request_log, rate_limit_counters | Idempotency-Key, audit, API History, 429 |
+| Materiallar | materials, material_pages, tasks, task_progress | multipart upload, asinxron emal (202 + polling), pre-signed URL, markdown import |
 
 ## View-lar və trigger-lər
 
@@ -86,6 +87,7 @@ erDiagram
 | `v_flight_search` | Reys + şəhər adları (airports-a 2 dəfə JOIN) |
 | `v_hotel_availability` | Otaq bu gün dolu/boş, növbəti bron |
 | `v_api_usage_by_endpoint` | `request_log` üzrə endpoint statistikası |
+| `v_material_overview` | Material + səhifə sayı + yükləyən + bağlı tapşırıqlar + irəliləyişi olan tələbələr |
 | `trg_cards_status_history` | `cards.status` dəyişəndə tarixçəyə yazır (`status_reason`, `status_changed_by`, `updated_at`-dan) |
 | `trg_transactions_audit` | Hər yeni əməliyyatı `audit_log`-a yazır |
 

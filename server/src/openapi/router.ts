@@ -14,6 +14,7 @@ export interface RouterDeps {
   authenticate: (op: OperationInfo) => RequestHandler;
   requireScopes: (op: OperationInfo) => RequestHandler;
   operationRateLimit: (op: OperationInfo) => RequestHandler;
+  uploadParser: RequestHandler;
   idempotency: RequestHandler;
 }
 
@@ -62,6 +63,7 @@ export function mountOperations(app: Express, deps: RouterDeps): void {
       const hasIdempotencyKey = (op.operation.parameters ?? []).some(
         (p: unknown) => resolveRef(deps.spec, p)?.name === 'Idempotency-Key',
       );
+      const isMultipart = !!resolveRef(deps.spec, op.operation.requestBody)?.content?.['multipart/form-data'];
       const handler = deps.handlers[op.operationId] ?? (op.method === 'options' ? optionsDefault : notImplemented);
       const chain: RequestHandler[] = [
         (req, _res, next) => {
@@ -71,6 +73,7 @@ export function mountOperations(app: Express, deps: RouterDeps): void {
         deps.authenticate(op),
         deps.requireScopes(op),
         deps.operationRateLimit(op),
+        ...(isMultipart ? [deps.uploadParser] : []),
         ...bodyParsers,
         (req, res, next) => {
           req.valid = validator.validate(op, req);

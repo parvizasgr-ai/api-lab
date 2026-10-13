@@ -73,6 +73,14 @@
       "description": "Tələbələrin DB-ni yalnız SELECT ilə yoxlaması"
     },
     {
+      "name": "Materials",
+      "description": "Dərs materialları — yükləmə (PDF/PPTX/DOCX/MD), asinxron konvertasiya, səhifə viewer-i, pre-signed URL-lər"
+    },
+    {
+      "name": "Tasks",
+      "description": "Dərs tapşırıqları (endpoint + gözlənilən status + SQL yoxlaması) və tələbə irəliləyişi"
+    },
+    {
       "name": "Admin",
       "description": "Sistem əməliyyatları (DB reset, sorğu tarixçəsi)"
     },
@@ -6399,6 +6407,1523 @@
         }
       }
     },
+    "/api/v1/materials": {
+      "get": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "listMaterials",
+        "summary": "Dərs materialları (tələbə — yalnız hazır olanlar, ADMIN — hamısı)",
+        "description": "Cavabdakı `links` (səhifələr, PDF, endirmə, thumbnail) **pre-signed URL**-lərdir: 1 saat etibarlıdır və Bearer tələb etmir —\n`<img src>` və `<iframe>` birbaşa istifadə edə bilər (S3 pre-signed URL nümunəsi).\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "materials",
+            "users"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "lesson",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2,
+                3
+              ]
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/MaterialKind"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Başlıq, təsvir və ya fayl adı üzrə axtarış",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Materiallar (dərs, sıra üzrə)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": 1,
+                      "lesson": 1,
+                      "title": "API Ders1 Giris",
+                      "description": null,
+                      "kind": "SLIDES",
+                      "originalFilename": "API_Ders1_Giris.pdf",
+                      "mime": "application/pdf",
+                      "sizeBytes": 2481920,
+                      "pageCount": 24,
+                      "status": "READY",
+                      "errorMessage": null,
+                      "uploadedBy": "admin",
+                      "sortOrder": 0,
+                      "createdAt": "2026-10-13T09:00:00Z",
+                      "updatedAt": "2026-10-13T09:00:04Z",
+                      "links": {
+                        "self": "/api/v1/materials/1",
+                        "pages": "/api/v1/materials/1/pages",
+                        "download": "/api/v1/materials/1/download?exp=1792144800&sig=3f1c0b5e8a9d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b",
+                        "pdf": "/api/v1/materials/1/pdf?exp=1792144800&sig=9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
+                        "thumbnail": "/api/v1/materials/1/pages/1/thumb?exp=1792144800&sig=1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "uploadMaterial",
+        "summary": "Material yüklə (PDF, PPTX, DOCX, MD — maks. 50 MB, yalnız ADMIN)",
+        "description": "`multipart/form-data`. Fayl 3 qatda yoxlanılır: **uzantı** (allowlist), **MIME** (uzantıya uyğun və ya `application/octet-stream`),\n**magic bytes** (PDF: `%PDF-`, PPTX/DOCX: ZIP `PK\\x03\\x04` + `[Content_Types].xml` + `ppt/`/`word/`, MD: UTF-8 mətn) → uyğunsuzluq **415**.\nOrijinal ad yalnız metadata-dır; disk adı təsadüfidir (`m_<hex>.<ext>`), fayllar `data/materials/` altındadır (web root xaricində).\n\nKonvertasiya **asinxrondur** (in-process növbə, eyni anda 1 iş): cavab dərhal **202 Accepted** + `Location`.\nStatus: `UPLOADED → CONVERTING → READY` (PPTX/DOCX → PDF: LibreOffice; PDF → səhifə şəkilləri: pdftoppm).\nAlət yoxdursa → `READY_NO_PREVIEW` (yalnız endirmə). Xəta → `FAILED` + `errorMessage`. MD faylı konvertasiya tələb etmir.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "admin"
+        ],
+        "x-db-impact": {
+          "reads": [],
+          "writes": [
+            "INSERT materials",
+            "UPDATE materials (status — fon işi)",
+            "INSERT material_pages (fon işi)",
+            "INSERT audit_log"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/MaterialUpload"
+              },
+              "example": {
+                "file": "(binary: API_Ders1_Giris.pdf)",
+                "lesson": 1,
+                "title": "Dərs 1 — API əsasları",
+                "kind": "SLIDES"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Qəbul olundu — konvertasiya fonda gedir, `Location`-u polling ilə izləyin",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Material"
+                },
+                "example": {
+                  "id": 4,
+                  "lesson": 1,
+                  "title": "Dərs 1 — API əsasları",
+                  "description": null,
+                  "kind": "SLIDES",
+                  "originalFilename": "API_Ders1_Giris.pdf",
+                  "mime": "application/pdf",
+                  "sizeBytes": 2481920,
+                  "pageCount": null,
+                  "status": "UPLOADED",
+                  "errorMessage": null,
+                  "uploadedBy": "admin",
+                  "sortOrder": 0,
+                  "createdAt": "2026-10-13T09:00:00Z",
+                  "updatedAt": "2026-10-13T09:00:00Z",
+                  "links": {
+                    "self": "/api/v1/materials/4",
+                    "pages": "/api/v1/materials/4/pages",
+                    "download": "/api/v1/materials/4/download?exp=1792144800&sig=3f1c0b5e8a9d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b",
+                    "pdf": null,
+                    "thumbnail": null
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "description": "Fayl tipi icazəli deyil və ya məzmunu uzantıya uyğun deyil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "extension": {
+                    "summary": "Uzantı allowlist-də yoxdur",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 415,
+                      "code": "UNSUPPORTED_MEDIA_TYPE",
+                      "message": "İcazəli fayl tipləri: pdf, pptx, docx, md",
+                      "details": [
+                        {
+                          "field": "file",
+                          "message": "Uzantı: .exe"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "magic": {
+                    "summary": "Məzmun uzantıya uyğun deyil",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 415,
+                      "code": "UNSUPPORTED_MEDIA_TYPE",
+                      "message": "Faylın məzmunu .pdf formatına uyğun deyil",
+                      "details": [
+                        {
+                          "field": "file",
+                          "message": "Magic bytes: %PDF- gözlənilirdi"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/materials/{materialId}": {
+      "get": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "getMaterial",
+        "summary": "Material (status polling üçün)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "materials",
+            "users"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MaterialId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Material",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Material"
+                },
+                "example": {
+                  "id": 4,
+                  "lesson": 1,
+                  "title": "Dərs 1 — API əsasları",
+                  "description": null,
+                  "kind": "SLIDES",
+                  "originalFilename": "API_Ders1_Giris.pdf",
+                  "mime": "application/pdf",
+                  "sizeBytes": 2481920,
+                  "pageCount": 24,
+                  "status": "READY",
+                  "errorMessage": null,
+                  "uploadedBy": "admin",
+                  "sortOrder": 0,
+                  "createdAt": "2026-10-13T09:00:00Z",
+                  "updatedAt": "2026-10-13T09:00:05Z",
+                  "links": {
+                    "self": "/api/v1/materials/4",
+                    "pages": "/api/v1/materials/4/pages",
+                    "download": "/api/v1/materials/4/download?exp=1792144800&sig=3f1c0b5e8a9d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b",
+                    "pdf": "/api/v1/materials/4/pdf?exp=1792144800&sig=9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b",
+                    "thumbnail": "/api/v1/materials/4/pages/1/thumb?exp=1792144800&sig=1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/MaterialNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "updateMaterial",
+        "summary": "Materialın başlığını, dərsini, növünü və ya sırasını dəyiş (ADMIN)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "admin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "materials"
+          ],
+          "writes": [
+            "UPDATE materials"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MaterialId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaterialPatch"
+              },
+              "example": {
+                "title": "Dərs 1 — API əsasları (yenilənmiş)",
+                "sortOrder": 2
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Yenilənmiş material",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Material"
+                },
+                "example": {
+                  "id": 4,
+                  "lesson": 1,
+                  "title": "Dərs 1 — API əsasları (yenilənmiş)",
+                  "description": null,
+                  "kind": "SLIDES",
+                  "originalFilename": "API_Ders1_Giris.pdf",
+                  "mime": "application/pdf",
+                  "sizeBytes": 2481920,
+                  "pageCount": 24,
+                  "status": "READY",
+                  "errorMessage": null,
+                  "uploadedBy": "admin",
+                  "sortOrder": 2,
+                  "createdAt": "2026-10-13T09:00:00Z",
+                  "updatedAt": "2026-10-13T09:10:00Z",
+                  "links": {
+                    "self": "/api/v1/materials/4",
+                    "pages": "/api/v1/materials/4/pages",
+                    "download": "/api/v1/materials/4/download?exp=1792144800&sig=3f1c0b5e8a9d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b",
+                    "pdf": null,
+                    "thumbnail": null
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/MaterialNotFound"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "deleteMaterial",
+        "summary": "Materialı sil — fayllar diskdən, sətirlər DB-dən (ADMIN)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "admin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "materials"
+          ],
+          "writes": [
+            "DELETE materials (+ material_pages CASCADE)",
+            "UPDATE tasks (material_id = NULL)",
+            "INSERT audit_log"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MaterialId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Silindi"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/MaterialNotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MaterialBusy"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/materials/{materialId}/reconvert": {
+      "post": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "reconvertMaterial",
+        "summary": "Konvertasiyanı yenidən başlat (FAILED / READY_NO_PREVIEW sonrası, ADMIN)",
+        "description": "Köhnə səhifə şəkilləri silinir, iş növbəyə qoyulur. Konvertasiya gedirsə → 409.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "admin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "materials"
+          ],
+          "writes": [
+            "UPDATE materials (status = UPLOADED)",
+            "DELETE material_pages",
+            "INSERT audit_log"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MaterialId"
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Növbəyə qoyuldu",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Material"
+                },
+                "example": {
+                  "id": 4,
+                  "lesson": 1,
+                  "title": "Dərs 1 — API əsasları",
+                  "description": null,
+                  "kind": "SLIDES",
+                  "originalFilename": "API_Ders1_Giris.pdf",
+                  "mime": "application/pdf",
+                  "sizeBytes": 2481920,
+                  "pageCount": null,
+                  "status": "UPLOADED",
+                  "errorMessage": null,
+                  "uploadedBy": "admin",
+                  "sortOrder": 0,
+                  "createdAt": "2026-10-13T09:00:00Z",
+                  "updatedAt": "2026-10-13T09:20:00Z",
+                  "links": {
+                    "self": "/api/v1/materials/4",
+                    "pages": "/api/v1/materials/4/pages",
+                    "download": "/api/v1/materials/4/download?exp=1792144800&sig=3f1c0b5e8a9d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b",
+                    "pdf": null,
+                    "thumbnail": null
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/MaterialNotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/MaterialBusy"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/materials/{materialId}/pages": {
+      "get": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "listMaterialPages",
+        "summary": "Səhifə şəkilləri (viewer üçün; URL-lər pre-signed)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "materials",
+            "material_pages"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MaterialId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Səhifələr (READY deyilsə — boş siyahı)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaterialPageList"
+                },
+                "example": {
+                  "materialId": 4,
+                  "status": "READY",
+                  "items": [
+                    {
+                      "pageNo": 1,
+                      "imageUrl": "/api/v1/materials/4/pages/1/image?exp=1792144800&sig=5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d",
+                      "thumbUrl": "/api/v1/materials/4/pages/1/thumb?exp=1792144800&sig=1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/MaterialNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/materials/{materialId}/pages/{pageNo}/image": {
+      "get": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "getMaterialPageImage",
+        "summary": "Səhifə şəkli (PNG, eni 1600px) — Bearer və ya pre-signed URL",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [
+            "material_pages"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MaterialId"
+          },
+          {
+            "$ref": "#/components/parameters/PageNo"
+          },
+          {
+            "$ref": "#/components/parameters/SignedExp"
+          },
+          {
+            "$ref": "#/components/parameters/SignedSig"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PNG şəkli",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "(binary PNG)"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedSigned"
+          },
+          "404": {
+            "$ref": "#/components/responses/PageNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/materials/{materialId}/pages/{pageNo}/thumb": {
+      "get": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "getMaterialPageThumb",
+        "summary": "Səhifə miniatürü (PNG, eni 320px) — Bearer və ya pre-signed URL",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [
+            "material_pages"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MaterialId"
+          },
+          {
+            "$ref": "#/components/parameters/PageNo"
+          },
+          {
+            "$ref": "#/components/parameters/SignedExp"
+          },
+          {
+            "$ref": "#/components/parameters/SignedSig"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PNG miniatür",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "(binary PNG)"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedSigned"
+          },
+          "404": {
+            "$ref": "#/components/responses/PageNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/materials/{materialId}/download": {
+      "get": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "downloadMaterial",
+        "summary": "Orijinal faylı endir (Content-Disposition attachment) — Bearer və ya pre-signed URL",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [
+            "materials"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MaterialId"
+          },
+          {
+            "$ref": "#/components/parameters/SignedExp"
+          },
+          {
+            "$ref": "#/components/parameters/SignedSig"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Orijinal fayl. Başlıqlar `Content-Disposition: attachment; filename*=UTF-8''...` və `X-Content-Type-Options: nosniff`.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "attachment; filename=\"API_Ders1_Giris.pdf\"; filename*=UTF-8''API_Ders1_Giris.pdf"
+              }
+            },
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "(binary)"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedSigned"
+          },
+          "404": {
+            "$ref": "#/components/responses/MaterialNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/materials/{materialId}/pdf": {
+      "get": {
+        "tags": [
+          "Materials"
+        ],
+        "operationId": "getMaterialPdf",
+        "summary": "PDF versiyası (inline; PPTX/DOCX üçün konvertasiya nəticəsi) — Bearer və ya pre-signed URL",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {}
+        ],
+        "x-db-impact": {
+          "reads": [
+            "materials"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MaterialId"
+          },
+          {
+            "$ref": "#/components/parameters/SignedExp"
+          },
+          {
+            "$ref": "#/components/parameters/SignedSig"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                },
+                "example": "(binary PDF)"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedSigned"
+          },
+          "404": {
+            "description": "Material yoxdur və ya PDF versiyası yoxdur (MD, konvertasiya olunmamış PPTX/DOCX)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "material": {
+                    "summary": "Material yoxdur",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 404,
+                      "code": "MATERIAL_NOT_FOUND",
+                      "message": "Material tapılmadı",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "noPdf": {
+                    "summary": "PDF yoxdur",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 404,
+                      "code": "NO_PDF_VERSION",
+                      "message": "Bu materialın PDF versiyası yoxdur",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tasks": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "operationId": "listTasks",
+        "summary": "Tapşırıqlar (hər birində cari istifadəçi üçün done)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "tasks",
+            "task_progress"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "lesson",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                1,
+                2,
+                3
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tapşırıqlar (dərs, sıra üzrə)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": 1,
+                      "lesson": 1,
+                      "title": "Valyuta məzənnələrini al",
+                      "descriptionMd": "İlk GET sorğusu...",
+                      "method": "GET",
+                      "path": "/api/v1/currencies/rates?base=AZN",
+                      "expectedStatus": 200,
+                      "sqlCheck": "SELECT quote, rate FROM exchange_rates",
+                      "materialId": 1,
+                      "sortOrder": 1,
+                      "done": true,
+                      "doneAt": "2026-10-13T09:30:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "operationId": "createTask",
+        "summary": "Tapşırıq yarat (ADMIN)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "admin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "materials"
+          ],
+          "writes": [
+            "INSERT tasks"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCreate"
+              },
+              "example": {
+                "lesson": 2,
+                "title": "OPTIONS ilə metodları öyrən",
+                "descriptionMd": "`Allow` başlığına baxın.",
+                "method": "OPTIONS",
+                "path": "/api/v1/customers",
+                "expectedStatus": 204,
+                "sqlCheck": "SELECT method, status FROM request_log WHERE method = 'OPTIONS'"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Yaradıldı",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                },
+                "example": {
+                  "id": 17,
+                  "lesson": 2,
+                  "title": "OPTIONS ilə metodları öyrən",
+                  "descriptionMd": "`Allow` başlığına baxın.",
+                  "method": "OPTIONS",
+                  "path": "/api/v1/customers",
+                  "expectedStatus": 204,
+                  "sqlCheck": "SELECT method, status FROM request_log WHERE method = 'OPTIONS'",
+                  "materialId": null,
+                  "sortOrder": 0,
+                  "done": false,
+                  "doneAt": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/TaskExists"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{taskId}": {
+      "patch": {
+        "tags": [
+          "Tasks"
+        ],
+        "operationId": "updateTask",
+        "summary": "Tapşırığı yenilə (ADMIN)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "admin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "tasks",
+            "materials"
+          ],
+          "writes": [
+            "UPDATE tasks"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TaskId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskPatch"
+              },
+              "example": {
+                "expectedStatus": 200,
+                "sortOrder": 3
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Yenilənmiş tapşırıq",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                },
+                "example": {
+                  "id": 17,
+                  "lesson": 2,
+                  "title": "OPTIONS ilə metodları öyrən",
+                  "descriptionMd": "`Allow` başlığına baxın.",
+                  "method": "OPTIONS",
+                  "path": "/api/v1/customers",
+                  "expectedStatus": 204,
+                  "sqlCheck": null,
+                  "materialId": null,
+                  "sortOrder": 3,
+                  "done": false,
+                  "doneAt": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/TaskNotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/TaskExists"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Tasks"
+        ],
+        "operationId": "deleteTask",
+        "summary": "Tapşırığı sil (ADMIN; irəliləyiş də silinir)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "admin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "tasks"
+          ],
+          "writes": [
+            "DELETE tasks (+ task_progress CASCADE)"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TaskId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Silindi"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/TaskNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{taskId}/progress": {
+      "put": {
+        "tags": [
+          "Tasks"
+        ],
+        "operationId": "setTaskProgress",
+        "summary": "Tapşırığı bitmiş / bitməmiş kimi işarələ (öz irəliləyişin — PUT idempotentdir)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "tasks"
+          ],
+          "writes": [
+            "INSERT OR IGNORE task_progress (done=true)",
+            "DELETE task_progress (done=false)"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/TaskId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskProgressUpdate"
+              },
+              "example": {
+                "done": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cari vəziyyət",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskProgress"
+                },
+                "example": {
+                  "taskId": 1,
+                  "done": true,
+                  "doneAt": "2026-10-13T09:30:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/TaskNotFound"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/progress/me": {
+      "get": {
+        "tags": [
+          "Tasks"
+        ],
+        "operationId": "myTaskProgress",
+        "summary": "Mənim irəliləyişim (dərslər üzrə xülasə)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "tasks",
+            "task_progress"
+          ],
+          "writes": []
+        },
+        "responses": {
+          "200": {
+            "description": "İrəliləyiş",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyProgress"
+                },
+                "example": {
+                  "total": 16,
+                  "done": 3,
+                  "byLesson": [
+                    {
+                      "lesson": 1,
+                      "total": 4,
+                      "done": 3
+                    },
+                    {
+                      "lesson": 2,
+                      "total": 5,
+                      "done": 0
+                    },
+                    {
+                      "lesson": 3,
+                      "total": 7,
+                      "done": 0
+                    }
+                  ],
+                  "items": [
+                    {
+                      "taskId": 1,
+                      "done": true,
+                      "doneAt": "2026-10-13T09:30:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/import": {
+      "post": {
+        "tags": [
+          "Tasks"
+        ],
+        "operationId": "importTasks",
+        "summary": "Markdown faylından tapşırıqları import et (ADMIN, upsert — dərs + başlıq üzrə)",
+        "description": "Format (README → \"Tapşırıqların markdown formatı\"):\n`# Dərs N` → dərs; `## Başlıq` → yeni tapşırıq; `- method: GET`, `- path: /api/v1/...`, `- status: 200` (məcburi), `- order: 3` (opsional);\nbirinci ```` ```sql ```` bloku → SQL yoxlaması; qalan mətn → təsvir (markdown). Xəta olarsa heç nə yazılmır (transaction) → 422 + sətir nömrələri.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "admin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "tasks"
+          ],
+          "writes": [
+            "INSERT tasks",
+            "UPDATE tasks"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskImportUpload"
+              },
+              "example": {
+                "file": "(binary: tasks-ders2.md)"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import nəticəsi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskImportResult"
+                },
+                "example": {
+                  "created": 2,
+                  "updated": 1,
+                  "tasks": [
+                    {
+                      "id": 17,
+                      "lesson": 2,
+                      "title": "OPTIONS ilə metodları öyrən",
+                      "descriptionMd": "",
+                      "method": "OPTIONS",
+                      "path": "/api/v1/customers",
+                      "expectedStatus": 204,
+                      "sqlCheck": null,
+                      "materialId": null,
+                      "sortOrder": 0,
+                      "done": false,
+                      "doneAt": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Faylın formatı səhvdir (sətir nömrələri ilə)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 422,
+                  "code": "INVALID_TASK_FILE",
+                  "message": "Tapşırıq faylında xətalar var",
+                  "details": [
+                    {
+                      "field": "line 7",
+                      "message": "\"Yeni müştəri\": status 100–599 olmalıdır"
+                    }
+                  ],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/_reset": {
       "post": {
         "tags": [
@@ -6841,6 +8366,57 @@
           "minimum": 1
         },
         "example": 1
+      },
+      "MaterialId": {
+        "name": "materialId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "example": 1
+      },
+      "PageNo": {
+        "name": "pageNo",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "example": 1
+      },
+      "TaskId": {
+        "name": "taskId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "example": 1
+      },
+      "SignedExp": {
+        "name": "exp",
+        "in": "query",
+        "required": false,
+        "description": "Pre-signed URL-in bitmə vaxtı (Unix epoch saniyə)",
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "SignedSig": {
+        "name": "sig",
+        "in": "query",
+        "required": false,
+        "description": "HMAC-SHA256(path + \":\" + exp) — server sirri ilə",
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
       },
       "IdempotencyKeyOptional": {
         "name": "Idempotency-Key",
@@ -7373,6 +8949,148 @@
           }
         }
       },
+      "PayloadTooLarge": {
+        "description": "Fayl çox böyükdür (maks. 50 MB)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 413,
+              "code": "PAYLOAD_TOO_LARGE",
+              "message": "Fayl çox böyükdür — maksimum 50 MB",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "UnauthorizedSigned": {
+        "description": "Nə Bearer token, nə də etibarlı pre-signed imza (exp/sig) var",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "examples": {
+              "missing": {
+                "summary": "Token və imza yoxdur",
+                "value": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 401,
+                  "code": "UNAUTHORIZED",
+                  "message": "Bearer token və ya pre-signed URL (exp, sig) tələb olunur",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              },
+              "expired": {
+                "summary": "İmzanın vaxtı keçib",
+                "value": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 401,
+                  "code": "INVALID_SIGNATURE",
+                  "message": "Pre-signed URL etibarsızdır və ya vaxtı keçib",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MaterialNotFound": {
+        "description": "Material tapılmadı",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 404,
+              "code": "MATERIAL_NOT_FOUND",
+              "message": "Material tapılmadı",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "PageNotFound": {
+        "description": "Material və ya səhifə tapılmadı",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 404,
+              "code": "PAGE_NOT_FOUND",
+              "message": "Səhifə tapılmadı",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "MaterialBusy": {
+        "description": "Material hazırda konvertasiya olunur",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 409,
+              "code": "MATERIAL_BUSY",
+              "message": "Material hazırda konvertasiya olunur — bitməsini gözləyin",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "TaskNotFound": {
+        "description": "Tapşırıq tapılmadı",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 404,
+              "code": "TASK_NOT_FOUND",
+              "message": "Tapşırıq tapılmadı",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
+      "TaskExists": {
+        "description": "Bu dərsdə eyni başlıqlı tapşırıq var (UNIQUE lesson + title)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-13T09:00:00Z",
+              "status": 409,
+              "code": "TASK_EXISTS",
+              "message": "Bu dərsdə eyni başlıqlı tapşırıq artıq var",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
       "CardNotFound": {
         "description": "Kart tapılmadı",
         "content": {
@@ -7721,6 +9439,7 @@
           "TOKEN_EXPIRED",
           "INVALID_REFRESH_TOKEN",
           "INVALID_API_KEY",
+          "INVALID_SIGNATURE",
           "FORBIDDEN",
           "INSUFFICIENT_SCOPE",
           "NOT_FOUND",
@@ -7739,6 +9458,10 @@
           "TRACK_NOT_FOUND",
           "PLAYLIST_NOT_FOUND",
           "TRACK_NOT_IN_PLAYLIST",
+          "MATERIAL_NOT_FOUND",
+          "PAGE_NOT_FOUND",
+          "NO_PDF_VERSION",
+          "TASK_NOT_FOUND",
           "METHOD_NOT_ALLOWED",
           "NOT_ACCEPTABLE",
           "UNSUPPORTED_MEDIA_TYPE",
@@ -7752,6 +9475,9 @@
           "EMAIL_EXISTS",
           "REVIEW_EXISTS",
           "TRACK_ALREADY_IN_PLAYLIST",
+          "MATERIAL_BUSY",
+          "TASK_EXISTS",
+          "PAYLOAD_TOO_LARGE",
           "VALIDATION_ERROR",
           "INVALID_REASON",
           "CARD_PERMANENTLY_BLOCKED",
@@ -7765,6 +9491,7 @@
           "INVALID_CURSOR",
           "SQL_NOT_ALLOWED",
           "SQL_TIMEOUT",
+          "INVALID_TASK_FILE",
           "TOO_MANY_REQUESTS",
           "INTERNAL_ERROR",
           "SIMULATED_ERROR",
@@ -10263,6 +11990,581 @@
           "executedSql": {
             "type": "string",
             "description": "Real icra olunan SQL (LIMIT əlavə olunmuş və ya endirilmiş)"
+          }
+        }
+      },
+      "MaterialKind": {
+        "type": "string",
+        "enum": [
+          "SLIDES",
+          "DOCUMENT",
+          "TASKSHEET",
+          "OTHER"
+        ]
+      },
+      "MaterialStatus": {
+        "type": "string",
+        "enum": [
+          "UPLOADED",
+          "CONVERTING",
+          "READY",
+          "READY_NO_PREVIEW",
+          "FAILED"
+        ]
+      },
+      "Material": {
+        "type": "object",
+        "required": [
+          "id",
+          "lesson",
+          "title",
+          "description",
+          "kind",
+          "originalFilename",
+          "mime",
+          "sizeBytes",
+          "pageCount",
+          "status",
+          "errorMessage",
+          "uploadedBy",
+          "sortOrder",
+          "createdAt",
+          "updatedAt",
+          "links"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "lesson": {
+            "type": "integer",
+            "nullable": true,
+            "enum": [
+              1,
+              2,
+              3,
+              null
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MaterialKind"
+          },
+          "originalFilename": {
+            "type": "string",
+            "description": "Yüklənən faylın adı (yalnız göstərmək üçün)"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "pageCount": {
+            "type": "integer",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/MaterialStatus"
+          },
+          "errorMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "uploadedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "links": {
+            "type": "object",
+            "required": [
+              "self",
+              "pages",
+              "download",
+              "pdf",
+              "thumbnail"
+            ],
+            "properties": {
+              "self": {
+                "type": "string"
+              },
+              "pages": {
+                "type": "string"
+              },
+              "download": {
+                "type": "string",
+                "description": "Pre-signed (1 saat)"
+              },
+              "pdf": {
+                "type": "string",
+                "nullable": true,
+                "description": "Pre-signed; PDF versiyası yoxdursa null"
+              },
+              "thumbnail": {
+                "type": "string",
+                "nullable": true,
+                "description": "Pre-signed; səhifə şəkilləri yoxdursa null"
+              }
+            }
+          }
+        }
+      },
+      "MaterialList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Material"
+            }
+          }
+        }
+      },
+      "MaterialUpload": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file",
+          "title"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "pdf, pptx, docx, md — maks. 50 MB"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "lesson": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MaterialKind"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        }
+      },
+      "MaterialPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "nullable": true
+          },
+          "lesson": {
+            "type": "integer",
+            "nullable": true,
+            "enum": [
+              1,
+              2,
+              3,
+              null
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MaterialKind"
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        }
+      },
+      "MaterialPageList": {
+        "type": "object",
+        "required": [
+          "materialId",
+          "status",
+          "items"
+        ],
+        "properties": {
+          "materialId": {
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MaterialStatus"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "pageNo",
+                "imageUrl",
+                "thumbUrl"
+              ],
+              "properties": {
+                "pageNo": {
+                  "type": "integer"
+                },
+                "imageUrl": {
+                  "type": "string"
+                },
+                "thumbUrl": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "HttpMethodName": {
+        "type": "string",
+        "enum": [
+          "GET",
+          "POST",
+          "PUT",
+          "PATCH",
+          "DELETE",
+          "HEAD",
+          "OPTIONS"
+        ]
+      },
+      "Task": {
+        "type": "object",
+        "required": [
+          "id",
+          "lesson",
+          "title",
+          "descriptionMd",
+          "method",
+          "path",
+          "expectedStatus",
+          "sqlCheck",
+          "materialId",
+          "sortOrder",
+          "done",
+          "doneAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "lesson": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "descriptionMd": {
+            "type": "string"
+          },
+          "method": {
+            "$ref": "#/components/schemas/HttpMethodName"
+          },
+          "path": {
+            "type": "string"
+          },
+          "expectedStatus": {
+            "type": "integer"
+          },
+          "sqlCheck": {
+            "type": "string",
+            "nullable": true
+          },
+          "materialId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer"
+          },
+          "done": {
+            "type": "boolean",
+            "description": "Cari istifadəçi üçün"
+          },
+          "doneAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "TaskList": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          }
+        }
+      },
+      "TaskCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "lesson",
+          "title",
+          "method",
+          "path",
+          "expectedStatus"
+        ],
+        "properties": {
+          "lesson": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "descriptionMd": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "method": {
+            "$ref": "#/components/schemas/HttpMethodName"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "^/"
+          },
+          "expectedStatus": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "sqlCheck": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "materialId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        }
+      },
+      "TaskPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "minProperties": 1,
+        "properties": {
+          "lesson": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "descriptionMd": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "method": {
+            "$ref": "#/components/schemas/HttpMethodName"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "^/"
+          },
+          "expectedStatus": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 599
+          },
+          "sqlCheck": {
+            "type": "string",
+            "maxLength": 5000,
+            "nullable": true
+          },
+          "materialId": {
+            "type": "integer",
+            "minimum": 1,
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          }
+        }
+      },
+      "TaskProgressUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "done"
+        ],
+        "properties": {
+          "done": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TaskProgress": {
+        "type": "object",
+        "required": [
+          "taskId",
+          "done",
+          "doneAt"
+        ],
+        "properties": {
+          "taskId": {
+            "type": "integer"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "doneAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "MyProgress": {
+        "type": "object",
+        "required": [
+          "total",
+          "done",
+          "byLesson",
+          "items"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "done": {
+            "type": "integer"
+          },
+          "byLesson": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "lesson",
+                "total",
+                "done"
+              ],
+              "properties": {
+                "lesson": {
+                  "type": "integer"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "done": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskProgress"
+            }
+          }
+        }
+      },
+      "TaskImportUpload": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "file"
+        ],
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "description": "Markdown (.md) faylı"
+          }
+        }
+      },
+      "TaskImportResult": {
+        "type": "object",
+        "required": [
+          "created",
+          "updated",
+          "tasks"
+        ],
+        "properties": {
+          "created": {
+            "type": "integer"
+          },
+          "updated": {
+            "type": "integer"
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
           }
         }
       },

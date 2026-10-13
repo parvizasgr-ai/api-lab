@@ -49,6 +49,12 @@ export function buildCollection(spec: OpenApiDoc) {
     if (rb?.content?.['application/json']) {
       header.push({ key: 'Content-Type', value: 'application/json', disabled: false });
       body = { mode: 'raw', raw: JSON.stringify(exampleOf(rb.content['application/json']) ?? {}, null, 2), options: { raw: { language: 'json' } } };
+    } else if (rb?.content?.['multipart/form-data']) {
+      const ex = (exampleOf(rb.content['multipart/form-data']) ?? {}) as Record<string, unknown>;
+      body = {
+        mode: 'formdata',
+        formdata: Object.entries(ex).map(([key, value]) => (key === 'file' ? { key, type: 'file', src: [] } : { key, type: 'text', value: String(value) })),
+      };
     } else if (rb?.content?.['application/x-www-form-urlencoded']) {
       const ex = (exampleOf(rb.content['application/x-www-form-urlencoded']) ?? {}) as Record<string, string>;
       body = { mode: 'urlencoded', urlencoded: Object.entries(ex).map(([key, value]) => ({ key, value: String(value) })) };

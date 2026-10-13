@@ -2903,6 +2903,811 @@
       ]
     },
     {
+      "name": "Materials",
+      "item": [
+        {
+          "name": "GET /api/v1/materials — Dərs materialları (tələbə — yalnız hazır olanlar, ADMIN — hamısı)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials"
+              ],
+              "query": [
+                {
+                  "key": "lesson",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "kind",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Cavabdakı `links` (səhifələr, PDF, endirmə, thumbnail) **pre-signed URL**-lərdir: 1 saat etibarlıdır və Bearer tələb etmir —\n`<img src>` və `<iframe>` birbaşa istifadə edə bilər (S3 pre-signed URL nümunəsi).\n"
+          }
+        },
+        {
+          "name": "POST /api/v1/materials — Material yüklə (PDF, PPTX, DOCX, MD — maks. 50 MB, yalnız ADMIN)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "`multipart/form-data`. Fayl 3 qatda yoxlanılır: **uzantı** (allowlist), **MIME** (uzantıya uyğun və ya `application/octet-stream`),\n**magic bytes** (PDF: `%PDF-`, PPTX/DOCX: ZIP `PK\\x03\\x04` + `[Content_Types].xml` + `ppt/`/`word/`, MD: UTF-8 mətn) → uyğunsuzluq **415**.\nOrijinal ad yalnız metadata-dır; disk adı təsadüfidir (`m_<hex>.<ext>`), fayllar `data/materials/` altındadır (web root xaricində).\n\nKonvertasiya **asinxrondur** (in-process növbə, eyni anda 1 iş): cavab dərhal **202 Accepted** + `Location`.\nStatus: `UPLOADED → CONVERTING → READY` (PPTX/DOCX → PDF: LibreOffice; PDF → səhifə şəkilləri: pdftoppm).\nAlət yoxdursa → `READY_NO_PREVIEW` (yalnız endirmə). Xəta → `FAILED` + `errorMessage`. MD faylı konvertasiya tələb etmir.\n",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "lesson",
+                  "type": "text",
+                  "value": "1"
+                },
+                {
+                  "key": "title",
+                  "type": "text",
+                  "value": "Dərs 1 — API əsasları"
+                },
+                {
+                  "key": "kind",
+                  "type": "text",
+                  "value": "SLIDES"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/materials/{materialId} — Material (status polling üçün)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials/:materialId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials",
+                ":materialId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "materialId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Material (status polling üçün)"
+          }
+        },
+        {
+          "name": "DELETE /api/v1/materials/{materialId} — Materialı sil — fayllar diskdən, sətirlər DB-dən (ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials/:materialId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials",
+                ":materialId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "materialId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Materialı sil — fayllar diskdən, sətirlər DB-dən (ADMIN)"
+          }
+        },
+        {
+          "name": "PATCH /api/v1/materials/{materialId} — Materialın başlığını, dərsini, növünü və ya sırasını dəyiş (ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials/:materialId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials",
+                ":materialId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "materialId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Materialın başlığını, dərsini, növünü və ya sırasını dəyiş (ADMIN)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Dərs 1 — API əsasları (yenilənmiş)\",\n  \"sortOrder\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /api/v1/materials/{materialId}/reconvert — Konvertasiyanı yenidən başlat (FAILED / READY_NO_PREVIEW sonrası, ADMIN)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials/:materialId/reconvert",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials",
+                ":materialId",
+                "reconvert"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "materialId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Köhnə səhifə şəkilləri silinir, iş növbəyə qoyulur. Konvertasiya gedirsə → 409."
+          }
+        },
+        {
+          "name": "GET /api/v1/materials/{materialId}/pages — Səhifə şəkilləri (viewer üçün; URL-lər pre-signed)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials/:materialId/pages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials",
+                ":materialId",
+                "pages"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "materialId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Səhifə şəkilləri (viewer üçün; URL-lər pre-signed)"
+          }
+        },
+        {
+          "name": "GET /api/v1/materials/{materialId}/pages/{pageNo}/image — Səhifə şəkli (PNG, eni 1600px) — Bearer və ya pre-signed URL",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials/:materialId/pages/:pageNo/image",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials",
+                ":materialId",
+                "pages",
+                ":pageNo",
+                "image"
+              ],
+              "query": [
+                {
+                  "key": "exp",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sig",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "materialId",
+                  "value": "1"
+                },
+                {
+                  "key": "pageNo",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Səhifə şəkli (PNG, eni 1600px) — Bearer və ya pre-signed URL"
+          }
+        },
+        {
+          "name": "GET /api/v1/materials/{materialId}/pages/{pageNo}/thumb — Səhifə miniatürü (PNG, eni 320px) — Bearer və ya pre-signed URL",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials/:materialId/pages/:pageNo/thumb",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials",
+                ":materialId",
+                "pages",
+                ":pageNo",
+                "thumb"
+              ],
+              "query": [
+                {
+                  "key": "exp",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sig",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "materialId",
+                  "value": "1"
+                },
+                {
+                  "key": "pageNo",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Səhifə miniatürü (PNG, eni 320px) — Bearer və ya pre-signed URL"
+          }
+        },
+        {
+          "name": "GET /api/v1/materials/{materialId}/download — Orijinal faylı endir (Content-Disposition attachment) — Bearer və ya pre-signed URL",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials/:materialId/download",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials",
+                ":materialId",
+                "download"
+              ],
+              "query": [
+                {
+                  "key": "exp",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sig",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "materialId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Orijinal faylı endir (Content-Disposition attachment) — Bearer və ya pre-signed URL"
+          }
+        },
+        {
+          "name": "GET /api/v1/materials/{materialId}/pdf — PDF versiyası (inline; PPTX/DOCX üçün konvertasiya nəticəsi) — Bearer və ya pre-signed URL",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/materials/:materialId/pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "materials",
+                ":materialId",
+                "pdf"
+              ],
+              "query": [
+                {
+                  "key": "exp",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sig",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "materialId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "PDF versiyası (inline; PPTX/DOCX üçün konvertasiya nəticəsi) — Bearer və ya pre-signed URL"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "GET /api/v1/tasks — Tapşırıqlar (hər birində cari istifadəçi üçün done)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "lesson",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Tapşırıqlar (hər birində cari istifadəçi üçün done)"
+          }
+        },
+        {
+          "name": "POST /api/v1/tasks — Tapşırıq yarat (ADMIN)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tasks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Tapşırıq yarat (ADMIN)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"lesson\": 2,\n  \"title\": \"OPTIONS ilə metodları öyrən\",\n  \"descriptionMd\": \"`Allow` başlığına baxın.\",\n  \"method\": \"OPTIONS\",\n  \"path\": \"/api/v1/customers\",\n  \"expectedStatus\": 204,\n  \"sqlCheck\": \"SELECT method, status FROM request_log WHERE method = 'OPTIONS'\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /api/v1/tasks/{taskId} — Tapşırığı sil (ADMIN; irəliləyiş də silinir)",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tasks/:taskId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                ":taskId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "taskId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Tapşırığı sil (ADMIN; irəliləyiş də silinir)"
+          }
+        },
+        {
+          "name": "PATCH /api/v1/tasks/{taskId} — Tapşırığı yenilə (ADMIN)",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tasks/:taskId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                ":taskId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "taskId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Tapşırığı yenilə (ADMIN)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"expectedStatus\": 200,\n  \"sortOrder\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "PUT /api/v1/tasks/{taskId}/progress — Tapşırığı bitmiş / bitməmiş kimi işarələ (öz irəliləyişin — PUT idempotentdir)",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tasks/:taskId/progress",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                ":taskId",
+                "progress"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "taskId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Tapşırığı bitmiş / bitməmiş kimi işarələ (öz irəliləyişin — PUT idempotentdir)",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"done\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/tasks/progress/me — Mənim irəliləyişim (dərslər üzrə xülasə)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tasks/progress/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "progress",
+                "me"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Mənim irəliləyişim (dərslər üzrə xülasə)"
+          }
+        },
+        {
+          "name": "POST /api/v1/tasks/import — Markdown faylından tapşırıqları import et (ADMIN, upsert — dərs + başlıq üzrə)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/tasks/import",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "import"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Format (README → \"Tapşırıqların markdown formatı\"):\n`# Dərs N` → dərs; `## Başlıq` → yeni tapşırıq; `- method: GET`, `- path: /api/v1/...`, `- status: 200` (məcburi), `- order: 3` (opsional);\nbirinci ```` ```sql ```` bloku → SQL yoxlaması; qalan mətn → təsvir (markdown). Xəta olarsa heç nə yazılmır (transaction) → 422 + sətir nömrələri.\n",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Admin",
       "item": [
         {

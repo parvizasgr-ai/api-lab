@@ -4,13 +4,17 @@ import type { Handlers } from '../../openapi/router.js';
 import { forbidden } from '../../errors.js';
 import { resetDatabase, tableCounts } from '../../db.js';
 import { isoNow } from '../../lib/crypto.js';
+import { importSlides } from '../materials/slides.js';
 
-export function adminHandlers({ db, config }: AppContext): Handlers {
+export function adminHandlers({ db, config, materials }: AppContext): Handlers {
   return {
     // Bütün cədvəllər silinir → migration-lar → seed. Dərs zamanı "hər şeyi sıfırla" düyməsi.
     adminReset: (req, res) => {
       if (req.auth?.role !== 'ADMIN') throw forbidden('Bu əməliyyat yalnız ADMIN üçündür');
+      materials.queue.reset();
       resetDatabase(db);
+      materials.storage.clear(); // köhnə material faylları — DB-də artıq yoxdur
+      importSlides(db, materials, config.materials.slidesDir);
       const tables = Object.fromEntries(tableCounts(db).map((c) => [c.table, c.rows]));
       res.json({ message: 'DB seed vəziyyətinə qaytarıldı', resetAt: isoNow(config.now()), tables });
     },

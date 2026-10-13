@@ -54,3 +54,11 @@ describe('openapi.yaml', () => {
     for (const c of used) expect(codes, c).toContain(c);
   });
 });
+
+describe('postman/ faylları', () => {
+  it('spec ilə sinxrondur (npm run postman:export)', async () => {
+    const { buildCollection } = await import('../server/src/postman/collection.js');
+    const file = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'postman', 'api-lab.postman_collection.json'), 'utf8'));
+    expect(file).toEqual(buildCollection(spec));
+  });
+});

@@ -1,0 +1,3071 @@
+{
+  "info": {
+    "name": "API Lab 1.0.0",
+    "description": "OpenAPI-dən avtomatik yaradılıb. Əvvəlcə \"Auth → login\" sorğusunu göndərin — token environment-ə yazılacaq.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /api/v1/auth/login — Login — access və refresh token al",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Username/parol yoxlanılır. Cavabda **access_token** (JWT, HS256, 15 dəqiqə; claim-lər: `sub`, `username`, `role`, `scope`, `iat`, `exp`)\nvə **refresh_token** (7 gün, DB-də yalnız SHA-256 hash-i saxlanır) qaytarılır.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"student\",\n  \"password\": \"student123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('token', body.access_token);",
+                  "pm.environment.set('refreshToken', body.refresh_token);",
+                  "console.log('token environment-ə yazıldı');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/refresh — Refresh token ilə yeni access token al (rotation)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Köhnə refresh token ləğv edilir (`revoked_at`), yenisi verilir — refresh token rotation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.environment.set('token', body.access_token);",
+                  "pm.environment.set('refreshToken', body.refresh_token);",
+                  "console.log('token environment-ə yazıldı');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/v1/auth/logout — Logout — refresh token-i ləğv et",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Access token (JWT) stateless-dir və vaxtı bitənə qədər etibarlı qalır; logout yalnız refresh token-i ləğv edir.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/auth/me — Cari istifadəçi (token-in sahibi)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Cari istifadəçi (token-in sahibi)"
+          }
+        },
+        {
+          "name": "GET /api/v1/auth/basic-demo — Basic Auth nümunəsi",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "student"
+                },
+                {
+                  "key": "password",
+                  "value": "student123"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/basic-demo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "basic-demo"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "`Authorization: Basic base64(username:password)`. Base64 şifrələmə deyil — yalnız HTTPS ilə istifadə olunmalıdır."
+          }
+        }
+      ]
+    },
+    {
+      "name": "OAuth2",
+      "item": [
+        {
+          "name": "GET /oauth/authorize — Authorization endpoint — \"Google ilə daxil ol\" razılıq (consent) səhifəsi",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/oauth/authorize?response_type=&client_id=apilab-portal&redirect_uri=http://localhost:5173/oauth/callback&scope=openid profile email&state=xyz-12345678",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth",
+                "authorize"
+              ],
+              "query": [
+                {
+                  "key": "response_type",
+                  "value": "",
+                  "disabled": false
+                },
+                {
+                  "key": "client_id",
+                  "value": "apilab-portal",
+                  "disabled": false
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "http://localhost:5173/oauth/callback",
+                  "disabled": false
+                },
+                {
+                  "key": "scope",
+                  "value": "openid profile email",
+                  "disabled": false
+                },
+                {
+                  "key": "state",
+                  "value": "xyz-12345678",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Authorization Code flow-nun 1-ci addımı. Brauzer bu URL-ə yönləndirilir, istifadəçi hesab seçir və icazə verir.\n`state` məcburidir (CSRF qoruması) — client geri qayıdan `state`-i özündəki ilə müqayisə etməlidir.\n"
+          }
+        },
+        {
+          "name": "POST /oauth/authorize — Consent qərarı — authorization code yarat və redirect et",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/oauth/authorize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth",
+                "authorize"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Consent formu buraya göndərilir. `decision=allow` → `302 Location: {redirect_uri}?code=...&state=...`.\n`decision=deny` → `302 Location: {redirect_uri}?error=access_denied&state=...`. Code **birdəfəlikdir** və **60 saniyə** yaşayır.\n`decision=allow` üçün seçilmiş hesabın parolu tələb olunur (real Google-da olduğu kimi). OAuth token-lərinə `admin` scope-u heç vaxt verilmir.\n",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "client_id",
+                  "value": "apilab-portal"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "http://localhost:5173/oauth/callback"
+                },
+                {
+                  "key": "scope",
+                  "value": "openid profile email"
+                },
+                {
+                  "key": "state",
+                  "value": "xyz-12345678"
+                },
+                {
+                  "key": "username",
+                  "value": "student"
+                },
+                {
+                  "key": "password",
+                  "value": "student123"
+                },
+                {
+                  "key": "decision",
+                  "value": "allow"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /oauth/token — Token endpoint — authorization code-u access token-ə dəyiş",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/oauth/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth",
+                "token"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Server-to-server (back channel) sorğu. Client özünü `client_id` + `client_secret` ilə (form sahələri və ya Basic Auth) təsdiq edir.\nXətalar (validation daxil) **RFC 6749** formatındadır (`x-error-format: oauth2`): `invalid_request`, `invalid_client`, `invalid_grant` (code vaxtı keçib / artıq istifadə olunub / redirect_uri uyğun deyil), `unsupported_grant_type`.\n",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "authorization_code"
+                },
+                {
+                  "key": "code",
+                  "value": "ac_5d1e2f3a4b5c6d7e"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "http://localhost:5173/oauth/callback"
+                },
+                {
+                  "key": "client_id",
+                  "value": "apilab-portal"
+                },
+                {
+                  "key": "client_secret",
+                  "value": "apilab-portal-secret"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /oauth/userinfo — UserInfo endpoint — token-in sahibi haqqında (OpenID Connect üslubunda)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/oauth/userinfo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "oauth",
+                "userinfo"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "UserInfo endpoint — token-in sahibi haqqında (OpenID Connect üslubunda)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Accounts",
+      "item": [
+        {
+          "name": "GET /api/v1/accounts — Mənim hesablarım",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Mənim hesablarım"
+          }
+        },
+        {
+          "name": "GET /api/v1/accounts/{accountId} — Hesab detalları",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:accountId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":accountId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "accountId",
+                  "value": "AZ21NABZ0001"
+                }
+              ]
+            },
+            "description": "Başqasının hesabı → **403** (BOLA — Broken Object Level Authorization qorunması)."
+          }
+        },
+        {
+          "name": "GET /api/v1/accounts/{accountId}/transactions — Hesabın əməliyyatları (filter, pagination, sort)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/accounts/:accountId/transactions?from=2026-09-01&to=2026-10-13",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                ":accountId",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-09-01",
+                  "disabled": false
+                },
+                {
+                  "key": "to",
+                  "value": "2026-10-13",
+                  "disabled": false
+                },
+                {
+                  "key": "type",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "accountId",
+                  "value": "AZ21NABZ0001"
+                }
+              ]
+            },
+            "description": "Hesabın əməliyyatları (filter, pagination, sort)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cards",
+      "item": [
+        {
+          "name": "GET /api/v1/cards — Mənim kartlarım",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cards"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Mənim kartlarım"
+          }
+        },
+        {
+          "name": "GET /api/v1/cards/{cardId} — Kart detalları + status tarixçəsi",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cards/:cardId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cards",
+                ":cardId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "cardId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Kart detalları + status tarixçəsi"
+          }
+        },
+        {
+          "name": "POST /api/v1/cards/{cardId}/block — Kartı blokla",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "disabled": false
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cards/:cardId/block",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cards",
+                ":cardId",
+                "block"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "cardId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "**Tam nümunə endpoint** (Dərs 3).\n* `reason` yalnız `LOST | STOLEN | SUSPECTED_FRAUD` — başqa dəyər (məs. `{\"reason\": \"BROKEN\"}`) → **422 INVALID_REASON**.\n* `Idempotency-Key` (opsional, tövsiyə olunur): eyni açarla təkrar sorğu → ilk cavab təkrar qaytarılır (`Idempotent-Replayed: true`), əməliyyat ikinci dəfə icra olunmur.\n  Eyni açar fərqli body ilə → **422 IDEMPOTENCY_KEY_REUSED**.\n* Açarsız ikinci blok cəhdi → **409 CARD_ALREADY_BLOCKED**.\n* Başqasının kartı → **403 FORBIDDEN** (BOLA). Scope `cards:write` yoxdursa (məs. `rauf`) → **403 INSUFFICIENT_SCOPE**.\n* DB-də: `cards.status = 'BLOCKED'`, trigger `card_status_history`-ə 1 sətir yazır. Yoxlama: `db/queries/04_card_block_check.sql`.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"LOST\",\n  \"comment\": \"Metroda itirdim\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /api/v1/cards/{cardId}/unblock — Kartı blokdan çıxar",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "disabled": false
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/cards/:cardId/unblock",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "cards",
+                ":cardId",
+                "unblock"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "cardId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Yalnız `LOST` və ya `SUSPECTED_FRAUD` səbəbi ilə bloklanmış kartlar. `STOLEN` → **422 CARD_PERMANENTLY_BLOCKED**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"comment\": \"Kartı tapdım\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transfers",
+      "item": [
+        {
+          "name": "POST /api/v1/transfers — Köçürmə (atomik, Idempotency-Key məcburi)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "disabled": false
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transfers"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Bir DB transaction (`BEGIN IMMEDIATE`) daxilində: göndərən hesabdan DEBIT, alan hesaba CREDIT, `transfers` sətri.\nHər hansı addım uğursuz olarsa **heç bir balans dəyişmir** (ROLLBACK).\n* Göndərən hesab sizin olmalıdır (alan istənilən hesab ola bilər).\n* Hər iki hesab və `currency` eyni valyutada olmalıdır → əks halda **422 CURRENCY_MISMATCH**.\n* Balans yetərsizdir → **422 INSUFFICIENT_FUNDS**.\n* `Idempotency-Key` yoxdursa → **422 IDEMPOTENCY_KEY_REQUIRED**. Eyni açarla təkrar → eyni cavab, yeni köçürmə yaranmır.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromAccountId\": \"AZ21NABZ0001\",\n  \"toAccountId\": \"AZ21NABZ0004\",\n  \"amount\": 25,\n  \"currency\": \"AZN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/transfers/{transferId} — Köçürmə detalları (201 cavabındakı Location bura göstərir)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/transfers/:transferId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "transfers",
+                ":transferId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "transferId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Köçürmə detalları (201 cavabındakı Location bura göstərir)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Currencies",
+      "item": [
+        {
+          "name": "GET /api/v1/currencies — Dəstəklənən valyutalar",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/currencies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "currencies"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Dəstəklənən valyutalar"
+          }
+        },
+        {
+          "name": "GET /api/v1/currencies/rates — Məzənnələr (base valyutaya görə)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/currencies/rates?base=AZN",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "currencies",
+                "rates"
+              ],
+              "query": [
+                {
+                  "key": "base",
+                  "value": "AZN",
+                  "disabled": false
+                },
+                {
+                  "key": "date",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Dərs 1 nümunəsi — Request/Response anatomiyası. DB-də yalnız `base=AZN` saxlanılır, digər base-lər çarpaz kursla hesablanır."
+          }
+        },
+        {
+          "name": "GET /api/v1/currencies/convert — Valyuta çevirmə",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/currencies/convert?from=USD&to=AZN&amount=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "currencies",
+                "convert"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "USD",
+                  "disabled": false
+                },
+                {
+                  "key": "to",
+                  "value": "AZN",
+                  "disabled": false
+                },
+                {
+                  "key": "amount",
+                  "value": "100",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Valyuta çevirmə"
+          }
+        },
+        {
+          "name": "GET /api/v1/currencies/history — Məzənnə tarixçəsi (son N gün)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/currencies/history?from=EUR&to=AZN",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "currencies",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "EUR",
+                  "disabled": false
+                },
+                {
+                  "key": "to",
+                  "value": "AZN",
+                  "disabled": false
+                },
+                {
+                  "key": "days",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Məzənnə tarixçəsi (son N gün)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Flights",
+      "item": [
+        {
+          "name": "GET /api/v1/airports — Hava limanları (autocomplete üçün axtarış)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/airports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "airports"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Hava limanları (autocomplete üçün axtarış)"
+          }
+        },
+        {
+          "name": "GET /api/v1/flights/search — Reys axtarışı",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/flights/search?from=GYD&to=IST",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "flights",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "GYD",
+                  "disabled": false
+                },
+                {
+                  "key": "to",
+                  "value": "IST",
+                  "disabled": false
+                },
+                {
+                  "key": "date",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "adults",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "stops",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Reys axtarışı"
+          }
+        },
+        {
+          "name": "GET /api/v1/flights/{flightId} — Reys detalları",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/flights/:flightId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "flights",
+                ":flightId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "flightId",
+                  "value": "17"
+                }
+              ]
+            },
+            "description": "Reys detalları"
+          }
+        },
+        {
+          "name": "GET /api/v1/flights/bookings — Mənim aviabilet bronlarım",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/flights/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "flights",
+                "bookings"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Mənim aviabilet bronlarım"
+          }
+        },
+        {
+          "name": "POST /api/v1/flights/bookings — Aviabilet bron et",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/flights/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "flights",
+                "bookings"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Transaction daxilində `seats_left` yoxlanılır və azaldılır. Yer çatmırsa → **409 SOLD_OUT**. Uğurda **201 + Location**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flightId\": 17,\n  \"passengers\": [\n    {\n      \"firstName\": \"Aysel\",\n      \"lastName\": \"Məmmədova\",\n      \"passportNo\": \"C12344821\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/flights/bookings/{bookingId} — Aviabilet bronu",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/flights/bookings/:bookingId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "flights",
+                "bookings",
+                ":bookingId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Aviabilet bronu"
+          }
+        },
+        {
+          "name": "DELETE /api/v1/flights/bookings/{bookingId} — Bronu ləğv et (soft delete — yerlər geri qaytarılır)",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/flights/bookings/:bookingId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "flights",
+                "bookings",
+                ":bookingId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Sətir silinmir, `status = 'CANCELLED'` olur (soft delete) və `flights.seats_left` artırılır. Cavab — yenilənmiş bron (200)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Hotels",
+      "item": [
+        {
+          "name": "GET /api/v1/hotels/search — Otel axtarışı (availability SQL ilə)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/search?city=Bakı",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "Bakı",
+                  "disabled": false
+                },
+                {
+                  "key": "checkIn",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "checkOut",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "guests",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "stars",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "minPrice",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "`checkIn` + `checkOut` verilərsə, yalnız həmin tarixlərdə **ən azı bir boş otağı** olan otellər qaytarılır\n(`NOT EXISTS` + tarix kəsişməsi SQL ilə). `guests` — otaq tutumu.\n"
+          }
+        },
+        {
+          "name": "GET /api/v1/hotels/{hotelId} — Otel detalları",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/:hotelId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                ":hotelId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "hotelId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Otel detalları"
+          }
+        },
+        {
+          "name": "GET /api/v1/hotels/{hotelId}/rooms — Otelin otaqları (tarix verilərsə — boş/dolu)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/:hotelId/rooms",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                ":hotelId",
+                "rooms"
+              ],
+              "query": [
+                {
+                  "key": "checkIn",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "checkOut",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": [
+                {
+                  "key": "hotelId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Otelin otaqları (tarix verilərsə — boş/dolu)"
+          }
+        },
+        {
+          "name": "GET /api/v1/hotels/bookings — Mənim otel bronlarım",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                "bookings"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Mənim otel bronlarım"
+          }
+        },
+        {
+          "name": "POST /api/v1/hotels/bookings — Otel bron et",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                "bookings"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Transaction (`BEGIN IMMEDIATE`) daxilində eyni otaq üçün kəsişən CONFIRMED bron yoxlanılır:\n`yeni.checkIn < mövcud.checkOut AND yeni.checkOut > mövcud.checkIn` → **409 ROOM_NOT_AVAILABLE**.\nYoxlama: `db/queries/10_hotel_overlap.sql`.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomId\": 4,\n  \"checkIn\": \"2026-10-20\",\n  \"checkOut\": \"2026-10-23\",\n  \"guests\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/hotels/bookings/{bookingId} — Otel bronu",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/bookings/:bookingId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                "bookings",
+                ":bookingId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Otel bronu"
+          }
+        },
+        {
+          "name": "DELETE /api/v1/hotels/bookings/{bookingId} — Otel bronunu ləğv et (soft delete)",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/bookings/:bookingId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                "bookings",
+                ":bookingId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Otel bronunu ləğv et (soft delete)"
+          }
+        },
+        {
+          "name": "PATCH /api/v1/hotels/bookings/{bookingId} — Bronun tarixini / qonaq sayını dəyiş (qismən yeniləmə)",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/bookings/:bookingId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                "bookings",
+                ":bookingId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "bookingId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Yalnız göndərilən sahələr dəyişir. Yeni tarixlər üçün availability yenidən yoxlanılır (bronun özü istisna olmaqla).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checkOut\": \"2026-10-26\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "GET /api/v1/customers — Müştərilər siyahısı (Safe + Idempotent)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers?city=Bakı",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers"
+              ],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "Bakı",
+                  "disabled": false
+                },
+                {
+                  "key": "active",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "q",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "`Accept: application/xml` göndərsəniz cavab XML olur. Dəstəklənməyən Accept (məs. `text/csv`) → **406**."
+          }
+        },
+        {
+          "name": "POST /api/v1/customers — Yeni müştəri (Not safe, Not idempotent)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Uğurda **201 Created** + `Location: /api/v1/customers/{id}`. Eyni email → **409 EMAIL_EXISTS**. Səhv nümunə üçün: `{\"email\": \"rena-at-example\", \"age\": 25}` → **422** (format + bilinməyən sahə).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Rəna\",\n  \"lastName\": \"Quliyeva\",\n  \"email\": \"rena.quliyeva@example.az\",\n  \"phone\": \"+994501112233\",\n  \"city\": \"Gəncə\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "OPTIONS /api/v1/customers — Dəstəklənən metodlar (OPTIONS)",
+          "request": {
+            "method": "OPTIONS",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Dəstəklənən metodlar (OPTIONS)"
+          }
+        },
+        {
+          "name": "GET /api/v1/customers/{customerId} — Müştəri (ETag + If-None-Match → 304)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "If-None-Match",
+                "value": "\"c1-2026-04-06T09:13:00Z\"",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:customerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":customerId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "customerId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Cavabda `ETag` başlığı var. Növbəti sorğuda `If-None-Match: <etag>` göndərin — data dəyişməyibsə **304 Not Modified** (gövdəsiz) qayıdır.\n"
+          }
+        },
+        {
+          "name": "PUT /api/v1/customers/{customerId} — Müştərini tam əvəz et (PUT — Idempotent)",
+          "request": {
+            "method": "PUT",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:customerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":customerId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "customerId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Bütün sahələr məcburidir. Eyni sorğunu N dəfə göndərmək eyni nəticəni verir.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Nigar\",\n  \"lastName\": \"Əliyeva-Həsənova\",\n  \"email\": \"nigar.aliyeva@example.az\",\n  \"phone\": \"+994501234501\",\n  \"city\": \"Bakı\",\n  \"active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /api/v1/customers/{customerId} — Müştərini sil (204 No Content)",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:customerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":customerId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "customerId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Hard delete. İkinci DELETE → 404 (resurs artıq yoxdur, amma server vəziyyəti eynidir — DELETE idempotentdir)."
+          }
+        },
+        {
+          "name": "OPTIONS /api/v1/customers/{customerId} — Bu resurs üçün dəstəklənən metodlar (OPTIONS)",
+          "request": {
+            "method": "OPTIONS",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:customerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":customerId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "customerId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Bu resurs üçün dəstəklənən metodlar (OPTIONS)"
+          }
+        },
+        {
+          "name": "HEAD /api/v1/customers/{customerId} — Müştəri mövcuddurmu? (HEAD — yalnız başlıqlar)",
+          "request": {
+            "method": "HEAD",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:customerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":customerId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "customerId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Müştəri mövcuddurmu? (HEAD — yalnız başlıqlar)"
+          }
+        },
+        {
+          "name": "PATCH /api/v1/customers/{customerId} — Müştərini qismən yenilə (PATCH)",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/customers/:customerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "customers",
+                ":customerId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "customerId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Yalnız göndərilən sahələr dəyişir. Boş obyekt `{}` → 422.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"city\": \"Sumqayıt\",\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v2/customers — Müştərilər — v2 (breaking change — fullName)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/customers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "customers"
+              ],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "v2-də `firstName` + `lastName` əvəzinə tək `fullName` sahəsi var. Köhnə client-lər v1-də qalır, v1 isə `Sunset` tarixinə qədər işləyir."
+          }
+        },
+        {
+          "name": "GET /api/v2/customers/{customerId} — Müştəri — v2",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/customers/:customerId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "customers",
+                ":customerId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "customerId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Müştəri — v2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Books",
+      "item": [
+        {
+          "name": "GET /api/v1/books — Kitablar — cursor pagination nümunəsi",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books"
+              ],
+              "query": [
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Offset (`page`) əvəzinə **cursor**: cavabdakı `nextCursor`-u növbəti sorğuda `cursor` kimi göndərin.\n`nextCursor = null` → son səhifə. Üstünlüyü: siyahıya yeni sətir əlavə olunanda səhifələr \"sürüşmür\".\n"
+          }
+        },
+        {
+          "name": "GET /api/v1/books/search — Kitab axtarışı (offset pagination)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/search?q=Nizami&genre=Roman",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Nizami",
+                  "disabled": false
+                },
+                {
+                  "key": "author",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "genre",
+                  "value": "Roman",
+                  "disabled": false
+                },
+                {
+                  "key": "year",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Kitab axtarışı (offset pagination)"
+          }
+        },
+        {
+          "name": "GET /api/v1/books/{bookId} — Kitab",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/:bookId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                ":bookId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "bookId",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Kitab"
+          }
+        },
+        {
+          "name": "GET /api/v1/books/{bookId}/reviews — Kitabın rəyləri",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "key",
+                  "value": "X-API-Key"
+                },
+                {
+                  "key": "value",
+                  "value": "{{apiKey}}"
+                },
+                {
+                  "key": "in",
+                  "value": "header"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/:bookId/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                ":bookId",
+                "reviews"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "bookId",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Kitabın rəyləri"
+          }
+        },
+        {
+          "name": "POST /api/v1/books/{bookId}/reviews — Rəy yaz (Bearer)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/:bookId/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "books",
+                ":bookId",
+                "reviews"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "bookId",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Bir istifadəçi bir kitaba yalnız 1 rəy yaza bilər → təkrar **409 REVIEW_EXISTS** (DB UNIQUE constraint).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"comment\": \"Mütləq oxuyun!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Music",
+      "item": [
+        {
+          "name": "GET /api/v1/music/search — Musiqi axtarışı",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/music/search?q=Eurovision",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "music",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Eurovision",
+                  "disabled": false
+                },
+                {
+                  "key": "artist",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "genre",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Default — `tracks` cədvəlində axtarış (`source: db`). Serverdə `YOUTUBE_API_KEY` təyin olunubsa və `q` verilibsə,\nYouTube Data API v3 `search.list` çağırılır, nəticələr `tracks`-ə cache olunur (`source: youtube`).\n"
+          }
+        },
+        {
+          "name": "GET /api/v1/music/tracks/{trackId} — Trek",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/music/tracks/:trackId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "music",
+                "tracks",
+                ":trackId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "trackId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Trek"
+          }
+        },
+        {
+          "name": "POST /api/v1/music/tracks/{trackId}/play — Treki oxut — embed URL al və dinləmə tarixçəsinə yaz",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/music/tracks/:trackId/play",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "music",
+                "tracks",
+                ":trackId",
+                "play"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "trackId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Backend yalnız mənbəni həll edir (YouTube embed URL). Video faylı yüklənmir/axın edilmir — oxutma frontend-də YouTube IFrame Player API ilə olur."
+          }
+        },
+        {
+          "name": "GET /api/v1/music/playlists — Mənim playlist-lərim",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/music/playlists",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "music",
+                "playlists"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Mənim playlist-lərim"
+          }
+        },
+        {
+          "name": "POST /api/v1/music/playlists — Playlist yarat",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/music/playlists",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "music",
+                "playlists"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Playlist yarat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Səhər qaçışı\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/music/playlists/{playlistId} — Playlist",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/music/playlists/:playlistId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "music",
+                "playlists",
+                ":playlistId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "playlistId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Playlist"
+          }
+        },
+        {
+          "name": "POST /api/v1/music/playlists/{playlistId}/tracks — Playlist-ə trek əlavə et",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/music/playlists/:playlistId/tracks",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "music",
+                "playlists",
+                ":playlistId",
+                "tracks"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "playlistId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "`position` verilməsə — sona əlavə olunur. Eyni trek ikinci dəfə → **409 TRACK_ALREADY_IN_PLAYLIST** (kompozit PK).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"trackId\": 24\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "DELETE /api/v1/music/playlists/{playlistId}/tracks/{trackId} — Playlist-dən treki çıxar",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/music/playlists/:playlistId/tracks/:trackId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "music",
+                "playlists",
+                ":playlistId",
+                "tracks",
+                ":trackId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "playlistId",
+                  "value": "1"
+                },
+                {
+                  "key": "trackId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Playlist-dən treki çıxar"
+          }
+        }
+      ]
+    },
+    {
+      "name": "BFF",
+      "item": [
+        {
+          "name": "GET /bff/dashboard — Bank dashboard — 1 sorğuda hesablar + kartlar + son 5 əməliyyat + məzənnələr",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bff/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bff",
+                "dashboard"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "BFF eyni service layer-i birbaşa çağırır (HTTP-yə yenidən çıxmır). `meta.calls` hər daxili çağırışın müddətini göstərir."
+          }
+        },
+        {
+          "name": "GET /bff/travel/search — Reys + otel paralel axtarışı (partial failure nümunəsi)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bff/travel/search?from=GYD&to=IST&date=2026-10-20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bff",
+                "travel",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "GYD",
+                  "disabled": false
+                },
+                {
+                  "key": "to",
+                  "value": "IST",
+                  "disabled": false
+                },
+                {
+                  "key": "date",
+                  "value": "2026-10-20",
+                  "disabled": false
+                },
+                {
+                  "key": "city",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "nights",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Reys və otel axtarışı `Promise.all` ilə paralel işləyir. Biri uğursuz olarsa digərinin nəticəsi yenə qaytarılır:\nHTTP **207 Multi-Status**, uğursuz bölmədə `{error: {...}}`, `meta.partial = true`. Hər ikisi uğurlu → 200.\n"
+          }
+        },
+        {
+          "name": "GET /bff/music/home — Musiqi ana səhifəsi — populyar treklər + mənim playlist-lərim",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/bff/music/home",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "bff",
+                "music",
+                "home"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Musiqi ana səhifəsi — populyar treklər + mənim playlist-lərim"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SQL Playground",
+      "item": [
+        {
+          "name": "GET /api/v1/_db/schema — DB sxemi — cədvəllər, view-lar, sütunlar, FK-lar",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_db/schema",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_db",
+                "schema"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "DB sxemi — cədvəllər, view-lar, sütunlar, FK-lar"
+          }
+        },
+        {
+          "name": "POST /api/v1/_db/query — SQL sorğusu icra et (YALNIZ SELECT)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_db/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_db",
+                "query"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "* Read-only DB bağlantısı; yalnız 1 SELECT (və ya `WITH ... SELECT`) ifadəsi.\n* `INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/ATTACH/PRAGMA/...` → **422 SQL_NOT_ALLOWED**.\n* Maksimum **200 sətir** (`truncated: true`), **2 saniyə** timeout → **422 SQL_TIMEOUT**.\n* `password_hash`, `token_hash`, `key_hash`, `client_secret_hash` sütunları gizlidir.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT * FROM card_status_history ORDER BY changed_at DESC\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "POST /api/v1/_reset — DB-ni seed vəziyyətinə qaytar (yalnız ADMIN)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_reset"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Bütün cədvəllər silinir, migration-lar və seed yenidən icra olunur. Dərsi dayandırmadan \"hər şeyi sıfırla\"."
+          }
+        },
+        {
+          "name": "GET /api/v1/_history — Sorğu tarixçəsi (API Explorer \"History\")",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_history"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "all",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Token varsa — həmin istifadəçinin sorğuları; yoxdursa — IP üzrə. ADMIN `all=true` ilə hamısını görür."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Meta",
+      "item": [
+        {
+          "name": "GET /api/v1/health — Server və DB vəziyyəti",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "health"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Server və DB vəziyyəti"
+          }
+        },
+        {
+          "name": "GET /api/openapi.json — Bu OpenAPI sənədi (JSON)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/openapi.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "openapi.json"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Bu OpenAPI sənədi (JSON)"
+          }
+        },
+        {
+          "name": "GET /api/postman/collection.json — Postman Collection v2.1 (OpenAPI-dən yaradılır)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/postman/collection.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "postman",
+                "collection.json"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Login sorğusunun test script-i `token` və `refreshToken` environment dəyişənlərini avtomatik təyin edir."
+          }
+        },
+        {
+          "name": "GET /api/postman/environment.json — Postman environment (baseUrl, token, apiKey)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/postman/environment.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "postman",
+                "environment.json"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Postman environment (baseUrl, token, apiKey)"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ]
+}

@@ -2,10 +2,11 @@
 import type { AppContext } from '../../app.js';
 import type { Handlers } from '../../openapi/router.js';
 import { ApiError } from '../../errors.js';
+import { buildCollection, buildEnvironment } from '../../postman/collection.js';
 
 const startedAt = Date.now();
 
-export function metaHandlers({ db, spec }: AppContext): Handlers {
+export function metaHandlers({ db, spec, config }: AppContext): Handlers {
   return {
     health: (_req, res) => {
       try {
@@ -18,6 +19,14 @@ export function metaHandlers({ db, spec }: AppContext): Handlers {
 
     getOpenApi: (_req, res) => {
       res.json(spec);
+    },
+
+    getPostmanCollection: (_req, res) => {
+      res.attachment('api-lab.postman_collection.json').json(buildCollection(spec));
+    },
+
+    getPostmanEnvironment: (req, res) => {
+      res.attachment('api-lab.postman_environment.json').json(buildEnvironment(`${req.protocol}://${req.get('host') ?? config.publicUrl}`));
     },
   };
 }

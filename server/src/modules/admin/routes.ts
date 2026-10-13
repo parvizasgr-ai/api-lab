@@ -1,0 +1,32 @@
+// Admin / sistem endpoint-ləri: DB reset və sorğu tarixçəsi.
+import type { AppContext } from '../../app.js';
+import type { Handlers } from '../../openapi/router.js';
+import { forbidden } from '../../errors.js';
+import { resetDatabase, tableCounts } from '../../db.js';
+import { isoNow } from '../../lib/crypto.js';
+
+export function adminHandlers({ db, config }: AppContext): Handlers {
+  return {
+    // Bütün cədvəllər silinir → migration-lar → seed. Dərs zamanı "hər şeyi sıfırla" düyməsi.
+    adminReset: (req, res) => {
+      if (req.auth?.role !== 'ADMIN') throw forbidden('Bu əməliyyat yalnız ADMIN üçündür');
+      resetDatabase(db);
+      const tables = Object.fromEntries(tableCounts(db).map((c) => [c.table, c.rows]));
+      res.json({ message: 'DB seed vəziyyətinə qaytarıldı', resetAt: isoNow(config.now()), tables });
+    },
+
+    // Token varsa — yalnız həmin istifadəçinin sorğuları; tokensiz — bu IP-nin anonim sorğuları; ADMIN + all=true — hamısı.
+    requestHistory: (req, res) => {
+      const { limit, all } = req.valid.query as { limit: number; all: boolean };
+      if (all && req.auth?.role !== 'ADMIN') throw forbidden('all=true yalnız ADMIN üçündür');
+      const where = all ? '1 = 1' : req.auth ? 'user_id = @userId' : 'user_id IS NULL AND ip = @ip';
+      const items = db
+        .prepare(
+          `SELECT id, request_id AS requestId, method, path, route, status, duration_ms AS durationMs, created_at AS createdAt
+           FROM request_log WHERE ${where} ORDER BY id DESC LIMIT @limit`,
+        )
+        .all({ userId: req.auth?.userId ?? null, ip: req.ip ?? null, limit });
+      res.json({ items });
+    },
+  };
+}

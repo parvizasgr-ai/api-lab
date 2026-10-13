@@ -5,7 +5,7 @@
 import express from 'express';
 import { config as defaultConfig, type Config } from './config.js';
 import type { DB } from './db.js';
-import { loadOpenApi, type OpenApiDoc } from './openapi/spec.js';
+import { listOperations, loadOpenApi, type OpenApiDoc } from './openapi/spec.js';
 import { mountOperations, type Handlers } from './openapi/router.js';
 import { requestId } from './middleware/requestId.js';
 import { requestLog } from './middleware/requestLog.js';
@@ -26,6 +26,7 @@ import { flightsHandlers } from './modules/flights/routes.js';
 import { hotelsHandlers } from './modules/hotels/routes.js';
 import { booksHandlers } from './modules/books/routes.js';
 import { musicHandlers } from './modules/music/routes.js';
+import { adminHandlers } from './modules/admin/routes.js';
 
 export interface AppContext {
   db: DB;
@@ -64,10 +65,15 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...hotelsHandlers(ctx),
     ...booksHandlers(ctx),
     ...musicHandlers(ctx),
+    ...adminHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 
   const app = express();
+  // Spec-də olub handler-i olmayan endpoint-lər (501 qaytarır) — testlər və başlanğıc log-u üçün
+  app.locals.unimplemented = listOperations(spec)
+    .filter((op) => !handlers[op.operationId] && op.method !== 'options')
+    .map((op) => op.operationId);
   app.set('trust proxy', 'loopback');
   app.set('json spaces', 2);
   app.set('etag', false); // ETag-ları özümüz idarə edirik (customers) — Express-in avtomatik ETag-ı söndürülür

@@ -22,6 +22,8 @@ import {
   sql,
   type Account,
   type Book,
+  type LessonProgress,
+  type Transaction,
   type Customer,
   type Dashboard,
   type DbTable,
@@ -30,14 +32,21 @@ import {
   type Flight,
   type HomeData,
   type Hotel,
+  isSettled,
+  UPLOAD_EXTENSIONS,
+  UPLOAD_MAX_BYTES,
   type LessonTask,
   type Material,
+  type MaterialKind,
+  type MaterialPage,
+  type MaterialStatus,
   type NetworkCall,
   type Playlist,
   type Room,
   type Track,
 } from "./lib/api";
 import { subscribeNetwork } from "./lib/http";
+import { runTests, SAMPLE_TESTS, type TestResult } from "./lib/assertions";
 
 type Language = "az" | "en";
 type Theme = "light" | "dark";
@@ -120,6 +129,43 @@ const translations = {
     loadError: "Məlumat yüklənmədi",
     roomsLeft: "boş otaq",
     noResults: "Nəticə tapılmadı",
+    testsPassed: "keçdi",
+    testsNone: "Test yazılmayıb — Tests tab-ında assertion əlavə edin",
+    testsHelp: "status, time, header, json $.path və ya pm.response.to.have.status(200)",
+    tasksLabel: "tapşırıq",
+    matSearch: "Material axtar",
+    matUpload: "Material yüklə",
+    matDrop: "Faylı bura sürüşdür və ya seç",
+    matDropHint: "PDF, PPTX, DOCX, MD · maks. 50 MB",
+    matTitle: "Başlıq",
+    matLesson: "Dərs",
+    matKind: "Növ",
+    matGeneral: "Ümumi",
+    matUploading: "Yüklənir…",
+    matOpen: "Aç",
+    matPages: "Səhifələr",
+    matBack: "Materiallara qayıt",
+    matReconvert: "Reconvert",
+    matDelete: "Sil",
+    matEdit: "Redaktə",
+    matSave: "Yadda saxla",
+    matSortOrder: "Sıra",
+    matDeleteConfirm: "Material və bütün faylları silinsin?",
+    matNoPreview: "Önizləmə yoxdur — faylı endirin",
+    matFailed: "Konvertasiya alınmadı",
+    matProcessing: "Hazırlanır…",
+    matPage: "Səhifə",
+    matPrev: "Əvvəlki",
+    matNext: "Növbəti",
+    matEmpty: "Bu dərs üçün hələ material yoxdur",
+    matErrTooLarge: "Fayl çox böyükdür",
+    matErrType: "Fayl tipi dəstəklənmir",
+    matErrValidation: "Məlumatlar düzgün deyil",
+    matErrOther: "Yükləmə alınmadı",
+    matAll: "Hamısı",
+    matUploadedBy: "Yükləyən",
+    matLessonTasks: "Dərs tapşırıqları",
+    matNoTasks: "Bu dərs üçün tapşırıq yoxdur",
     loading: "Məlumat yüklənir",
     beta: "BETA",
     live: "AKTİV",
@@ -611,6 +657,43 @@ const translations = {
     loadError: "Could not load data",
     roomsLeft: "rooms available",
     noResults: "No results",
+    testsPassed: "passed",
+    testsNone: "No tests yet — add assertions in the Tests tab",
+    testsHelp: "status, time, header, json $.path or pm.response.to.have.status(200)",
+    tasksLabel: "tasks",
+    matSearch: "Search materials",
+    matUpload: "Upload material",
+    matDrop: "Drag a file here or browse",
+    matDropHint: "PDF, PPTX, DOCX, MD · max 50 MB",
+    matTitle: "Title",
+    matLesson: "Lesson",
+    matKind: "Kind",
+    matGeneral: "General",
+    matUploading: "Uploading…",
+    matOpen: "Open",
+    matPages: "Pages",
+    matBack: "Back to materials",
+    matReconvert: "Reconvert",
+    matDelete: "Delete",
+    matEdit: "Edit",
+    matSave: "Save",
+    matSortOrder: "Order",
+    matDeleteConfirm: "Delete the material and all of its files?",
+    matNoPreview: "No preview — download the file",
+    matFailed: "Conversion failed",
+    matProcessing: "Processing…",
+    matPage: "Page",
+    matPrev: "Previous",
+    matNext: "Next",
+    matEmpty: "No materials for this lesson yet",
+    matErrTooLarge: "File is too large",
+    matErrType: "Unsupported file type",
+    matErrValidation: "Invalid input",
+    matErrOther: "Upload failed",
+    matAll: "All",
+    matUploadedBy: "Uploaded by",
+    matLessonTasks: "Lesson tasks",
+    matNoTasks: "No tasks for this lesson",
     loading: "Loading data",
     beta: "BETA",
     live: "LIVE",
@@ -1482,7 +1565,7 @@ const lessonIcons = ["play", "compass", "lock"] as const;
 const lessonMethods = ["GET", "POST", "JWT"] as const;
 
 type RequestTab = "params" | "headers" | "auth" | "body" | "tests";
-type ResponseTab = "pretty" | "raw" | "headers";
+type ResponseTab = "pretty" | "raw" | "headers" | "tests";
 type ExplorerPanel = "endpoints" | "request" | "response";
 
 type HistoryItem = {
@@ -1528,6 +1611,8 @@ function ExplorerPage({ t }: { t: Translation }) {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyClearedAt, setHistoryClearedAt] = useState(0);
   const [groups, setGroups] = useState<EndpointGroup[]>([]);
+  const [testsScript, setTestsScript] = useState(SAMPLE_TESTS);
+  const [testResults, setTestResults] = useState<TestResult[] | null>(null);
 
   // Endpoint kitabxanası OpenAPI spec-dən
   useEffect(() => {
@@ -1615,6 +1700,8 @@ function ExplorerPage({ t }: { t: Translation }) {
     const built = buildRequest();
     const result = await apiClient.sendExplorerRequest({ method, ...built });
     setResponse(result);
+    // Tests tab-ındakı assertion-lar real cavab üzərində icra olunur
+    setTestResults(runTests(testsScript, { status: result.status, headers: result.headers, body: result.body, time: result.time }));
     setIsLoading(false);
     setCountdown(result.retryAfter ?? 0);
     await loadHistory();
@@ -1633,10 +1720,12 @@ function ExplorerPage({ t }: { t: Translation }) {
     { id: "body", label: t.body },
     { id: "tests", label: t.tests },
   ];
+  const passedTests = testResults?.filter((r) => r.pass).length ?? 0;
   const responseTabs: { id: ResponseTab; label: string }[] = [
     { id: "pretty", label: t.pretty },
     { id: "raw", label: t.raw },
     { id: "headers", label: t.headers },
+    { id: "tests", label: testResults?.length ? `${t.tests} ${passedTests}/${testResults.length}` : t.tests },
   ];
   const rows = requestTab === "params" ? params : headers;
   const setRows = requestTab === "params" ? setParams : setHeaders;
@@ -1874,8 +1963,10 @@ function ExplorerPage({ t }: { t: Translation }) {
                 <div className="editor-toolbar"><span>{t.testsHint}</span></div>
                 <textarea
                   aria-label={t.tests}
-                  defaultValue={t.testsPlaceholder}
+                  onChange={(event) => setTestsScript(event.target.value)}
+                  placeholder={t.testsHelp}
                   spellCheck="false"
+                  value={testsScript}
                 />
               </div>
             )}
@@ -1943,11 +2034,27 @@ function ExplorerPage({ t }: { t: Translation }) {
                 </div>
                 <CopyButton value={curl} label={t.copyAsCurl} copiedLabel={t.copied} compact />
               </div>
+              {responseTab === "tests" ? (
+                <ul className="test-results" aria-label={t.tests}>
+                  {!testResults?.length ? (
+                    <li className="test-empty">{t.testsNone}</li>
+                  ) : (
+                    testResults.map((result, index) => (
+                      <li className={result.pass ? "pass" : "fail"} key={index}>
+                        <span className="test-mark">{result.pass ? "PASS" : "FAIL"}</span>
+                        <code>{result.name}</code>
+                        <small>{result.message}</small>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              ) : (
               <pre className="response-code">
                 {responseTab === "headers"
                   ? [`HTTP ${response.status} ${response.statusText}`, ...Object.entries(response.headers).map(([key, value]) => `${key}: ${value}`)].join("\n")
                   : bodyText(response.body, responseTab === "pretty")}
               </pre>
+              )}
             </>
           )}
         </aside>
@@ -2136,11 +2243,14 @@ function BankApp({ t }: { t: Translation }) {
   const [recipient, setRecipient] = useState("AZ21NABZ0004");
   const [amount, setAmount] = useState("25.00");
   const [idempotencyKey, setIdempotencyKey] = useState(() => bank.newIdempotencyKey());
+  const [history, setHistory] = useState<Transaction[]>([]);
 
   const load = async () => {
     try {
       const next = await bank.dashboard(); // BFF: accounts + cards + transactions + rates (1 sorğu)
       setData(next);
+      const primary = next.accounts.find((a) => a.currency === "AZN") ?? next.accounts[0];
+      if (primary) bank.transactions(primary.id).then(setHistory).catch(() => setHistory([]));
       setFromAccount((current) => current || next.accounts[0]?.id || "");
       setLoadError("");
     } catch (error) {
@@ -2159,6 +2269,27 @@ function BankApp({ t }: { t: Translation }) {
         return sum + (rate ? account.balance / rate : 0);
       }, 0)
     : 0;
+  // Balans qrafiki: əsas hesabın cari balansından geriyə — hər əməliyyatdan sonrakı balans
+  const primaryAccount = data ? data.accounts.find((a) => a.currency === "AZN") ?? data.accounts[0] : undefined;
+  const balanceSeries = (() => {
+    if (!primaryAccount || !history.length) return [];
+    const series = [primaryAccount.balance];
+    for (let i = history.length - 1; i > 0; i--) {
+      const tx = history[i];
+      series.unshift(series[0] - (tx.type === "CREDIT" ? tx.amount : -tx.amount));
+    }
+    return series;
+  })();
+  const sparkMin = Math.min(...balanceSeries);
+  const sparkMax = Math.max(...balanceSeries);
+  const sparkPath = balanceSeries
+    .map((value, i) => {
+      const x = balanceSeries.length > 1 ? 2 + (i / (balanceSeries.length - 1)) * 176 : 90;
+      const y = sparkMax === sparkMin ? 28 : 50 - ((value - sparkMin) / (sparkMax - sparkMin)) * 44;
+      return `${i ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const sparkChange = balanceSeries.length > 1 && balanceSeries[0] !== 0 ? ((balanceSeries[balanceSeries.length - 1] - balanceSeries[0]) / Math.abs(balanceSeries[0])) * 100 : 0;
   const accountName = (account: Account) => (account.type === "SAVINGS" ? t.savings : t.checking);
   const holder = (data?.user.fullName ?? "").toUpperCase();
 
@@ -2207,11 +2338,11 @@ function BankApp({ t }: { t: Translation }) {
           <strong>{money(totalAzn, "AZN")}</strong>
           <small>{t.acrossAccounts}</small>
         </div>
-        <div className="balance-spark" aria-hidden="true">
+        <div className="balance-spark" aria-label={primaryAccount ? `${primaryAccount.id} · ${history.length}` : undefined}>
           <svg viewBox="0 0 180 55">
-            <path d="M2 45 C25 46 24 29 47 34 S72 19 92 25 S116 9 135 17 S158 6 178 8" />
+            {sparkPath && <path d={sparkPath} />}
           </svg>
-          <span>{data.rates.date}</span>
+          <span>{sparkChange >= 0 ? "+" : ""}{sparkChange.toFixed(1)}%</span>
         </div>
       </div>
 
@@ -3960,30 +4091,326 @@ function SqlPlaygroundPage({ t }: { t: Translation }) {
 }
 
 const KIND_ICON: Record<string, "compass" | "network" | "lock" | "code"> = { SLIDES: "compass", DOCUMENT: "network", TASKSHEET: "code", OTHER: "lock" };
+const MATERIAL_KINDS: MaterialKind[] = ["SLIDES", "DOCUMENT", "TASKSHEET", "OTHER"];
 const fileExt = (name: string) => (name.split(".").pop() ?? "").toUpperCase();
 const sizeText = (bytes: number) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
+function MaterialStatusBadge({ status, t }: { status: MaterialStatus; t: Translation }) {
+  const label = status === "READY" ? "READY" : status === "READY_NO_PREVIEW" ? "READY_NO_PREVIEW" : status === "FAILED" ? "FAILED" : t.matProcessing;
+  return <span className={`mat-badge mat-badge-${status.toLowerCase()}`}>{label}</span>;
+}
+
+// Backend xətası (413/415/422) istifadəçi üçün: başlıq + kod + təfərrüat
+function uploadErrorView(error: AuthClientError, t: Translation) {
+  const title = error.status === 413 ? t.matErrTooLarge : error.status === 415 ? t.matErrType : error.status === 422 ? t.matErrValidation : t.matErrOther;
+  return { title, code: `${error.status} ${error.code}`, message: error.message, details: error.details.map((d) => `${d.field}: ${d.message}`) };
+}
+
+function MaterialUploader({ onUploaded, t }: { onUploaded: (m: Material) => void; t: Translation }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [title, setTitle] = useState("");
+  const [lesson, setLesson] = useState("");
+  const [kind, setKind] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<ReturnType<typeof uploadErrorView> | null>(null);
+
+  const choose = (next: File | undefined) => {
+    if (!next) return;
+    setFile(next);
+    setError(null);
+    if (!title) setTitle(next.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " "));
+    const lessonMatch = /(?:ders|dərs|lesson)[\s_-]*([123])(?!\d)/i.exec(next.name);
+    if (lessonMatch && !lesson) setLesson(lessonMatch[1]);
+  };
+
+  // Client tərəfi ilkin yoxlama sürətli rəy üçündür; əsl qərarı backend verir (uzantı + MIME + magic bytes)
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (file.size > UPLOAD_MAX_BYTES) {
+      setError({ title: t.matErrTooLarge, code: "413", message: `${sizeText(file.size)} > ${sizeText(UPLOAD_MAX_BYTES)}`, details: [] });
+      return;
+    }
+    if (!UPLOAD_EXTENSIONS.includes(ext)) {
+      setError({ title: t.matErrType, code: "415", message: `.${ext || "?"} — ${UPLOAD_EXTENSIONS.join(", ")}`, details: [] });
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await learning.upload(file, { title: title.trim(), lesson: lesson ? Number(lesson) : null, kind: (kind || undefined) as MaterialKind | undefined });
+      onUploaded(created);
+      setFile(null);
+      setTitle("");
+      setLesson("");
+      setKind("");
+      if (inputRef.current) inputRef.current.value = "";
+    } catch (caught) {
+      setError(caught instanceof AuthClientError ? uploadErrorView(caught, t) : { title: t.matErrOther, code: "", message: String(caught), details: [] });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form className="mat-uploader lab-card" onSubmit={submit}>
+      <div className="lab-card-heading"><span className="lab-card-icon"><Icon name="plus" size={20} /></span><div><h2>{t.matUpload}</h2><p>{t.matDropHint}</p></div></div>
+      <label
+        className={dragging ? "mat-dropzone dragging" : file ? "mat-dropzone has-file" : "mat-dropzone"}
+        onDragLeave={() => setDragging(false)}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          choose(event.dataTransfer.files[0]);
+        }}
+      >
+        <input accept=".pdf,.pptx,.docx,.md" onChange={(event) => choose(event.target.files?.[0])} ref={inputRef} type="file" />
+        <Icon name={file ? "check" : "arrow"} size={22} />
+        <strong>{file ? file.name : t.matDrop}</strong>
+        <small>{file ? sizeText(file.size) : t.matDropHint}</small>
+      </label>
+      <div className="mat-form-row">
+        <label><span>{t.matTitle}</span><input onChange={(event) => setTitle(event.target.value)} value={title} /></label>
+        <label><span>{t.matLesson}</span><select onChange={(event) => setLesson(event.target.value)} value={lesson}><option value="">{t.matGeneral}</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+        <label><span>{t.matKind}</span><select onChange={(event) => setKind(event.target.value)} value={kind}><option value="">auto</option>{MATERIAL_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}</select></label>
+      </div>
+      {error && (
+        <div className="mat-alert" role="alert">
+          <strong>{error.title}</strong>
+          <code>{error.code}</code>
+          <span>{error.message}</span>
+          {error.details.map((d) => <small key={d}>{d}</small>)}
+        </div>
+      )}
+      <button className="primary-button" disabled={!file || busy} type="submit">
+        {busy ? <span className="button-spinner" /> : <Icon name="arrow" size={16} />}
+        {busy ? t.matUploading : t.matUpload}
+      </button>
+    </form>
+  );
+}
+
+function MaterialEditor({ material, onSaved, onCancel, t }: { material: Material; onSaved: (m: Material) => void; onCancel: () => void; t: Translation }) {
+  const [title, setTitle] = useState(material.title);
+  const [lesson, setLesson] = useState(material.lesson ? String(material.lesson) : "");
+  const [sortOrder, setSortOrder] = useState(material.sortOrder);
+  const [error, setError] = useState("");
+  const save = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    try {
+      onSaved(await learning.update(material.id, { title: title.trim(), lesson: lesson ? Number(lesson) : null, sortOrder }));
+    } catch (caught) {
+      setError(errorText(caught));
+    }
+  };
+  return (
+    <form className="mat-editor" onSubmit={save}>
+      <label><span>{t.matTitle}</span><input onChange={(event) => setTitle(event.target.value)} value={title} /></label>
+      <label><span>{t.matLesson}</span><select onChange={(event) => setLesson(event.target.value)} value={lesson}><option value="">{t.matGeneral}</option><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+      <label><span>{t.matSortOrder}</span><input min="0" onChange={(event) => setSortOrder(Number(event.target.value))} type="number" value={sortOrder} /></label>
+      {error && <small className="mat-inline-error">{error}</small>}
+      <div><button onClick={onCancel} type="button">{t.cancel}</button><button className="primary-button" type="submit">{t.matSave}</button></div>
+    </form>
+  );
+}
+
+function MaterialCard({ material, admin, onOpen, onChanged, onDeleted, t }: { material: Material; admin: boolean; onOpen: () => void; onChanged: (m: Material) => void; onDeleted: () => void; t: Translation }) {
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState("");
+  const settled = isSettled(material.status);
+  const act = async (fn: () => Promise<void>) => {
+    setError("");
+    try {
+      await fn();
+    } catch (caught) {
+      setError(errorText(caught));
+    }
+  };
+  return (
+    <article className="mat-card" data-material-id={material.id}>
+      <button className="mat-thumb" disabled={!settled || material.status === "FAILED"} onClick={onOpen} type="button" aria-label={`${t.matOpen}: ${material.title}`}>
+        {material.links.thumbnail ? <img alt="" loading="lazy" src={learning.fileUrl(material.links.thumbnail)} /> : <span className={`file-icon file-${fileExt(material.originalFilename).toLowerCase()}`}>{fileExt(material.originalFilename)}</span>}
+      </button>
+      <div className="mat-card-body">
+        <div className="mat-card-top">
+          <MaterialStatusBadge status={material.status} t={t} />
+          <span className="mat-kind"><Icon name={KIND_ICON[material.kind] ?? "compass"} size={12} />{material.kind}</span>
+        </div>
+        <h3>{material.title}</h3>
+        <small>{fileExt(material.originalFilename)} · {sizeText(material.sizeBytes)}{material.pageCount ? ` · ${material.pageCount} ${t.pages}` : ""}{admin && material.uploadedBy ? ` · ${t.matUploadedBy}: ${material.uploadedBy}` : ""}</small>
+        {material.status === "FAILED" && <small className="mat-inline-error">{t.matFailed}: {material.errorMessage}</small>}
+        {material.status === "READY_NO_PREVIEW" && <small className="mat-inline-note">{t.matNoPreview}</small>}
+        {error && <small className="mat-inline-error">{error}</small>}
+        {editing ? (
+          <MaterialEditor material={material} onCancel={() => setEditing(false)} onSaved={(m) => { setEditing(false); onChanged(m); }} t={t} />
+        ) : (
+          <div className="mat-card-actions">
+            <button disabled={!settled || material.status === "FAILED"} onClick={onOpen} type="button"><Icon name="book" size={14} />{t.matOpen}</button>
+            <a download href={learning.fileUrl(material.links.download)}><Icon name="arrow" size={14} />{t.download}</a>
+            {admin && <button onClick={() => setEditing(true)} type="button"><Icon name="edit" size={14} />{t.matEdit}</button>}
+            {admin && <button disabled={!settled} onClick={() => void act(async () => onChanged(await learning.reconvert(material.id)))} type="button"><Icon name="repeat" size={14} />{t.matReconvert}</button>}
+            {admin && <button className="danger" disabled={!settled} onClick={() => setConfirming(true)} type="button"><Icon name="trash" size={14} />{t.matDelete}</button>}
+          </div>
+        )}
+      </div>
+      {confirming && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setConfirming(false)}>
+          <div className="delete-modal" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="modal-danger-icon"><Icon name="trash" size={22} /></div>
+            <h2>{t.matDeleteConfirm}</h2>
+            <strong>{material.title}</strong>
+            <div className="modal-actions">
+              <button onClick={() => setConfirming(false)} type="button">{t.cancel}</button>
+              <button onClick={() => void act(async () => { await learning.remove(material.id); setConfirming(false); onDeleted(); })} type="button">{t.confirmDelete}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function MaterialViewer({ material, onBack, t }: { material: Material; onBack: () => void; t: Translation }) {
+  const [pages, setPages] = useState<MaterialPage[]>([]);
+  const [current, setCurrent] = useState(1);
+  const [mode, setMode] = useState<"pages" | "pdf">(material.status === "READY" && material.pageCount ? "pages" : "pdf");
+
+  // Səhifə şəkilləri pre-signed URL-lərlə (1 saat) — <img> Authorization başlığı göndərə bilmir
+  useEffect(() => {
+    learning.pages(material.id).then(setPages).catch(() => setPages([]));
+  }, [material.id]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") setCurrent((p) => Math.min(pages.length, p + 1));
+      if (event.key === "ArrowLeft") setCurrent((p) => Math.max(1, p - 1));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pages.length]);
+
+  const page = pages.find((p) => p.pageNo === current);
+  return (
+    <section className="mat-viewer" aria-label={material.title}>
+      <div className="mat-viewer-head">
+        <button onClick={onBack} type="button"><Icon name="arrow" size={16} />{t.matBack}</button>
+        <div><span>{t.lesson} {material.lesson ?? "—"}</span><h2>{material.title}</h2></div>
+        <div className="mat-viewer-tabs" role="tablist">
+          <button aria-selected={mode === "pages"} className={mode === "pages" ? "active" : ""} disabled={!pages.length} onClick={() => setMode("pages")} role="tab" type="button">{t.matPages}</button>
+          <button aria-selected={mode === "pdf"} className={mode === "pdf" ? "active" : ""} disabled={!material.links.pdf} onClick={() => setMode("pdf")} role="tab" type="button">PDF</button>
+          <a download href={learning.fileUrl(material.links.download)}><Icon name="arrow" size={14} />{t.download}</a>
+        </div>
+      </div>
+      {mode === "pages" && pages.length > 0 ? (
+        <div className="mat-viewer-body">
+          <nav className="mat-page-nav" aria-label={t.matPages}>
+            {pages.map((p) => (
+              <button aria-current={p.pageNo === current ? "page" : undefined} className={p.pageNo === current ? "active" : ""} key={p.pageNo} onClick={() => setCurrent(p.pageNo)} type="button">
+                <img alt="" loading="lazy" src={learning.fileUrl(p.thumbUrl)} />
+                <span>{p.pageNo}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="mat-page-stage">
+            {page && <img alt={`${t.matPage} ${page.pageNo}`} src={learning.fileUrl(page.imageUrl)} />}
+            <div className="mat-page-controls">
+              <button disabled={current <= 1} onClick={() => setCurrent(current - 1)} type="button">{t.matPrev}</button>
+              <span>{t.matPage} {current} / {pages.length}</span>
+              <button disabled={current >= pages.length} onClick={() => setCurrent(current + 1)} type="button">{t.matNext}</button>
+            </div>
+          </div>
+        </div>
+      ) : material.links.pdf ? (
+        <iframe className="mat-pdf" src={learning.fileUrl(material.links.pdf)} title={material.title} />
+      ) : (
+        <div className="mat-viewer-empty"><Icon name="book" size={26} /><p>{t.matNoPreview}</p><a className="primary-button" download href={learning.fileUrl(material.links.download)}>{t.download}</a></div>
+      )}
+    </section>
+  );
+}
+
+function LessonTaskList({ tasks, onToggle, onOpen, t }: { tasks: LessonTask[]; onToggle: (task: LessonTask) => void; onOpen: (task: LessonTask) => void; t: Translation }) {
+  const done = tasks.filter((task) => task.done).length;
+  const percent = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
+  return (
+    <div className="mat-tasks">
+      <div className="mat-tasks-head">
+        <strong>{t.matLessonTasks}</strong>
+        <span>{done} / {tasks.length} · {percent}%</span>
+      </div>
+      <div aria-label={`${percent}%`} className="mat-progress" role="progressbar" aria-valuemax={100} aria-valuemin={0} aria-valuenow={percent}><i style={{ width: `${percent}%` }} /></div>
+      {tasks.length === 0 ? (
+        <small className="mat-inline-note">{t.matNoTasks}</small>
+      ) : (
+        <div className="task-list">
+          {tasks.map((task) => (
+            <article className={task.done ? "complete" : ""} key={task.id}>
+              <button aria-label={t.markComplete} aria-pressed={task.done} onClick={() => onToggle(task)} type="button">{task.done && <Icon name="check" size={15} />}</button>
+              <span>{task.title} <code>{task.method} {task.path} → {task.expectedStatus}</code></span>
+              <button onClick={() => onOpen(task)} type="button">{task.sqlCheck && task.done ? t.checkWithSql : t.openInExplorerTask}<Icon name="arrow" size={14} /></button>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MaterialsPage({
   onNavigate,
+  session,
   t,
 }: {
   onNavigate: (page: Page) => void;
+  session: AuthSession | null;
   t: Translation;
 }) {
+  const admin = session?.user.role === "admin";
   const [items, setItems] = useState<Material[]>([]);
   const [tasks, setTasks] = useState<LessonTask[]>([]);
   const [loadError, setLoadError] = useState("");
+  const [query, setQuery] = useState("");
+  const [lessonFilter, setLessonFilter] = useState<number | null>(() => handoffs.take().lesson ?? null);
+  const [openId, setOpenId] = useState<number | null>(null);
+
+  const load = async () => {
+    try {
+      const [materials, lessonTasks] = await Promise.all([learning.materials(), learning.tasks()]);
+      setItems(materials);
+      setTasks(lessonTasks);
+      setLoadError("");
+    } catch (error) {
+      setLoadError(errorText(error));
+    }
+  };
 
   useEffect(() => {
-    Promise.all([learning.materials(), learning.tasks()])
-      .then(([materials, lessonTasks]) => {
-        setItems(materials);
-        setTasks(lessonTasks);
-      })
-      .catch((error) => setLoadError(errorText(error)));
+    void load();
   }, []);
 
-  // PUT /api/v1/tasks/{id}/progress — hər istifadəçinin öz irəliləyişi (DB-də task_progress)
+  // 202 Accepted-dən sonra polling: UPLOADED / CONVERTING → READY | READY_NO_PREVIEW | FAILED
+  const pending = items.filter((m) => !isSettled(m.status)).map((m) => m.id).join(",");
+  useEffect(() => {
+    if (!pending) return;
+    const timer = window.setInterval(async () => {
+      const ids = pending.split(",").map(Number);
+      const fresh = await Promise.all(ids.map((id) => learning.material(id).catch(() => null)));
+      setItems((list) => list.map((m) => fresh.find((f) => f?.id === m.id) ?? m));
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [pending]);
+
+  const upsert = (m: Material) => setItems((list) => (list.some((x) => x.id === m.id) ? list.map((x) => (x.id === m.id ? m : x)) : [...list, m]));
+
+  // PUT /api/v1/tasks/{id}/progress — optimistic yeniləmə, xətada geri qaytarılır
   const toggleTask = async (task: LessonTask) => {
     const done = !task.done;
     setTasks((list) => list.map((item) => (item.id === task.id ? { ...item, done } : item)));
@@ -3994,7 +4421,6 @@ function MaterialsPage({
     }
   };
 
-  // Tapşırıqdan Explorer-ə (hazır method + path) və ya SQL Playground-a (hazır SELECT)
   const openTask = (task: LessonTask) => {
     if (task.sqlCheck && task.done) {
       handoffs.set({ sql: task.sqlCheck });
@@ -4005,24 +4431,69 @@ function MaterialsPage({
     }
   };
 
+  const term = query.trim().toLowerCase();
+  const visible = items
+    .filter((m) => !term || `${m.title} ${m.originalFilename} ${m.description ?? ""}`.toLowerCase().includes(term))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+  const groups = ([1, 2, 3, null] as (number | null)[])
+    .filter((lesson) => lessonFilter === null || lesson === lessonFilter)
+    .map((lesson) => ({ lesson, materials: visible.filter((m) => m.lesson === lesson), tasks: lesson ? tasks.filter((task) => task.lesson === lesson) : [] }))
+    .filter((group) => group.lesson !== null || group.materials.length > 0);
   const completed = tasks.filter((task) => task.done).length;
   const progress = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
-  const downloads = [
-    ...items.map((m) => ({ key: `m-${m.id}`, title: m.title, type: `${m.kind}${m.pageCount ? ` · ${m.pageCount} ${t.pages}` : ""}`, ext: fileExt(m.originalFilename), size: sizeText(m.sizeBytes), href: learning.fileUrl(m.links.download) })),
-    { key: "postman", title: t.postmanCollection, type: t.jsonFile, ext: "JSON", size: "Postman v2.1", href: learning.fileUrl("/api/postman/collection.json") },
-  ];
+  const opened = items.find((m) => m.id === openId);
+
+  if (opened) {
+    return (
+      <main className="materials-page" id="main-content">
+        <MaterialViewer material={opened} onBack={() => setOpenId(null)} t={t} />
+      </main>
+    );
+  }
 
   return (
     <main className="materials-page" id="main-content">
       <div className="materials-hero">
         <div><span className="section-kicker"><Icon name="book" size={16} />{t.learningHub}</span><h1>{t.materialsTitle}</h1><p>{loadError || t.materialsSubtitle}</p></div>
-        <div className="course-progress"><div><span>{t.courseProgress}</span><strong>{progress}%</strong></div><div className={`progress-track progress-${Math.min(5, Math.round(progress / 20))}`}><i /></div><small>{completed} / {tasks.length} {t.completedTasks}</small></div>
+        <div className="course-progress"><div><span>{t.courseProgress}</span><strong>{progress}%</strong></div><div className="progress-track"><i style={{ width: `${progress}%` }} /></div><small>{completed} / {tasks.length} {t.completedTasks}</small></div>
       </div>
-      <section className="materials-section"><div className="materials-section-head"><h2>{t.lessonMaterials}</h2><span>{items.length} {t.materialsCount}</span></div><div className="material-lesson-grid">{items.length === 0 ? <article><h3>{t.noResults}</h3></article> : items.map((m, index) => <article key={m.id}><div className={`material-lesson-icon icon-${(index % 4) + 1}`}><Icon name={KIND_ICON[m.kind] ?? "compass"} size={21} /></div><span>{t.lesson} {m.lesson ? String(m.lesson).padStart(2, "0") : "—"}</span><h3>{m.title}</h3><div><small>{m.status === "READY" && m.pageCount ? `${m.pageCount} ${t.pages}` : m.status}</small><b>{fileExt(m.originalFilename)}</b></div></article>)}</div></section>
-      <div className="materials-two-column">
-        <section className="materials-section task-section"><div className="materials-section-head"><h2>{t.practicalTasks}</h2><span>{completed}/{tasks.length}</span></div><div className="task-list">{tasks.map((task) => <article className={task.done ? "complete" : ""} key={task.id}><button aria-label={t.markComplete} onClick={() => void toggleTask(task)} type="button">{task.done && <Icon name="check" size={15} />}</button><span>{t.lesson} {task.lesson} · {task.title} <code>{task.method} {task.path} → {task.expectedStatus}</code></span><button onClick={() => openTask(task)} type="button">{task.sqlCheck && task.done ? t.checkWithSql : t.openInExplorerTask}<Icon name="arrow" size={14} /></button></article>)}</div></section>
-        <section className="materials-section download-section"><div className="materials-section-head"><div><h2>{t.downloads}</h2><p>{t.downloadsSubtitle}</p></div></div><div className="download-list">{downloads.map((file) => <a download href={file.href} key={file.key}><span className={`file-icon file-${file.ext.toLowerCase()}`}>{file.ext}</span><div><strong>{file.title}</strong><small>{file.type} · {file.size}</small></div><span><Icon name="arrow" size={16} />{t.download}</span></a>)}</div></section>
+
+      <div className="mat-toolbar">
+        <label className="mat-search">
+          <Icon name="search" size={16} />
+          <span className="sr-only">{t.matSearch}</span>
+          <input onChange={(event) => setQuery(event.target.value)} placeholder={t.matSearch} type="search" value={query} />
+        </label>
+        <div className="mat-lesson-filter" role="group" aria-label={t.matLesson}>
+          {([null, 1, 2, 3] as (number | null)[]).map((lesson) => (
+            <button className={lessonFilter === lesson ? "active" : ""} key={String(lesson)} onClick={() => setLessonFilter(lesson)} type="button">{lesson === null ? t.matAll : `${t.lesson} ${lesson}`}</button>
+          ))}
+        </div>
+        <a className="mat-toolbar-link" download href={learning.fileUrl("/api/postman/collection.json")}><Icon name="arrow" size={15} />{t.postmanCollection}</a>
       </div>
+
+      {admin && <MaterialUploader onUploaded={upsert} t={t} />}
+
+      {groups.map((group) => (
+        <section className="materials-section mat-lesson" data-lesson={group.lesson ?? "general"} key={String(group.lesson)}>
+          <div className="materials-section-head">
+            <h2>{group.lesson ? `${t.lesson} ${group.lesson}` : t.matGeneral}</h2>
+            <span>{group.materials.length} {t.materialsCount}</span>
+          </div>
+          <div className="mat-lesson-layout">
+            <div className="mat-grid">
+              {group.materials.length === 0 ? (
+                <div className="mat-empty">{term ? t.noResults : t.matEmpty}</div>
+              ) : (
+                group.materials.map((m) => (
+                  <MaterialCard admin={admin} key={m.id} material={m} onChanged={upsert} onDeleted={() => setItems((list) => list.filter((x) => x.id !== m.id))} onOpen={() => setOpenId(m.id)} t={t} />
+                ))
+              )}
+            </div>
+            {group.lesson !== null && <LessonTaskList onOpen={openTask} onToggle={(task) => void toggleTask(task)} t={t} tasks={group.tasks} />}
+          </div>
+        </section>
+      ))}
     </main>
   );
 }
@@ -4045,6 +4516,7 @@ function App() {
   });
   const [data, setData] = useState<HomeData | null>(null);
   const [lessonsDone, setLessonsDone] = useState(0);
+  const [lessonProgress, setLessonProgress] = useState<LessonProgress["byLesson"]>([]);
   const t = translations[language];
 
   // auth.ts sessiyanı dəyişəndə (refresh, refresh uğursuz → çıxış) state-i yenilə
@@ -4054,11 +4526,15 @@ function App() {
   useEffect(() => {
     if (!session) {
       setLessonsDone(0);
+      setLessonProgress([]);
       return;
     }
     learning
       .progress()
-      .then((p) => setLessonsDone(p.byLesson.filter((l) => l.total > 0 && l.done === l.total).length))
+      .then((p) => {
+        setLessonProgress(p.byLesson);
+        setLessonsDone(p.byLesson.filter((l) => l.total > 0 && l.done === l.total).length);
+      })
       .catch(() => setLessonsDone(0));
   }, [session]);
 
@@ -4153,10 +4629,15 @@ function App() {
     }
   };
 
+  // Dərs kartlarının meta sətri real irəliləyişdən: "2 / 4 tapşırıq" (login olmayanda — statik təsvir)
+  const lessonMeta = (lesson: number, fallback: string) => {
+    const p = lessonProgress.find((l) => l.lesson === lesson);
+    return p ? `${p.done} / ${p.total} ${t.tasksLabel}` : fallback;
+  };
   const lessons = [
-    { title: t.lesson1Title, description: t.lesson1Description, meta: t.lesson1Meta },
-    { title: t.lesson2Title, description: t.lesson2Description, meta: t.lesson2Meta },
-    { title: t.lesson3Title, description: t.lesson3Description, meta: t.lesson3Meta },
+    { title: t.lesson1Title, description: t.lesson1Description, meta: lessonMeta(1, t.lesson1Meta) },
+    { title: t.lesson2Title, description: t.lesson2Description, meta: lessonMeta(2, t.lesson2Meta) },
+    { title: t.lesson3Title, description: t.lesson3Description, meta: lessonMeta(3, t.lesson3Meta) },
   ];
 
   return (
@@ -4383,7 +4864,14 @@ function App() {
                   <p>{lesson.description}</p>
                   <div className="lesson-footer">
                     <span>{lesson.meta}</span>
-                    <a href="#">
+                    <a
+                      href="#materials"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        handoffs.set({ lesson: index + 1 });
+                        navigateTo("materials");
+                      }}
+                    >
                       <span>{t.continueLesson}</span>
                       <Icon name="arrow" size={17} />
                     </a>
@@ -4441,7 +4929,7 @@ function App() {
       ) : currentPage === "sql" ? (
         <SqlPlaygroundPage t={t} />
       ) : (
-        <MaterialsPage onNavigate={navigateTo} t={t} />
+        <MaterialsPage onNavigate={navigateTo} session={session} t={t} />
       )}
 
       <footer>

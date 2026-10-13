@@ -700,6 +700,7 @@
           ],
           "writes": [
             "UPDATE oauth_codes (used_at)",
+            "INSERT refresh_tokens (scope = verilmiş scope)",
             "INSERT audit_log"
           ]
         },
@@ -740,6 +741,7 @@
                   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig",
                   "token_type": "Bearer",
                   "expires_in": 900,
+                  "refresh_token": "rt_4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f",
                   "scope": "openid profile email"
                 }
               }
@@ -9942,6 +9944,7 @@
           "access_token",
           "token_type",
           "expires_in",
+          "refresh_token",
           "scope"
         ],
         "properties": {
@@ -9956,6 +9959,10 @@
           },
           "expires_in": {
             "type": "integer"
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "POST /api/v1/auth/refresh ilə yenilənir; scope genişlənmir"
           },
           "scope": {
             "type": "string"

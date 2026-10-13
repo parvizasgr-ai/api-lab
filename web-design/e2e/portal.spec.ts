@@ -138,7 +138,7 @@ test('Mock Google OAuth: real provider hesabları → parol → code → token �
   await page.locator('.google-consent-actions button').last().click()
   await expect(page.locator('.user-chip')).toBeVisible()
   const s = await session(page)
-  expect(s.refreshToken).toBeNull()
+  expect(s.refreshToken).toMatch(/^rt_/) // W3: OAuth girişində də refresh token verilir (scope genişlənmir)
   expect(s.scope).toContain('cards:read')
   expect(s.scope).not.toContain('admin')
 })

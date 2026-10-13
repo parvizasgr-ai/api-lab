@@ -199,3 +199,21 @@ describe('SPA rejimi (Accept: application/json)', () => {
     expect(wrong.body.code).toBe('INVALID_CREDENTIALS');
   });
 });
+
+describe('OAuth refresh token', () => {
+  it('token cavabında refresh_token var; refresh scope-u GENİŞLƏNDİRMİR (scope escalation yoxdur)', async () => {
+    const t = setup();
+    const code = await t.getCode({ scope: 'openid accounts:read' });
+    const res = await t.token({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT, ...CLIENT });
+    expect(res.status).toBe(200);
+    expectMatchesSpec(res, 'oauthToken');
+    expect(res.body.refresh_token).toMatch(/^rt_/);
+
+    const refreshed = await t.api().post('/api/v1/auth/refresh').send({ refresh_token: res.body.refresh_token });
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body.scope).toBe('openid accounts:read');
+    expect(refreshed.body.scope).not.toContain('cards:write');
+    // Parol ilə login isə istifadəçinin bütün scope-larını verir
+    expect((await t.login()).scope).toContain('cards:write');
+  });
+});

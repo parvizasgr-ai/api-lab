@@ -43,7 +43,7 @@ export const config = {
   materials: {
     dir: env.MATERIALS_DIR ?? path.join(ROOT_DIR, 'data', 'materials'),
     slidesDir: path.join(ROOT_DIR, 'materials', 'slides'), // server qalxanda / materials:seed ilə avtomatik import
-    maxUploadBytes: 50 * 1024 * 1024,
+    maxUploadBytes: Number(env.MAX_UPLOAD_MB ?? 50) * 1024 * 1024,
     convertTimeoutMs: 180_000,
     signedUrlTtlSec: 3600,
     // 'auto' — PATH-də axtarılır; testlərdə { soffice: null, pdftoppm: null } ilə söndürülür

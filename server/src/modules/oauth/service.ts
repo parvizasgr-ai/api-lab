@@ -74,13 +74,15 @@ export class OAuthService {
       throw new OAuthError(400, 'invalid_grant', 'Authorization code artıq istifadə olunub');
     }
     const user = authRepo.findUserById(this.db, row.user_id)!;
-    const scopes = row.scope.split(' ').filter(Boolean);
+    // Refresh token da verilir — scope-u kodun scope-u ilə məhdudlaşır (refresh-də genişlənmir)
+    const pair = await this.auth.issueTokenPair(user, row.scope);
     return {
       userId: user.id,
       response: {
-        access_token: await this.auth.issueAccessToken(user, scopes),
+        access_token: pair.access_token,
         token_type: 'Bearer' as const,
-        expires_in: this.config.accessTokenTtlSec,
+        expires_in: pair.expires_in,
+        refresh_token: pair.refresh_token,
         scope: row.scope,
       },
     };

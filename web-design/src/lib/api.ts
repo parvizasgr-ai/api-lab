@@ -182,6 +182,9 @@ const newKey = (prefix: string) => `${prefix}-${crypto.randomUUID().replace(/-/g
 export const bank = {
   newIdempotencyKey: () => newKey("idem"),
   dashboard: async () => (await api.get<Dashboard>("/bff/dashboard")).data,
+  // Balans qrafiki üçün: hesabın son əməliyyatları (köhnədən yeniyə)
+  transactions: async (accountId: string, size = 30) =>
+    (await api.get<{ items: Transaction[] }>(`/api/v1/accounts/${accountId}/transactions?size=${size}&sort=-createdAt`)).data.items.reverse(),
   blockCard: async (cardId: number, reason: string, comment: string) =>
     (await api.post(`/api/v1/cards/${cardId}/block`, { reason, ...(comment ? { comment } : {}) }, { headers: { "Idempotency-Key": newKey("block") } })).data,
   transfer: async (body: { fromAccountId: string; toAccountId: string; amount: number; currency: string }, idempotencyKey: string) =>
@@ -261,18 +264,72 @@ export const sql = {
 };
 
 // ---------------------------------------------------------------- Materials + tapşırıqlar
-export type Material = { id: number; lesson: number | null; title: string; kind: string; originalFilename: string; mime: string; sizeBytes: number; pageCount: number | null; status: string; links: { download: string; pdf: string | null; thumbnail: string | null } };
-export type LessonTask = { id: number; lesson: number; title: string; descriptionMd: string; method: string; path: string; expectedStatus: number; sqlCheck: string | null; done: boolean };
+export type MaterialStatus = "UPLOADED" | "CONVERTING" | "READY" | "READY_NO_PREVIEW" | "FAILED";
+export type MaterialKind = "SLIDES" | "DOCUMENT" | "TASKSHEET" | "OTHER";
+export type Material = {
+  id: number;
+  lesson: number | null;
+  title: string;
+  description: string | null;
+  kind: MaterialKind;
+  originalFilename: string;
+  mime: string;
+  sizeBytes: number;
+  pageCount: number | null;
+  status: MaterialStatus;
+  errorMessage: string | null;
+  uploadedBy: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  links: { self: string; pages: string; download: string; pdf: string | null; thumbnail: string | null };
+};
+export type MaterialPage = { pageNo: number; imageUrl: string; thumbUrl: string };
+export type LessonTask = { id: number; lesson: number; title: string; descriptionMd: string; method: string; path: string; expectedStatus: number; sqlCheck: string | null; materialId: number | null; done: boolean };
+export type LessonProgress = { total: number; done: number; byLesson: { lesson: number; total: number; done: number }[] };
+export type MaterialUploadMeta = { title: string; lesson: number | null; kind?: MaterialKind; description?: string };
+export type MaterialPatch = Partial<{ title: string; description: string | null; lesson: number | null; kind: MaterialKind; sortOrder: number }>;
+
+// Konvertasiya bitib? (polling dayansın)
+export const isSettled = (status: MaterialStatus) => status === "READY" || status === "READY_NO_PREVIEW" || status === "FAILED";
+
+// Client tərəfi ilkin yoxlama — son söz backend-indir (uzantı + MIME + magic bytes → 415, ölçü → 413)
+export const UPLOAD_EXTENSIONS = ["pdf", "pptx", "docx", "md"];
+export const UPLOAD_MAX_BYTES = 50 * 1024 * 1024;
+
 export const learning = {
-  materials: async () => (await api.get<{ items: Material[] }>("/api/v1/materials")).data.items,
-  tasks: async () => (await api.get<{ items: LessonTask[] }>("/api/v1/tasks")).data.items,
+  materials: async (q: { lesson?: number; kind?: string; q?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (q.lesson) params.set("lesson", String(q.lesson));
+    if (q.kind) params.set("kind", q.kind);
+    if (q.q) params.set("q", q.q);
+    return (await api.get<{ items: Material[] }>(`/api/v1/materials${params.size ? `?${params}` : ""}`)).data.items;
+  },
+  material: async (id: number) => (await api.get<Material>(`/api/v1/materials/${id}`)).data,
+  pages: async (id: number) => (await api.get<{ status: MaterialStatus; items: MaterialPage[] }>(`/api/v1/materials/${id}/pages`)).data.items,
+  // POST multipart/form-data → 202 Accepted (konvertasiya fonda), sonra GET /materials/{id} polling
+  upload: async (file: File, meta: MaterialUploadMeta) => {
+    const form = new FormData();
+    form.set("file", file);
+    form.set("title", meta.title);
+    if (meta.lesson) form.set("lesson", String(meta.lesson));
+    if (meta.kind) form.set("kind", meta.kind);
+    if (meta.description) form.set("description", meta.description);
+    return (await api.post<Material>("/api/v1/materials", undefined, { multipart: form })).data;
+  },
+  update: async (id: number, patch: MaterialPatch) => (await api.patch<Material>(`/api/v1/materials/${id}`, patch)).data,
+  reconvert: async (id: number) => (await api.post<Material>(`/api/v1/materials/${id}/reconvert`)).data,
+  remove: async (id: number) => {
+    await api.delete(`/api/v1/materials/${id}`);
+  },
+  tasks: async (lesson?: number) => (await api.get<{ items: LessonTask[] }>(`/api/v1/tasks${lesson ? `?lesson=${lesson}` : ""}`)).data.items,
   setDone: async (taskId: number, done: boolean) => (await api.put<{ done: boolean }>(`/api/v1/tasks/${taskId}/progress`, { done })).data,
-  progress: async () => (await api.get<{ total: number; done: number; byLesson: { lesson: number; total: number; done: number }[] }>("/api/v1/tasks/progress/me")).data,
+  progress: async () => (await api.get<LessonProgress>("/api/v1/tasks/progress/me")).data,
   fileUrl: (link: string) => `${SERVER_URL}${link}`,
 };
 
 // Səhifələr arası ötürmə: tapşırıqdan Explorer-ə / SQL-ə hazır sorğu ilə keçid
-type Handoff = { explorer?: { method: string; path: string }; sql?: string };
+type Handoff = { explorer?: { method: string; path: string }; sql?: string; lesson?: number };
 let handoff: Handoff = {};
 export const handoffs = {
   set: (next: Handoff) => (handoff = next),

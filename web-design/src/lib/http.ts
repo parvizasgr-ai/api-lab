@@ -82,6 +82,7 @@ export function setAuthProvider(provider: AuthProvider) {
 export type RequestOptions = {
   body?: unknown;
   form?: Record<string, string>;
+  multipart?: FormData; // fayl yükləmə — Content-Type (boundary ilə) brauzer özü təyin edir
   headers?: Record<string, string>;
   auth?: boolean; // Bearer göndər (default true)
   token?: string; // müəyyən token (məs. login-dən dərhal sonra /auth/me)
@@ -125,7 +126,9 @@ function internalCallsOf(body: unknown, parentId: string): NetworkCall["internal
 export async function request<T = unknown>(method: string, url: string, options: RequestOptions = {}, retried = false): Promise<HttpResult<T>> {
   const headers: Record<string, string> = { Accept: options.accept ?? "application/json", ...options.headers };
   let body: BodyInit | undefined;
-  if (options.form) {
+  if (options.multipart) {
+    body = options.multipart;
+  } else if (options.form) {
     headers["Content-Type"] = "application/x-www-form-urlencoded";
     body = new URLSearchParams(options.form).toString();
   } else if (options.body !== undefined) {

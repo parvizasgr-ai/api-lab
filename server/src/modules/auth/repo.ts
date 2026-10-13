@@ -16,6 +16,7 @@ export interface RefreshTokenRow {
   token_hash: string;
   expires_at: string;
   revoked_at: string | null;
+  scope: string | null; // NULL — parol ilə login (istifadəçinin cari scope-ları); OAuth — verilmiş scope
 }
 
 export interface ApiKeyRow {
@@ -37,10 +38,10 @@ export const authRepo = {
   scopesOf: (db: DB, userId: number) =>
     db.prepare(`SELECT scope FROM user_scopes WHERE user_id = ? ORDER BY scope`).pluck().all(userId) as string[],
 
-  insertRefreshToken: (db: DB, userId: number, tokenHash: string, expiresAt: string, createdAt: string) =>
+  insertRefreshToken: (db: DB, userId: number, tokenHash: string, expiresAt: string, createdAt: string, scope: string | null = null) =>
     db
-      .prepare(`INSERT INTO refresh_tokens (user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?)`)
-      .run(userId, tokenHash, expiresAt, createdAt),
+      .prepare(`INSERT INTO refresh_tokens (user_id, token_hash, expires_at, created_at, scope) VALUES (?, ?, ?, ?, ?)`)
+      .run(userId, tokenHash, expiresAt, createdAt, scope),
 
   findRefreshToken: (db: DB, tokenHash: string) =>
     db.prepare(`SELECT * FROM refresh_tokens WHERE token_hash = ?`).get(tokenHash) as RefreshTokenRow | undefined,

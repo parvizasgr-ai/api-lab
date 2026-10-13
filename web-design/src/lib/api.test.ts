@@ -76,3 +76,47 @@ describe("Home data", () => {
     expect(JSON.stringify(home)).not.toContain("apilab.az/v1");
   });
 });
+
+describe("Materials", () => {
+  it("upload multipart/form-data göndərir (Content-Type-ı brauzer qoyur) və 202 cavabını qaytarır", async () => {
+    const { learning } = await load();
+    let sent: FormData | undefined;
+    const fn = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+      sent = init?.body as FormData;
+      expect(new Headers(init?.headers).has("content-type")).toBe(false);
+      return json(202, { id: 9, status: "UPLOADED" });
+    });
+    vi.stubGlobal("fetch", fn);
+    const file = new File(["%PDF-1.4"], "Ders1.pdf", { type: "application/pdf" });
+    const created = await learning.upload(file, { title: "Dərs 1", lesson: 1 });
+    expect(created).toMatchObject({ id: 9, status: "UPLOADED" });
+    expect(String(fn.mock.calls[0][0])).toBe("/api/v1/materials");
+    expect(sent?.get("title")).toBe("Dərs 1");
+    expect(sent?.get("lesson")).toBe("1");
+    expect((sent?.get("file") as File).name).toBe("Ders1.pdf");
+  });
+
+  it.each([
+    [413, "PAYLOAD_TOO_LARGE"],
+    [415, "UNSUPPORTED_MEDIA_TYPE"],
+    [422, "VALIDATION_ERROR"],
+  ])("upload %i → AuthClientError (%s) details ilə", async (status, code) => {
+    const { learning } = await load();
+    mockFetch(() => json(status, apiError(status, code, "x", { details: [{ field: "file", message: "Uzantı: .exe" }] })));
+    const error = await learning.upload(new File(["MZ"], "a.exe"), { title: "a", lesson: null }).catch((e) => e);
+    expect(error).toMatchObject({ status, code, details: [{ field: "file", message: "Uzantı: .exe" }] });
+  });
+
+  it("isSettled: polling yalnız UPLOADED/CONVERTING-də davam edir", async () => {
+    const { isSettled } = await load();
+    expect(["UPLOADED", "CONVERTING", "READY", "READY_NO_PREVIEW", "FAILED"].map((s) => isSettled(s as never))).toEqual([false, false, true, true, true]);
+  });
+
+  it("tasks?lesson filteri və PUT progress", async () => {
+    const { learning } = await load();
+    const calls = mockFetch((call) => json(200, call.method === "PUT" ? { done: true } : { items: [] }));
+    await learning.tasks(2);
+    await learning.setDone(5, true);
+    expect(calls.map((c) => `${c.method} ${c.url} ${c.body ?? ""}`)).toEqual(["GET /api/v1/tasks?lesson=2 ", 'PUT /api/v1/tasks/5/progress {"done":true}']);
+  });
+});

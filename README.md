@@ -326,6 +326,7 @@ corepack pnpm build          # typecheck + vite build → ../web/dist  (sonra ht
 corepack pnpm dev            # dev: http://localhost:5173, /api /oauth /bff /docs → localhost:3000 (proxy)
 corepack pnpm test           # unit testlər (fetch mock): src/**/*.test.ts
 corepack pnpm e2e            # Playwright (Google Chrome): təzə DB ilə server port 3000-də qalxır — əvvəlcə 3000-i boşaldın
+                             # (MAX_UPLOAD_MB=1 — 413 testi üçün; pdftoppm lazımdır, soffice olmadan PPTX önizləməsi yoxdur)
 ```
 
 | Fayl | Nə edir |
@@ -335,6 +336,19 @@ corepack pnpm e2e            # Playwright (Google Chrome): təzə DB ilə server
 | `src/lib/api.ts` | Explorer (xam fetch), History (`/_history`), endpoint kitabxanası (`/api/openapi.json`), Home statistikası, bütün Apps, SQL Playground, Materials |
 
 Konfiqurasiya (opsional, `web-design/.env`): `VITE_API_BASE_URL` (default `/api`), `VITE_API_KEY` (default demo açar), `VITE_OAUTH_CLIENT_ID` / `VITE_OAUTH_CLIENT_SECRET`.
+**Explorer → Tests** (Postman `pm.test`-ə bənzər, kod icra olunmur — hər sətir parse olunur; Send-dən sonra nəticə `Tests N/M` tab-ında):
+
+```text
+status in 200, 201            time < 500
+header content-type contains json
+json $.items.length > 0       json $.code matches ^INVALID_
+pm.response.to.have.status(200)
+```
+
+**Materials səhifəsi:** dərslər üzrə qruplaşma, axtarış və dərs filteri, status badge (`READY`, `READY_NO_PREVIEW`, `FAILED`), viewer (səhifə şəkilləri pre-signed URL ilə, sol naviqasiya, inline PDF, ← → klaviatura, mobil enində üfüqi zolaq), dərs tapşırıqları (`PUT /tasks/{id}/progress`) və progress bar. ADMIN üçün drag-and-drop yükləmə (413/415/422 xətaları kod və təfərrüatla göstərilir), 202-dən sonra polling, PATCH, reconvert, DELETE; USER üçün bu düymələr gizlidir.
+
+**Sessiya:** access token bitməzdən 60 san əvvəl refresh token ilə **səssiz** yenilənir (həm parol, həm OAuth girişində). OAuth refresh token-i verilmiş scope-u saxlayır — refresh-də genişlənmir (`refresh_tokens.scope`, migration 004).
+
 Mock Google axınında portal `Accept: application/json` göndərir: `GET /oauth/authorize` hesabları JSON verir, `POST /oauth/authorize` 302 əvəzinə `{location}` qaytarır (fetch 302-nin `Location` başlığını oxuya bilmir). Consent ekranında seçilmiş hesabın parolu soruşulur.
 
 ## Dərs materialları

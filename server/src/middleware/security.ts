@@ -18,7 +18,7 @@ export function security(): RequestHandler[] {
           'style-src': ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'], // portal: Inter + JetBrains Mono
           'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
           'img-src': ["'self'", 'data:', 'https://i.ytimg.com', 'https://ui-avatars.com'],
-          'frame-src': ['https://www.youtube.com', 'https://www.youtube-nocookie.com'],
+          'frame-src': ["'self'", 'https://www.youtube.com', 'https://www.youtube-nocookie.com'], // 'self' — Materials PDF viewer
           // OAuth consent formu POST-dan sonra client-in redirect_uri-sinə yönləndirir
           'form-action': ["'self'", 'http://localhost:*', 'https://oauth.pstmn.io'],
         },

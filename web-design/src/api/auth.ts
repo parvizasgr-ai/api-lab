@@ -35,7 +35,7 @@ export type AuthUser = {
 export type AuthSession = {
   user: AuthUser;
   accessToken: string;
-  refreshToken: string | null; // OAuth ilə daxil olanda refresh token verilmir
+  refreshToken: string | null; // parol və OAuth girişində verilir (OAuth refresh token-i scope-u genişləndirmir)
   expiresAt: number;
   scope: string[];
 };
@@ -59,8 +59,22 @@ const SESSION_KEY = "api-lab-session";
 let memorySession: AuthSession | null = null;
 const sessionListeners = new Set<(session: AuthSession | null) => void>();
 
+// Səssiz yeniləmə: access token bitməzdən SILENT_REFRESH_MARGIN_MS əvvəl refresh token ilə yenilənir
+export const SILENT_REFRESH_MARGIN_MS = 60_000;
+let silentTimer: number | undefined;
+function scheduleSilentRefresh(session: AuthSession | null) {
+  if (silentTimer !== undefined) window.clearTimeout(silentTimer);
+  silentTimer = undefined;
+  if (!session?.refreshToken) return;
+  const delay = Math.max(0, session.expiresAt - Date.now() - SILENT_REFRESH_MARGIN_MS);
+  silentTimer = window.setTimeout(() => {
+    void refreshSession().catch(() => undefined); // uğursuz olarsa refreshSession sessiyanı silir və App xəbər tutur
+  }, delay);
+}
+
 function storeSession(session: AuthSession | null) {
   memorySession = session;
+  scheduleSilentRefresh(session);
   try {
     if (session) localStorage.setItem(SESSION_KEY, JSON.stringify(session));
     else localStorage.removeItem(SESSION_KEY);
@@ -141,6 +155,9 @@ async function signOut() {
   }
 }
 
+// Səhifə yenidən açılanda saxlanmış sessiya üçün də taymer qurulur
+scheduleSilentRefresh(getStoredSession());
+
 setAuthProvider({
   getAccessToken: () => getStoredSession()?.accessToken ?? null,
   canRefresh: () => Boolean(getStoredSession()?.refreshToken),
@@ -187,7 +204,7 @@ async function exchangeGoogleCode(account: GoogleAccount, password: string, stat
   if (!code) throw new AuthClientError("Authorization code alınmadı", 400, location.searchParams.get("error") ?? "NO_CODE", "");
   const data = await tokenForCode(code);
   await request("GET", AUTH_ENDPOINTS.userInfo, { token: data.access_token });
-  const session = await buildSession(data, null);
+  const session = await buildSession(data, data.refresh_token ?? null);
   storeSession(session);
   return session;
 }

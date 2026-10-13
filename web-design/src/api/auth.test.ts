@@ -159,3 +159,57 @@ describe("OAuth2 Authorization Code (mock Google)", () => {
     expect(calls.some((c) => c.url.endsWith("/oauth/token"))).toBe(false);
   });
 });
+
+describe("səssiz refresh və OAuth refresh token", () => {
+  it("access token bitməzdən 60 san əvvəl refresh avtomatik çağırılır (UI-sız)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { authClient, SILENT_REFRESH_MARGIN_MS } = await load();
+      const calls = mockFetch(backend());
+      await authClient.login("student", "ok"); // expires_in: 900 san
+      expect(calls.filter((c) => c.url.endsWith("/auth/refresh"))).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(900_000 - SILENT_REFRESH_MARGIN_MS - 1_000);
+      expect(calls.filter((c) => c.url.endsWith("/auth/refresh"))).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(calls.filter((c) => c.url.endsWith("/auth/refresh"))).toHaveLength(1);
+      expect(authClient.getStoredSession()?.accessToken).toBe("access-2");
+      // yeni sessiya üçün yeni taymer qurulub
+      await vi.advanceTimersByTimeAsync(900_000);
+      expect(authClient.getStoredSession()?.accessToken).toBe("access-3");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("səhifə yenidən açılanda saxlanmış sessiya üçün də taymer qurulur; vaxtı keçibsə dərhal yenilənir", async () => {
+    vi.useFakeTimers();
+    try {
+      localStorage.setItem("api-lab-session", JSON.stringify({ user: { id: "1" }, accessToken: "access-1", refreshToken: "refresh-1", expiresAt: Date.now() - 1000, scope: [] }));
+      const calls = mockFetch(backend());
+      const { authClient } = await load();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(calls.filter((c) => c.url.endsWith("/auth/refresh"))).toHaveLength(1);
+      expect(authClient.getStoredSession()?.accessToken).toBe("access-2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("OAuth girişində refresh token saxlanılır", async () => {
+    const { authClient } = await load();
+    mockFetch((call) => {
+      const path = new URL(call.url, "http://x").pathname;
+      if (path === "/oauth/authorize" && call.method === "GET") return json(200, { client: { clientId: "c", name: "n" }, accounts: [{ username: "student", fullName: "Aysel Məmmədova", email: "s@x" }] });
+      if (path === "/oauth/authorize") {
+        const form = new URLSearchParams(call.body);
+        return json(200, { location: `${form.get("redirect_uri")}?state=${form.get("state")}&code=ac_1` });
+      }
+      if (path === "/oauth/token") return json(200, { access_token: "oa-1", refresh_token: "rt_oauth", token_type: "Bearer", expires_in: 900, scope: "openid" });
+      if (path === "/oauth/userinfo") return json(200, { sub: "1" });
+      return json(200, profile("USER"));
+    });
+    const { state, accounts } = await authClient.authorizeGoogle();
+    const session = await authClient.exchangeGoogleCode(accounts[0], "student123", state);
+    expect(session.refreshToken).toBe("rt_oauth");
+  });
+});

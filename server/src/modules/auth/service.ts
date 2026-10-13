@@ -72,11 +72,12 @@ export class AuthService {
     return authRepo.findActiveApiKey(this.db, sha256(plainKey));
   }
 
-  private async issueTokenPair(user: UserRow): Promise<TokenPair> {
+  // grantedScope verilibsə (OAuth) — token yalnız o scope-ları daşıyır və refresh-də də genişlənmir
+  async issueTokenPair(user: UserRow, grantedScope: string | null = null): Promise<TokenPair> {
     const now = this.config.now();
-    const scopes = authRepo.scopesOf(this.db, user.id);
+    const scopes = grantedScope === null ? authRepo.scopesOf(this.db, user.id) : grantedScope.split(' ').filter(Boolean);
     const refresh = randomToken('rt');
-    authRepo.insertRefreshToken(this.db, user.id, sha256(refresh), isoAfter(now, this.config.refreshTokenTtlSec), isoNow(now));
+    authRepo.insertRefreshToken(this.db, user.id, sha256(refresh), isoAfter(now, this.config.refreshTokenTtlSec), isoNow(now), grantedScope);
     return {
       access_token: await this.issueAccessToken(user, scopes),
       token_type: 'Bearer',
@@ -107,7 +108,7 @@ export class AuthService {
     if (!user) throw invalid;
     // Rotation: köhnə token ləğv olunur, yenisi yazılır (hər ikisi sinxron, ilk await-dan əvvəl).
     authRepo.revokeRefreshToken(this.db, row.id, now);
-    return this.issueTokenPair(user);
+    return this.issueTokenPair(user, row.scope);
   }
 
   logout(userId: number, refreshToken: string): void {

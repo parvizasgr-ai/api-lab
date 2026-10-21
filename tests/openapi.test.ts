@@ -62,3 +62,28 @@ describe('postman/ faylları', () => {
     expect(file).toEqual(buildCollection(spec));
   });
 });
+
+describe('nümunə tarixləri köhnəlmir', () => {
+  // Request nümunələrindəki tarixlər (bron, axtarış) keçmişə düşəndə Swagger "Try it out" 422 verir. Server bu gündən
+  // əvvəlki checkIn-i rədd edir — ona görə nümunələr ən azı 180 gün irəlidə olmalıdır (köhnəlmə yarım il əvvəl görünür).
+  it('query/body nümunələrində date/checkIn/checkOut ≥ bu gün + 180 gün', () => {
+    const minDate = new Date(Date.now() + 180 * 86_400_000).toISOString().slice(0, 10);
+    const keys = new Set(['date', 'checkIn', 'checkOut']);
+    const found: string[] = [];
+    const scan = (where: string, value: unknown) => {
+      if (value && typeof value === 'object') for (const [k, v] of Object.entries(value)) {
+        if (keys.has(k) && typeof v === 'string') found.push(`${where}.${k}=${v}`);
+        else scan(where, v);
+      }
+    };
+    for (const o of ops) {
+      for (const p of (o.operation.parameters ?? []).map((x: any) => (x.$ref ? spec.components.parameters[x.$ref.split('/').pop()] : x))) {
+        if (p.in === 'query' && keys.has(p.name) && p.example) found.push(`${o.operationId}.${p.name}=${p.example}`);
+      }
+      const media = o.operation.requestBody?.content?.['application/json'];
+      if (media) scan(o.operationId, { example: media.example, examples: media.examples });
+    }
+    expect(found.length).toBeGreaterThan(0);
+    expect(found.filter((f) => f.split('=')[1] < minDate)).toEqual([]);
+  });
+});

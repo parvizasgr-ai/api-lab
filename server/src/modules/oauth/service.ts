@@ -25,10 +25,18 @@ export class OAuthService {
   checkClient(clientId: string, redirectUri: string): OAuthClientRow {
     const client = oauthRepo.findClient(this.db, clientId);
     if (!client) throw new ApiError(400, 'BAD_REQUEST', `Naməlum client_id: ${clientId}`);
-    if (!(JSON.parse(client.redirect_uris) as string[]).includes(redirectUri)) {
+    if (!this.redirectUris(client).includes(redirectUri)) {
       throw new ApiError(400, 'INVALID_REDIRECT_URI', 'redirect_uri bu client üçün qeydiyyatda deyil');
     }
     return client;
+  }
+
+  // Qeydiyyatlı URI-lər + portalın öz client-i üçün PUBLIC_URL-in callback-ləri (sinifdə portal LAN IP-dən açılanda)
+  private redirectUris(client: OAuthClientRow): string[] {
+    const registered = JSON.parse(client.redirect_uris) as string[];
+    if (client.client_id !== 'apilab-portal') return registered;
+    const origin = new URL(this.config.publicUrl).origin;
+    return [...registered, `${origin}/oauth/callback`, `${origin}/docs/oauth2-redirect.html`];
   }
 
   // İstənən scope-lardan yalnız icazəli olanlar: OIDC + istifadəçinin öz scope-ları. "admin" heç vaxt.

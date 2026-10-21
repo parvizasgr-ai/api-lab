@@ -1393,7 +1393,7 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/HotelBookingRequest' }
-            example: { roomId: 4, checkIn: '2026-10-20', checkOut: '2026-10-23', guests: 2 }
+            example: { roomId: 4, checkIn: '2030-10-20', checkOut: '2030-10-23', guests: 2 }
       responses:
         '201':
           description: Bron yaradıldı
@@ -1463,7 +1463,7 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/HotelBookingPatch' }
-            example: { checkOut: '2026-10-26' }
+            example: { guests: 2 }
       responses:
         '200':
           description: Yenilənmiş bron
@@ -2347,7 +2347,7 @@ paths:
           required: true
           description: Uçuş və check-in tarixi
           schema: { type: string, format: date }
-          example: '2026-10-20'
+          example: '2030-10-20'
         - name: city
           in: query
           description: Otel şəhəri (verilməsə — `to` hava limanının şəhəri)

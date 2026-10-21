@@ -1,6 +1,7 @@
 // Konfiqurasiya: bütün parametrlər env dəyişənlərindən oxunur (12-factor app prinsipi).
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_JWT_SECRET } from './lib/exposure.js';
 import { EXTERNAL_CATALOG, type ExternalApi } from './modules/external/catalog.js';
 
 export const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -21,6 +22,10 @@ function parseTrustedProxies(value: string): string[] | false {
 
 export const config = {
   port: Number(env.PORT ?? 3000),
+  // Kim qoşula bilər: 127.0.0.1 — yalnız bu kompüter (default). Sinif/LAN: HOST=0.0.0.0 + güclü JWT_SECRET + ADMIN_PASSWORD
+  host: env.HOST ?? '127.0.0.1',
+  // Verilibsə admin parolu hər başlanğıcda və /_reset-dən sonra bununla əvəz olunur (LAN rejimində məcburidir)
+  adminPassword: env.ADMIN_PASSWORD ?? '',
   publicUrl: env.PUBLIC_URL ?? `http://localhost:${env.PORT ?? 3000}`,
   dbPath: env.DB_PATH ?? path.join(ROOT_DIR, 'data', 'apilab.db'),
   migrationsDir: path.join(ROOT_DIR, 'db', 'migrations'),
@@ -29,7 +34,7 @@ export const config = {
   webDist: env.WEB_DIST ?? path.join(ROOT_DIR, 'web', 'dist'), // portal build-i (web-design → pnpm build)
 
   // JWT: HS256 (simmetrik açar). Production-da uzun, təsadüfi JWT_SECRET mütləqdir.
-  jwtSecret: env.JWT_SECRET ?? 'apilab-dev-secret-change-me-0123456789abcdef',
+  jwtSecret: env.JWT_SECRET ?? DEFAULT_JWT_SECRET,
   jwtIssuer: 'api-lab',
   accessTokenTtlSec: 15 * 60,
   refreshTokenTtlSec: 7 * 24 * 60 * 60,

@@ -1550,7 +1550,7 @@
             "description": "Transaction (`BEGIN IMMEDIATE`) daxilində eyni otaq üçün kəsişən CONFIRMED bron yoxlanılır:\n`yeni.checkIn < mövcud.checkOut AND yeni.checkOut > mövcud.checkIn` → **409 ROOM_NOT_AVAILABLE**.\nYoxlama: `db/queries/10_hotel_overlap.sql`.\n",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"roomId\": 4,\n  \"checkIn\": \"2026-10-20\",\n  \"checkOut\": \"2026-10-23\",\n  \"guests\": 2\n}",
+              "raw": "{\n  \"roomId\": 4,\n  \"checkIn\": \"2030-10-20\",\n  \"checkOut\": \"2030-10-23\",\n  \"guests\": 2\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1676,7 +1676,7 @@
             "description": "Yalnız göndərilən sahələr dəyişir. Yeni tarixlər üçün availability yenidən yoxlanılır (bronun özü istisna olmaqla).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"checkOut\": \"2026-10-26\"\n}",
+              "raw": "{\n  \"guests\": 2\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -2748,7 +2748,7 @@
             },
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/bff/travel/search?from=GYD&to=IST&date=2026-10-20",
+              "raw": "{{baseUrl}}/bff/travel/search?from=GYD&to=IST&date=2030-10-20",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -2770,7 +2770,7 @@
                 },
                 {
                   "key": "date",
-                  "value": "2026-10-20",
+                  "value": "2030-10-20",
                   "disabled": false
                 },
                 {

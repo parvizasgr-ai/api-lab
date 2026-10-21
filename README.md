@@ -104,6 +104,7 @@ Seed **deterministikdir** (eyni gündə hər reset eyni datanı verir), tarixlə
 | `npm run postman:export` | Postman fayllarını `postman/` qovluğuna yazır |
 | `npm run rates:refresh` | Bu günün məzənnələrini ECB-dən (Frankfurter) yeniləyir; şəbəkə yoxdursa seed qalır |
 | `npm run external:verify` | `RAPIDAPI_KEY` ilə hər external API-yə 1 sorğu → status cədvəli və `verified` təklifi (`catalog.ts`-i dəyişmir) |
+| `npm run classroom:check` | Sinif hazırlığı: cari konfiqurasiya; `-- --lan` — LAN rejimi üçün yoxlama + hazır `.env` bloku (təsadüfi sirlərlə, faylı dəyişmir) |
 | `npm run pg:up` / `pg:down` | Opsional PostgreSQL (Docker) |
 
 ## Testlər və QA (CI)
@@ -126,6 +127,8 @@ caffeinate -i npm run test:all   # macOS: e2e zamanı sistem yuxuya getməsin (y
 Coverage hesabatları: `coverage/backend/index.html`, `coverage/web/index.html`. QA hesabatı və tapılan problemlər: [`docs/qa/W5-report.md`](docs/qa/W5-report.md).
 
 Konfiqurasiya: `cp .env.example .env` — bütün parametrlər izahlı [`.env.example`](.env.example)-dadır (port, JWT_SECRET, rate limit, `AUTH_CUSTOMERS`, `YOUTUBE_API_KEY` və s.).
+
+**Sinifdə istifadə:** server default olaraq yalnız bu kompüterdə açılır (`HOST=127.0.0.1`). Bütün sinfə LAN üzərindən xidmət etmək üçün bələdçi: [`docs/classroom-setup.md`](docs/classroom-setup.md). Şəbəkəyə açıq rejimdə (`HOST=0.0.0.0`) server default `JWT_SECRET` və ya `ADMIN_PASSWORD`-suz **işə düşmür**.
 
 Təhlükəsizlik parametrləri: `LOGIN_MAX_FAILURES` (username üzrə 5 dəqiqədə uğursuz login limiti, default 10), `TRUSTED_PROXIES` (`X-Forwarded-For` yalnız bu proxy-lərdən — default `loopback`; server birbaşa açıqdırsa `none`), `CORS_ORIGINS` (boş → yalnız localhost və `PUBLIC_URL`). Logout həm refresh, həm də cari access token-i ləğv edir (`revoked_access_tokens`).
 

@@ -3496,8 +3496,8 @@
               },
               "example": {
                 "roomId": 4,
-                "checkIn": "2026-10-20",
-                "checkOut": "2026-10-23",
+                "checkIn": "2030-10-20",
+                "checkOut": "2030-10-23",
                 "guests": 2
               }
             }
@@ -3696,7 +3696,7 @@
                 "$ref": "#/components/schemas/HotelBookingPatch"
               },
               "example": {
-                "checkOut": "2026-10-26"
+                "guests": 2
               }
             }
           }
@@ -5972,7 +5972,7 @@
               "type": "string",
               "format": "date"
             },
-            "example": "2026-10-20"
+            "example": "2030-10-20"
           },
           {
             "name": "city",

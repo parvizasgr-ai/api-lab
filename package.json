@@ -29,6 +29,7 @@
     "postman:export": "tsx scripts/postman-export.ts",
     "rates:refresh": "tsx scripts/rates-refresh.ts",
     "external:verify": "tsx scripts/external-verify.ts",
+    "classroom:check": "tsx scripts/classroom-check.ts",
     "pg:up": "docker compose -f docker-compose.postgres.yml up -d",
     "pg:down": "docker compose -f docker-compose.postgres.yml down"
   },

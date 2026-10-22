@@ -8,8 +8,9 @@ import { createTestApp, bearer } from './helpers.js';
 const STRONG = 'x'.repeat(48);
 
 describe('şəbəkəyə açıq başlanğıc qaydası', () => {
-  it('default HOST yalnız bu kompüterdir (127.0.0.1)', () => {
-    expect(baseConfig.host).toBe('127.0.0.1');
+  it('default HOST yalnız bu kompüterdir (localhost — 127.0.0.1 və ::1)', () => {
+    expect(baseConfig.host).toBe('localhost');
+    expect(exposureProblems({ host: baseConfig.host, jwtSecret: DEFAULT_JWT_SECRET, adminPassword: '' })).toEqual([]);
     expect(isLoopbackHost('127.0.0.1') && isLoopbackHost('::1') && isLoopbackHost('localhost')).toBe(true);
     expect(isLoopbackHost('0.0.0.0')).toBe(false);
   });

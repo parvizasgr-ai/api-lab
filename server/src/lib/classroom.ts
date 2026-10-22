@@ -28,7 +28,7 @@ export function classroomChecks(input: ClassroomInput): Check[] {
   const checks: Check[] = [];
   const add = (level: Level, item: string, detail: string) => checks.push({ level, item, detail });
 
-  add('ok', 'Rejim', lan ? `LAN — tələbələr ${config.publicUrl} ünvanına qoşulur` : 'Yerli — server yalnız bu kompüterdə (HOST=127.0.0.1)');
+  add('ok', 'Rejim', lan ? `LAN — tələbələr ${config.publicUrl} ünvanına qoşulur` : `Yerli — server yalnız bu kompüterdə (HOST=${config.host})`);
   if (lan && !exposed) add('fail', 'HOST', `HOST=${config.host} — LAN üçün HOST=0.0.0.0 olmalıdır`);
   else add('ok', 'HOST', `${config.host}:${config.port}`);
 

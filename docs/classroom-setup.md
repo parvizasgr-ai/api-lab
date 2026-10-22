@@ -20,7 +20,7 @@ cd web-design && corepack pnpm install && corepack pnpm build && cd ..
 npm start                     # http://localhost:3000
 ```
 
-- Server default olaraq yalnız tələbənin öz kompüterində açılır (`HOST=127.0.0.1`). Demo parollar (`student123`, `admin123`) burada təhlükəsizdir.
+- Server default olaraq yalnız tələbənin öz kompüterində açılır (`HOST=localhost` — 127.0.0.1 və ::1). Demo parollar (`student123`, `admin123`) burada təhlükəsizdir.
 - External APIs üçün hər tələbə öz RapidAPI açarını portalda yazır (README → "External APIs").
 
 ## B. Müəllimin kompüteri — LAN rejimi
@@ -84,7 +84,7 @@ Açılmırsa:
 
 ### 5. Dərsdən sonra
 
-`.env`-də `HOST=127.0.0.1` qoyun (və ya sətri silin) və serveri yenidən başladın. Server yenə yalnız sizin kompüterinizdə açılacaq.
+`.env`-də `HOST=localhost` qoyun (və ya sətri silin) və serveri yenidən başladın. Server yenə yalnız sizin kompüterinizdə açılacaq.
 
 ---
 

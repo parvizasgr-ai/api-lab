@@ -22,8 +22,8 @@ function parseTrustedProxies(value: string): string[] | false {
 
 export const config = {
   port: Number(env.PORT ?? 3000),
-  // Kim qoşula bilər: 127.0.0.1 — yalnız bu kompüter (default). Sinif/LAN: HOST=0.0.0.0 + güclü JWT_SECRET + ADMIN_PASSWORD
-  host: env.HOST ?? '127.0.0.1',
+  // Kim qoşula bilər: localhost — yalnız bu kompüter, həm 127.0.0.1, həm ::1 (default). Sinif/LAN: HOST=0.0.0.0 + güclü JWT_SECRET + ADMIN_PASSWORD
+  host: env.HOST ?? 'localhost',
   // Verilibsə admin parolu hər başlanğıcda və /_reset-dən sonra bununla əvəz olunur (LAN rejimində məcburidir)
   adminPassword: env.ADMIN_PASSWORD ?? '',
   publicUrl: env.PUBLIC_URL ?? `http://localhost:${env.PORT ?? 3000}`,

@@ -128,7 +128,7 @@ Coverage hesabatları: `coverage/backend/index.html`, `coverage/web/index.html`.
 
 Konfiqurasiya: `cp .env.example .env` — bütün parametrlər izahlı [`.env.example`](.env.example)-dadır (port, JWT_SECRET, rate limit, `AUTH_CUSTOMERS`, `YOUTUBE_API_KEY` və s.).
 
-**Sinifdə istifadə:** server default olaraq yalnız bu kompüterdə açılır (`HOST=127.0.0.1`). Bütün sinfə LAN üzərindən xidmət etmək üçün bələdçi: [`docs/classroom-setup.md`](docs/classroom-setup.md). Şəbəkəyə açıq rejimdə (`HOST=0.0.0.0`) server default `JWT_SECRET` və ya `ADMIN_PASSWORD`-suz **işə düşmür**.
+**Sinifdə istifadə:** server default olaraq yalnız bu kompüterdə açılır (`HOST=localhost` — 127.0.0.1 və ::1). Bütün sinfə LAN üzərindən xidmət etmək üçün bələdçi: [`docs/classroom-setup.md`](docs/classroom-setup.md). Şəbəkəyə açıq rejimdə (`HOST=0.0.0.0`) server default `JWT_SECRET` və ya `ADMIN_PASSWORD`-suz **işə düşmür**.
 
 Təhlükəsizlik parametrləri: `LOGIN_MAX_FAILURES` (username üzrə 5 dəqiqədə uğursuz login limiti, default 10), `TRUSTED_PROXIES` (`X-Forwarded-For` yalnız bu proxy-lərdən — default `loopback`; server birbaşa açıqdırsa `none`), `CORS_ORIGINS` (boş → yalnız localhost və `PUBLIC_URL`). Logout həm refresh, həm də cari access token-i ləğv edir (`revoked_access_tokens`).
 

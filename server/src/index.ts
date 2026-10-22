@@ -42,8 +42,16 @@ for (const r of importSlides(db, materials, config.materials.slidesDir)) {
 }
 for (const id of materialsRepo.byStatus(db, ['UPLOADED', 'CONVERTING'])) materials.queue.enqueue(id);
 
-app.listen(config.port, config.host, () => {
-  console.log(`API Lab: ${config.publicUrl}  (dinləyir: ${config.host}:${config.port}${isLoopbackHost(config.host) ? ' — yalnız bu kompüter' : ' — şəbəkəyə açıq'})`);
+// HOST=localhost → hər iki loopback: brauzer "localhost"-u ::1 (IPv6) kimi açanda da qoşulsun.
+// İkinci (IPv6) ünvan mövcud deyilsə, xəta yox — yalnız 127.0.0.1 kifayətdir.
+const hosts = config.host === 'localhost' ? ['127.0.0.1', '::1'] : [config.host];
+for (const host of hosts.slice(1)) {
+  app.listen(config.port, host).on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code !== 'EADDRNOTAVAIL' && err.code !== 'EAFNOSUPPORT') console.warn(`  ${host}:${config.port} dinlənə bilmədi: ${err.message}`);
+  });
+}
+app.listen(config.port, hosts[0], () => {
+  console.log(`API Lab: ${config.publicUrl}  (dinləyir: ${hosts.join(', ')} :${config.port}${isLoopbackHost(config.host) ? ' — yalnız bu kompüter' : ' — şəbəkəyə açıq'})`);
   console.log(`  Health:  ${config.publicUrl}/api/v1/health`);
   console.log(`  OpenAPI: ${config.publicUrl}/api/openapi.json`);
   console.log(`  Docs:    ${config.publicUrl}/docs`);

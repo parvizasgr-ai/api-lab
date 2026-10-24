@@ -2,6 +2,7 @@
 import type { AppContext } from '../../app.js';
 import type { Handlers } from '../../openapi/router.js';
 import { forbidden } from '../../errors.js';
+import { isAdminRole } from '../../types.js';
 import { resetDatabase, tableCounts } from '../../db.js';
 import { isoNow } from '../../lib/crypto.js';
 import { flushRequestLog } from '../../middleware/requestLog.js';
@@ -12,7 +13,7 @@ export function adminHandlers({ db, config, materials }: AppContext): Handlers {
   return {
     // Bütün cədvəllər silinir → migration-lar → seed. Dərs zamanı "hər şeyi sıfırla" düyməsi.
     adminReset: async (req, res) => {
-      if (req.auth?.role !== 'ADMIN') throw forbidden('Bu əməliyyat yalnız ADMIN üçündür');
+      if (!isAdminRole(req.auth?.role)) throw forbidden('Bu əməliyyat yalnız ADMIN üçündür');
       materials.queue.reset();
       await resetDatabase(db);
       await applyAdminPassword(db, config); // seed admin123-ü qaytarmasın (sinif rejimi)
@@ -25,7 +26,7 @@ export function adminHandlers({ db, config, materials }: AppContext): Handlers {
     // Token varsa — yalnız həmin istifadəçinin sorğuları; tokensiz — bu IP-nin anonim sorğuları; ADMIN + all=true — hamısı.
     requestHistory: async (req, res) => {
       const { limit, all } = req.valid.query as { limit: number; all: boolean };
-      if (all && req.auth?.role !== 'ADMIN') throw forbidden('all=true yalnız ADMIN üçündür');
+      if (all && !isAdminRole(req.auth?.role)) throw forbidden('all=true yalnız ADMIN üçündür');
       await flushRequestLog(); // tələbə öz son sorğusunu tarixçədə görsün (log yazısı asinxrondur)
       const where = all ? '1 = 1' : req.auth ? 'user_id = @userId' : 'user_id IS NULL AND ip = @ip';
       const items = await db

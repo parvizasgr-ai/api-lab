@@ -5,6 +5,7 @@ import {
   initialsOf,
   oauthDemo,
   onSessionChange,
+  isAdminUser,
   type AuthSession,
   type GoogleAccount,
 } from "./api/auth";
@@ -49,6 +50,7 @@ import { subscribeNetwork } from "./lib/http";
 import { runTests, SAMPLE_TESTS, type TestResult } from "./lib/assertions";
 import { exampleUrl, external, externalKey, type ExternalApi, type ExternalCatalog, type ExternalEndpoint, type ExternalResult } from "./lib/external";
 import { parseRoute, pathOf, PROTECTED_PAGES, type AppId, type Page } from "./lib/routes";
+import { normalizeRegistration, serverFieldErrors, validateRegistration, type RegisterField, type RegisterForm as RegisterFormState } from "./lib/registration";
 
 type Language = "az" | "en";
 type Theme = "light" | "dark";
@@ -73,6 +75,26 @@ const translations = {
     sql: "SQL",
     materials: "Materials",
     externalApis: "External APIs",
+    signInTab: "Daxil ol",
+    registerTab: "Qeydiyyat",
+    superadminRole: "Superadmin (müəllim)",
+    registerTitle: "Hesab yarat",
+    registerSubtitle: "Qrupunu yaz — müəllim nəticələrini qrup üzrə görəcək.",
+    firstNameLabel: "Ad",
+    lastNameLabel: "Soyad",
+    groupNameLabel: "Qrup",
+    groupNameHint: "məs. BA-2026-A",
+    usernameHint: "kiçik hərflər, rəqəmlər, . və _ (3–30)",
+    passwordHint: "ən azı 8 simvol",
+    confirmPasswordLabel: "Parolu təkrarla",
+    createAccount: "Hesab yarat",
+    creatingAccount: "Hesab yaradılır…",
+    noAccountYet: "Hesabın yoxdur?",
+    haveAccount: "Artıq hesabın var?",
+    showPassword: "Parolu göstər",
+    hidePassword: "Parolu gizlət",
+    registerFailed: "Qeydiyyat alınmadı",
+    sandboxNote: "Qeydiyyatdan sonra sənə öz sandbox hesabların (AZN, USD) və kartların veriləcək.",
     extKicker: "RAPIDAPI HUB",
     extTitle: "Real external API-lər",
     extSubtitle: "RapidAPI-dəki pulsuz API-ləri API Lab proxy-si ilə çağır. Öz açarını yaz — server onu yalnız ötürür, saxlamır.",
@@ -641,6 +663,26 @@ const translations = {
     sql: "SQL",
     materials: "Materials",
     externalApis: "External APIs",
+    signInTab: "Sign in",
+    registerTab: "Register",
+    superadminRole: "Superadmin (teacher)",
+    registerTitle: "Create an account",
+    registerSubtitle: "Enter your group — the teacher sees results by group.",
+    firstNameLabel: "First name",
+    lastNameLabel: "Last name",
+    groupNameLabel: "Group",
+    groupNameHint: "e.g. BA-2026-A",
+    usernameHint: "lowercase letters, digits, . and _ (3–30)",
+    passwordHint: "at least 8 characters",
+    confirmPasswordLabel: "Repeat password",
+    createAccount: "Create account",
+    creatingAccount: "Creating account…",
+    noAccountYet: "No account yet?",
+    haveAccount: "Already have an account?",
+    showPassword: "Show password",
+    hidePassword: "Hide password",
+    registerFailed: "Registration failed",
+    sandboxNote: "After registering you get your own sandbox accounts (AZN, USD) and cards.",
     extKicker: "RAPIDAPI HUB",
     extTitle: "Real external APIs",
     extSubtitle: "Call free RapidAPI APIs through the API Lab proxy. Enter your own key — the server only forwards it, never stores it.",
@@ -1402,17 +1444,6 @@ function Icon({
   );
 }
 
-function GoogleMark() {
-  return (
-    <svg aria-hidden="true" className="google-g-mark" viewBox="0 0 24 24">
-      <path fill="#4285F4" d="M21.6 12.23c0-.71-.06-1.4-.18-2.07H12v3.91h5.38a4.6 4.6 0 0 1-2 3.02v2.54h3.24c1.9-1.75 2.98-4.33 2.98-7.4Z" />
-      <path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.42l-3.24-2.53c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.61A10 10 0 0 0 12 22Z" />
-      <path fill="#FBBC05" d="M6.39 13.88A6.01 6.01 0 0 1 6.08 12c0-.65.11-1.28.31-1.88V7.51H3.04A10 10 0 0 0 2 12c0 1.61.38 3.14 1.04 4.49l3.35-2.61Z" />
-      <path fill="#EA4335" d="M12 5.99c1.47 0 2.79.51 3.83 1.5l2.87-2.87A9.64 9.64 0 0 0 12 2a10 10 0 0 0-8.96 5.51l3.35 2.61C7.18 7.75 9.39 5.99 12 5.99Z" />
-    </svg>
-  );
-}
-
 function CopyButton({
   value,
   label,
@@ -1579,7 +1610,7 @@ function Header({
                       <strong>{session.user.name}</strong>
                       <span>{session.user.email}</span>
                       <code>
-                        {session.user.role === "admin" ? t.administrator : t.student}
+                        {session.user.role === "superadmin" ? t.superadminRole : session.user.role === "admin" ? t.administrator : t.student}
                       </code>
                     </div>
                   </div>
@@ -3530,366 +3561,116 @@ function AppsPage({
   );
 }
 
-function GoogleOAuthModal({
-  onClose,
-  onSignedIn,
-  t,
-}: {
-  onClose: () => void;
-  onSignedIn: (session: AuthSession) => void;
-  t: Translation;
-}) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(
-    document.activeElement as HTMLElement | null,
-  );
-  const [step, setStep] = useState(0);
-  const [oauthState, setOauthState] = useState("");
-  const [accounts, setAccounts] = useState<GoogleAccount[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<GoogleAccount | null>(
-    null,
-  );
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<"denied" | "invalid" | null>(null);
-  const [errorDetail, setErrorDetail] = useState("");
-  const [errorTitle, setErrorTitle] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [showCalls, setShowCalls] = useState(false);
-  const [successName, setSuccessName] = useState("");
-  const [calls, setCalls] = useState<NetworkCall[]>([]);
-  const steps = [
-    t.redirectAuthServer,
-    t.chooseAccount,
-    t.consent,
-    t.tokenExchangeStep,
-  ];
+// Qeydiyyat forması: ad, soyad, qrup, username, parol (+ təkrar). Validasiya serverlə eyni (lib/registration.ts);
+// server 409/422 cavabları uyğun sahənin altında göstərilir.
+function RegisterForm({ language, onSignedIn, t }: { language: Language; onSignedIn: (session: AuthSession) => void; t: Translation }) {
+  const [form, setForm] = useState<RegisterFormState>({ firstName: "", lastName: "", groupName: "", username: "", password: "", confirm: "" });
+  const [touched, setTouched] = useState<Partial<Record<RegisterField, boolean>>>({});
+  const [serverErrors, setServerErrors] = useState<Partial<Record<RegisterField, string>>>({});
+  const [failure, setFailure] = useState<AuthClientError | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const clientErrors = validateRegistration(form, language);
+  const errorOf = (field: RegisterField) => serverErrors[field] ?? (submitted || touched[field] ? clientErrors[field] : undefined);
 
-  // Modal açıq olduğu müddətdə real OAuth sorğuları "HTTP calls" panelində
-  useEffect(() => subscribeNetwork((call) => setCalls((items) => [...items, call])), []);
-
-  useEffect(() => {
-    return () => returnFocusRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    const focusable = () =>
-      Array.from(
-        dialog.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
-      );
-    focusable()[0]?.focus();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = focusable();
-      if (!items.length) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    dialog.addEventListener("keydown", handleKeyDown);
-    return () => dialog.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, step, error, showCalls]);
-
-  // Xətanın başlığı səbəbə görə: code/state problemi ayrıca, server/şəbəkə xətası ayrıca (hamısı "kod yanlışdır" deyil)
-  const showFlowError = (caught: unknown) => {
-    const code = caught instanceof AuthClientError ? caught.code : "";
-    const codeProblem = ["invalid_grant", "INVALID_OAUTH_STATE", "NO_CODE", "INVALID_REDIRECT_URI"].includes(code);
-    setErrorTitle(codeProblem ? t.invalidCode : code === "NETWORK_ERROR" ? t.oauthServerError : t.errorTitle);
-    setErrorDetail(errorText(caught));
-    setError("invalid");
+  const update = (field: RegisterField) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = field === "username" ? event.target.value.toLowerCase().replace(/\s/g, "") : event.target.value;
+    setForm((current) => ({ ...current, [field]: value }));
+    setServerErrors((current) => ({ ...current, [field]: undefined }));
   };
 
-  // 1. GET /oauth/authorize — provider-dən client və hesablar
-  useEffect(() => {
-    let cancelled = false;
-    authClient
-      .authorizeGoogle()
-      .then((result) => {
-        if (cancelled) return;
-        setOauthState(result.state);
-        setAccounts(result.accounts);
-        setStep(1);
-      })
-      .catch((caught) => {
-        if (cancelled) return;
-        showFlowError(caught);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // 2–4. consent (POST /oauth/authorize) → code + state yoxlaması → POST /oauth/token → GET /oauth/userinfo
-  const allow = async () => {
-    if (!selectedAccount) return;
-    setPasswordError("");
-    setStep(3);
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitted(true);
+    setFailure(null);
+    const firstInvalid = Object.keys(clientErrors)[0];
+    if (firstInvalid) {
+      document.getElementById(`register-${firstInvalid}`)?.focus();
+      return;
+    }
+    setLoading(true);
     try {
-      const session = await authClient.exchangeGoogleCode(selectedAccount, password, oauthState);
-      setSuccessName(session.user.name);
-      window.setTimeout(() => onSignedIn(session), 900);
+      onSignedIn(await authClient.register(normalizeRegistration(form)));
     } catch (caught) {
-      // Səhv parol: consent ekranında qalırıq — code verilməyib, state hələ etibarlıdır, yenidən yazmaq olar
-      if (caught instanceof AuthClientError && caught.status === 401 && caught.code === "INVALID_CREDENTIALS") {
-        setPassword("");
-        setPasswordError(t.oauthWrongPassword);
-        setStep(2);
-        return;
-      }
-      showFlowError(caught);
+      const error = caught instanceof AuthClientError ? caught : new AuthClientError(String(caught), 0, "REGISTER_FAILED", "");
+      const fields = serverFieldErrors(error.details);
+      if (error.code === "USERNAME_TAKEN") fields.username = error.message;
+      setServerErrors(fields);
+      if (!Object.keys(fields).length) setFailure(error);
+      else document.getElementById(`register-${Object.keys(fields)[0]}`)?.focus();
+    } finally {
+      setLoading(false);
     }
   };
 
-  const deny = async () => {
-    await authClient.denyGoogle(oauthState).catch(() => undefined);
-    setError("denied");
-  };
-
-  const reset = () => {
-    setError(null);
-    setErrorDetail("");
-    setErrorTitle("");
-    setPasswordError("");
-    setSelectedAccount(null);
-    setPassword("");
-    setSuccessName("");
-    setStep(1);
+  const field = (name: RegisterField, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}, hint?: string) => {
+    const error = errorOf(name);
+    const describedBy = [hint && !error ? `register-${name}-hint` : "", error ? `register-${name}-error` : ""].filter(Boolean).join(" ") || undefined;
+    return (
+      <label className={error ? "register-field invalid" : "register-field"}>
+        <span>{label}</span>
+        <input
+          aria-describedby={describedBy}
+          aria-invalid={error ? true : undefined}
+          id={`register-${name}`}
+          onBlur={() => setTouched((current) => ({ ...current, [name]: true }))}
+          onChange={update(name)}
+          required
+          value={form[name]}
+          {...props}
+        />
+        {hint && !error && <small id={`register-${name}-hint`}>{hint}</small>}
+        {error && <small className="field-error" id={`register-${name}-error`} role="alert">{error}</small>}
+      </label>
+    );
   };
 
   return (
-    <div className="auth-modal-backdrop" role="presentation">
-      <div
-        aria-labelledby="oauth-modal-title"
-        aria-modal="true"
-        className="google-oauth-modal"
-        ref={dialogRef}
-        role="dialog"
-      >
-        <div className="oauth-modal-progress" aria-live="polite">
-          {steps.map((label, index) => (
-            <div
-              className={
-                step > index
-                  ? "complete"
-                  : step === index
-                    ? "active"
-                    : ""
-              }
-              key={label}
-            >
-              <span>
-                {step > index ? <Icon name="check" size={13} /> : index + 1}
-              </span>
-              <small>{label}</small>
-            </div>
-          ))}
-        </div>
-
-        <div className="google-popup">
-          <div className="google-popup-head">
-            <strong id="oauth-modal-title">{t.continueWithGoogle}</strong>
-            <button aria-label={t.closeMenu} onClick={onClose} type="button">
-              <Icon name="close" size={18} />
-            </button>
-          </div>
-
-          {error ? (
-            <div className="oauth-flow-error" role="alert">
-              <span>!</span>
-              <h2>{error === "denied" ? t.accessDenied : errorTitle || t.invalidCode}</h2>
-              <p>
-                {error === "denied"
-                  ? t.accessDeniedText
-                  : errorDetail || t.invalidCodeText}
-              </p>
-              <button onClick={reset} type="button">
-                {t.tryAgain}
-              </button>
-            </div>
-          ) : step === 0 ? (
-            <div className="oauth-redirecting">
-              <span className="oauth-loader" />
-              <h2>{t.redirectAuthServer}</h2>
-              <code>GET /oauth/authorize?response_type=code</code>
-            </div>
-          ) : step === 1 ? (
-            <div className="account-chooser">
-              <h2>{t.chooseAccount}</h2>
-              <p>API Lab</p>
-              <div>
-                {accounts.map((account) => (
-                  <button
-                    key={account.id}
-                    onClick={() => {
-                      setSelectedAccount(account);
-                      setStep(2);
-                    }}
-                    type="button"
-                  >
-                    <span className="google-account-avatar">
-                      {account.initials}
-                    </span>
-                    <span>
-                      <strong>{account.name}</strong>
-                      <small>{account.email}</small>
-                    </span>
-                    <Icon name="chevron" size={17} />
-                  </button>
-                ))}
-                {/* Demo provider-də yalnız seed hesabları var — düymə məlumat xarakterlidir (əvvəl yalançı "kod yanlışdır" göstərirdi) */}
-                <button aria-disabled="true" className="account-unavailable" disabled type="button">
-                  <span className="google-account-avatar add">
-                    <Icon name="plus" size={18} />
-                  </span>
-                  <span>
-                    <strong>{t.useAnotherAccount}</strong>
-                    <small>{t.anotherAccountUnavailable}</small>
-                  </span>
-                </button>
-              </div>
-            </div>
-          ) : step === 2 && selectedAccount ? (
-            <div className="google-consent-screen">
-              <div className="selected-google-account">
-                <span>{selectedAccount.initials}</span>
-                <div>
-                  <strong>{selectedAccount.name}</strong>
-                  <small>{selectedAccount.email}</small>
-                </div>
-              </div>
-              <h2>{t.googleAccessTitle}</h2>
-              <div className="google-permissions">
-                <div>
-                  <Icon name="users" size={18} />
-                  <span>{t.permissionIdentity}</span>
-                </div>
-                <div>
-                  <Icon name="compass" size={18} />
-                  <span>{t.permissionSandbox}</span>
-                </div>
-              </div>
-              <label className="consent-password">
-                <span>{t.oauthPassword}</span>
-                <input
-                  aria-describedby={passwordError ? "consent-password-error" : undefined}
-                  aria-invalid={passwordError ? true : undefined}
-                  autoComplete="current-password"
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    setPasswordError("");
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && password) void allow();
-                  }}
-                  type="password"
-                  value={password}
-                />
-                {passwordError && <small className="consent-password-error" id="consent-password-error" role="alert">{passwordError}</small>}
-              </label>
-              <p className="mock-google-notice">{t.mockGoogleNotice}</p>
-              <div className="google-consent-actions">
-                <button onClick={() => void deny()} type="button">
-                  {t.cancel}
-                </button>
-                <button disabled={!password} onClick={() => void allow()} type="button">
-                  {t.allow}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="token-exchange-screen" aria-live="polite">
-              {successName ? (
-                <>
-                  <span className="exchange-success">
-                    <Icon name="check" size={25} />
-                  </span>
-                  <div className="auth-success-toast" role="status">
-                    <Icon name="check" size={16} />
-                    <strong>{t.signedInAs} {successName}</strong>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="exchange-skeleton">
-                    <i />
-                    <i />
-                    <i />
-                  </div>
-                  <h2>{t.exchangingCode}</h2>
-                </>
-              )}
-              <ul>
-                <li className="complete">
-                  <Icon name="check" size={15} />
-                  {t.codeReceived}
-                </li>
-                <li className="complete">
-                  <Icon name="check" size={15} />
-                  {t.stateVerified}
-                </li>
-                <li className={successName ? "complete" : ""}>
-                  {successName ? (
-                    <Icon name="check" size={15} />
-                  ) : (
-                    <span className="button-spinner" />
-                  )}
-                  {t.accessTokenIssued}
-                </li>
-              </ul>
-            </div>
-          )}
-        </div>
-
-        <div className="oauth-http-panel">
-          <button
-            aria-expanded={showCalls}
-            onClick={() => setShowCalls(!showCalls)}
-            type="button"
-          >
-            <Icon name="code" size={16} />
-            {showCalls ? t.hideHttpCalls : t.showHttpCalls}
-            <Icon name="chevron" size={15} />
-          </button>
-          {showCalls && (
-            <div>
-              <span>{t.oauthRequests}</span>
-              {calls.map((call) => (
-                <div className="oauth-http-call" key={call.id}>
-                  <span
-                    className={`mini-method method-${call.method.toLowerCase()}`}
-                  >
-                    {call.method}
-                  </span>
-                  <code>{call.url.replace(/(code|state)=[^&]+/g, "$1=•••")}</code>
-                  <StatusChip status={call.status} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+    <form className="register-form" noValidate onSubmit={submit}>
+      <div className="register-row">
+        {field("firstName", t.firstNameLabel, { autoComplete: "given-name", maxLength: 50 })}
+        {field("lastName", t.lastNameLabel, { autoComplete: "family-name", maxLength: 50 })}
       </div>
-    </div>
+      {field("groupName", t.groupNameLabel, { maxLength: 30, placeholder: "BA-2026-A" }, t.groupNameHint)}
+      {field("username", t.username, { autoComplete: "username", autoCapitalize: "none", spellCheck: false, maxLength: 30 }, t.usernameHint)}
+      {field("password", t.password, { autoComplete: "new-password", type: showPassword ? "text" : "password", maxLength: 64 }, t.passwordHint)}
+      {field("confirm", t.confirmPasswordLabel, { autoComplete: "new-password", type: showPassword ? "text" : "password", maxLength: 64 })}
+      <label className="register-show-password">
+        <input checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} type="checkbox" />
+        <span>{t.showPassword}</span>
+      </label>
+      {failure && (
+        <div className={failure.status === 429 ? "login-error rate" : "login-error"} role="alert">
+          <strong>{failure.status === 429 ? t.tooManyAttempts : t.registerFailed}</strong>
+          <code>
+            {t.authErrorCode}: {failure.code}
+            {failure.traceId ? ` · ${t.authTraceId}: ${failure.traceId}` : ""}
+          </code>
+        </div>
+      )}
+      <p className="register-sandbox-note">
+        <Icon name="bank" size={14} />
+        {t.sandboxNote}
+      </p>
+      <button disabled={loading} type="submit">
+        {loading ? <span className="button-spinner" /> : <Icon name="plus" size={17} />}
+        {loading ? t.creatingAccount : t.createAccount}
+      </button>
+    </form>
   );
 }
 
 function SignInPage({
+  language,
+  mode,
+  onModeChange,
   onSignedIn,
   t,
 }: {
+  language: Language;
+  mode: "signin" | "register";
+  onModeChange: (mode: "signin" | "register") => void;
   onSignedIn: (session: AuthSession) => void;
   t: Translation;
 }) {
@@ -3898,7 +3679,6 @@ function SignInPage({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<AuthClientError | null>(null);
   const [retryCountdown, setRetryCountdown] = useState(0);
-  const [googleOpen, setGoogleOpen] = useState(false);
 
   useEffect(() => {
     if (retryCountdown <= 0) return;
@@ -3984,21 +3764,32 @@ function SignInPage({
               <Icon name="code" size={20} />
             </span>
             <div>
-              <h2>{t.welcomeBack}</h2>
-              <p>{t.signInToContinue}</p>
+              <h2>{mode === "register" ? t.registerTitle : t.welcomeBack}</h2>
+              <p>{mode === "register" ? t.registerSubtitle : t.signInToContinue}</p>
             </div>
           </div>
-          <button
-            className="google-signin-button"
-            onClick={() => setGoogleOpen(true)}
-            type="button"
-          >
-            <GoogleMark />
-            {t.continueWithGoogle}
-          </button>
-          <div className="signin-divider">
-            <span>{t.orLabel}</span>
+          <div aria-label={t.signIn} className="signin-tabs" role="tablist">
+            {(["signin", "register"] as const).map((item) => (
+              <button
+                aria-controls={`panel-${item}`}
+                aria-selected={mode === item}
+                className={mode === item ? "active" : ""}
+                id={`tab-${item}`}
+                key={item}
+                onClick={() => onModeChange(item)}
+                role="tab"
+                type="button"
+              >
+                {item === "signin" ? t.signInTab : t.registerTab}
+              </button>
+            ))}
           </div>
+          {mode === "register" ? (
+            <div aria-labelledby="tab-register" id="panel-register" role="tabpanel">
+              <RegisterForm language={language} onSignedIn={onSignedIn} t={t} />
+            </div>
+          ) : (
+          <div aria-labelledby="tab-signin" id="panel-signin" role="tabpanel">
           <form className="demo-login-form" onSubmit={submit}>
             <label>
               <span>{t.username}</span>
@@ -4067,20 +3858,18 @@ function SignInPage({
               ))}
             </div>
           </div>
+          <p className="signin-switch">
+            {t.noAccountYet}{" "}
+            <button onClick={() => onModeChange("register")} type="button">{t.registerTab}</button>
+          </p>
+          </div>
+          )}
           <p className="signin-privacy">
             <Icon name="lock" size={14} />
             {t.privacyNote}
           </p>
         </section>
       </div>
-
-      {googleOpen && (
-        <GoogleOAuthModal
-          onClose={() => setGoogleOpen(false)}
-          onSignedIn={onSignedIn}
-          t={t}
-        />
-      )}
     </main>
   );
 }
@@ -4738,7 +4527,7 @@ function ExternalApisPage({ language, onNavigate, session, t }: { language: Lang
     handoffs.set({ explorer: external.handoff(endpoint) });
     onNavigate("explorer");
   };
-  const admin = session?.user.role === "admin";
+  const admin = isAdminUser(session?.user);
 
   return (
     <main className="ext-page" id="main-content">
@@ -4803,7 +4592,7 @@ function MaterialsPage({
   session: AuthSession | null;
   t: Translation;
 }) {
-  const admin = session?.user.role === "admin";
+  const admin = isAdminUser(session?.user);
   const [items, setItems] = useState<Material[]>([]);
   const [tasks, setTasks] = useState<LessonTask[]>([]);
   const [loadError, setLoadError] = useState("");
@@ -5025,7 +4814,7 @@ function App() {
   }, [session]);
 
   useEffect(() => {
-    if (session && currentPage === "signin") {
+    if (session && (currentPage === "signin" || currentPage === "register")) {
       setCurrentPage("home");
       window.history.replaceState({}, "", "/");
     }
@@ -5389,8 +5178,8 @@ function App() {
           </section>
         </div>
       </main>
-      ) : currentPage === "signin" ? (
-        <SignInPage onSignedIn={completeSignIn} t={t} />
+      ) : currentPage === "signin" || currentPage === "register" ? (
+        <SignInPage language={language} mode={currentPage} onModeChange={(mode) => navigateTo(mode)} onSignedIn={completeSignIn} t={t} />
       ) : currentPage === "explorer" ? (
         <ExplorerPage t={t} />
       ) : currentPage === "apps" ? (

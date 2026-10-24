@@ -184,12 +184,11 @@ test('Explorer Tests: assertion-lar real cavab üzərində icra olunur (pass/fai
   await expect(page.locator('.test-results li.fail')).toContainText('$.db = "ok"')
 })
 
-test('OAuth girişində refresh token var; token bitməzdən əvvəl səssiz yenilənir (banner çıxmır)', async ({ page }) => {
+test('Girişdə refresh token var; token bitməzdən əvvəl səssiz yenilənir (banner çıxmır)', async ({ page }) => {
   await page.goto('/signin')
-  await page.locator('.google-signin-button').click()
-  await page.locator('.account-chooser').getByRole('button').filter({ hasText: 'Aysel Məmmədova' }).click()
-  await page.locator('.consent-password input').fill('student123')
-  await page.locator('.google-consent-actions button').last().click()
+  await page.locator('.demo-login-form input[autocomplete="username"]').fill('student')
+  await page.locator('.demo-login-form input[type="password"]').fill('student123')
+  await page.locator('.demo-login-form button[type="submit"]').click()
   await expect(page.locator('.user-chip')).toBeVisible()
   const s = await session(page)
   expect(s.refreshToken).toMatch(/^rt_/)

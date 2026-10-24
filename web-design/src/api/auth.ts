@@ -7,6 +7,7 @@ export { AuthClientError, BASE_URL };
 
 export const AUTH_ENDPOINTS = {
   login: `${BASE_URL}/v1/auth/login`,
+  register: `${BASE_URL}/v1/auth/register`,
   refresh: `${BASE_URL}/v1/auth/refresh`,
   logout: `${BASE_URL}/v1/auth/logout`,
   me: `${BASE_URL}/v1/auth/me`,
@@ -28,7 +29,8 @@ export type AuthUser = {
   username: string;
   name: string;
   email: string;
-  role: "student" | "admin";
+  role: "student" | "admin" | "superadmin";
+  groupName?: string | null;
   initials: string;
 };
 
@@ -43,7 +45,9 @@ export type AuthSession = {
 export type GoogleAccount = Omit<AuthUser, "role" | "id"> & { id: string };
 
 // Backend rolları → portal rolları
-export const mapRole = (role: string): AuthUser["role"] => (role === "ADMIN" ? "admin" : "student");
+export const mapRole = (role: string): AuthUser["role"] => (role === "SUPERADMIN" ? "superadmin" : role === "ADMIN" ? "admin" : "student");
+// Superadmin (müəllim) admin-in bütün imkanlarına malikdir
+export const isAdminUser = (user?: Pick<AuthUser, "role"> | null) => user?.role === "admin" || user?.role === "superadmin";
 export const initialsOf = (name: string) =>
   name
     .split(/\s+/)
@@ -53,7 +57,9 @@ export const initialsOf = (name: string) =>
     .join("");
 
 type TokenResponse = { access_token: string; refresh_token?: string; expires_in: number; scope: string };
-type Profile = { id: number; username: string; fullName: string; email: string; role: string; scopes: string[] };
+type Profile = { id: number; username: string; fullName: string; email: string | null; role: string; scopes: string[]; groupName?: string | null };
+
+export type RegisterInput = { firstName: string; lastName: string; groupName: string; username: string; password: string };
 
 const SESSION_KEY = "api-lab-session";
 let memorySession: AuthSession | null = null;
@@ -107,7 +113,7 @@ export function onSessionChange(listener: (session: AuthSession | null) => void)
 async function buildSession(tokens: TokenResponse, refreshToken: string | null): Promise<AuthSession> {
   const { data: me } = await request<Profile>("GET", AUTH_ENDPOINTS.me, { token: tokens.access_token });
   return {
-    user: { id: String(me.id), username: me.username, name: me.fullName, email: me.email, role: mapRole(me.role), initials: initialsOf(me.fullName) },
+    user: { id: String(me.id), username: me.username, name: me.fullName, email: me.email ?? "", role: mapRole(me.role), initials: initialsOf(me.fullName), groupName: me.groupName ?? null },
     accessToken: tokens.access_token,
     refreshToken,
     expiresAt: Date.now() + tokens.expires_in * 1000,
@@ -117,6 +123,14 @@ async function buildSession(tokens: TokenResponse, refreshToken: string | null):
 
 async function login(username: string, password: string): Promise<AuthSession> {
   const { data } = await request<TokenResponse>("POST", AUTH_ENDPOINTS.login, { body: { username, password }, auth: false });
+  const session = await buildSession(data, data.refresh_token ?? null);
+  storeSession(session);
+  return session;
+}
+
+// Qeydiyyat: POST /auth/register → login ilə eyni token cütü → sessiya (avtomatik daxil olur)
+async function register(input: RegisterInput): Promise<AuthSession> {
+  const { data } = await request<TokenResponse>("POST", AUTH_ENDPOINTS.register, { body: input, auth: false });
   const session = await buildSession(data, data.refresh_token ?? null);
   storeSession(session);
   return session;
@@ -240,6 +254,7 @@ export const authClient = {
   exchangeGoogleCode,
   getStoredSession,
   login,
+  register,
   refreshSession,
   signOut,
   labLogin,

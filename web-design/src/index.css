@@ -8508,3 +8508,65 @@ footer {
 .consent-password-error { display: block; margin-top: 6px; color: var(--danger); font-size: 12px; font-weight: 600; }
 .consent-password input[aria-invalid="true"] { border-color: var(--danger); }
 .account-chooser button.account-unavailable { cursor: default; opacity: 0.6; }
+
+/* ---- Qeydiyyat (sign-in kartında tab) */
+.signin-tabs {
+  display: grid;
+  margin: 4px 0 18px;
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--background);
+  grid-template-columns: 1fr 1fr;
+}
+.signin-tabs button {
+  min-height: 38px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.signin-tabs button.active { background: var(--primary); color: var(--on-primary); }
+.register-form { display: grid; gap: 12px; }
+.register-row { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+.register-field { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+.register-field input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+}
+.register-field input:focus-visible { outline: 2px solid var(--accent-blue); outline-offset: 1px; }
+.register-field small { color: var(--muted); font-size: 12px; font-weight: 400; }
+.register-field.invalid input { border-color: var(--danger); }
+.register-field .field-error { color: var(--danger); font-weight: 600; }
+.register-show-password { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.register-sandbox-note { display: flex; align-items: flex-start; margin: 0; gap: 6px; color: var(--muted); font-size: 12px; }
+.register-form > button[type="submit"] {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: var(--on-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.register-form > button[type="submit"]:disabled { cursor: default; opacity: 0.6; }
+.signin-switch { margin: 14px 0 0; color: var(--muted); font-size: 13px; text-align: center; }
+.signin-switch button { padding: 0; border: 0; background: none; color: var(--accent-blue); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; }
+@media (max-width: 520px) { .register-row { grid-template-columns: 1fr; } }

@@ -121,27 +121,73 @@ test('QA-L11: student-in açıq Materials səhifəsi yeni hazır materialı relo
   await request.delete(`/api/v1/materials/${id}`, { headers: { Authorization: `Bearer ${access_token}` } })
 })
 
-test('Mock Google: "başqa hesab" yalançı xəta göstərmir; səhv parol consent-də qalır, sonra düzgün parolla giriş', async ({ page }) => {
+test('Qeydiyyat: /register — sahə xətaları (client), təkrar username (server 409 sahədə), uğurlu qeydiyyat → sandbox hesablar', async ({ page }) => {
+  const stamp = Date.now().toString(36)
+  await page.goto('/register')
+  await expect(page.locator('.signin-tabs [role="tab"][aria-selected="true"]')).toContainText(/Qeydiyyat|Register/)
+  const field = (name: string) => page.locator(`#register-${name}`)
+
+  // 1) Boş göndər → bütün məcburi sahələr xəta göstərir, fokus birinci xətalı sahədə
+  await page.locator('.register-form button[type="submit"]').click()
+  await expect(page.locator('.register-field.invalid')).toHaveCount(6)
+  await expect(field('firstName')).toBeFocused()
+
+  // 2) Format xətaları
+  await field('firstName').fill('N3rmin')
+  await field('lastName').fill('Quliyeva')
+  await field('groupName').fill('BA;DROP')
+  await field('username').fill('Ab C')
+  await expect(field('username')).toHaveValue('abc') // kiçik hərf, boşluqsuz
+  await field('password').fill('1234567')
+  await field('confirm').fill('başqa')
+  await page.locator('.register-form button[type="submit"]').click()
+  await expect(page.locator('#register-firstName-error')).toBeVisible()
+  await expect(page.locator('#register-groupName-error')).toBeVisible()
+  await expect(page.locator('#register-password-error')).toContainText(/8/)
+  await expect(page.locator('#register-confirm-error')).toBeVisible()
+  await expect(field('firstName')).toHaveAttribute('aria-invalid', 'true')
+
+  // 3) Server: mövcud username → 409, xəta username sahəsində
+  await field('firstName').fill('Nərmin')
+  await field('groupName').fill('BA-2026-A')
+  await field('username').fill('rauf')
+  await field('password').fill('Gizli-Parol-77')
+  await field('confirm').fill('Gizli-Parol-77')
+  const conflict = page.waitForResponse((r) => r.url().endsWith('/api/v1/auth/register'))
+  await page.locator('.register-form button[type="submit"]').click()
+  expect((await conflict).status()).toBe(409)
+  await expect(page.locator('#register-username-error')).toBeVisible()
+  await expect(field('username')).toBeFocused()
+
+  // 4) Uğurlu qeydiyyat → avtomatik daxil olur, öz sandbox hesabları
+  await field('username').fill(`nermin.${stamp}`)
+  const created = page.waitForResponse((r) => r.url().endsWith('/api/v1/auth/register'))
+  await page.locator('.register-form button[type="submit"]').click()
+  expect((await created).status()).toBe(201)
+  await expect(page.locator('.user-chip')).toContainText('Nərmin')
+  await expect(page).toHaveURL(/\/$/)
+  await go(page, 'apps')
+  await page.locator('.app-card').filter({ has: page.locator('h2', { hasText: /^Bank$/ }) }).getByRole('button').click()
+  await expect(page.locator('.account-card')).toHaveCount(2)
+  await expect(page.locator('.payment-card')).toHaveCount(2)
+
+  // 5) Çıxış → yeni hesabla login
+  await page.locator('.user-chip').click()
+  await page.locator('.signout-button').click()
+  await signIn(page, `nermin.${stamp}`, 'Gizli-Parol-77')
+})
+
+test('Qeydiyyat formu: a11y (axe) və mobil en, tablar klaviatura ilə', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
   await page.goto('/signin')
-  await page.locator('.google-signin-button').click()
-  const chooser = page.locator('.account-chooser')
-  await expect(chooser).toContainText('Aysel Məmmədova')
-  // Əvvəl bu düymə heç bir sorğu olmadan "Kod yanlışdır və ya vaxtı bitib" göstərirdi
-  await expect(chooser.locator('button.account-unavailable')).toBeDisabled()
-  await expect(page.locator('.oauth-flow-error')).toHaveCount(0)
-
-  await chooser.getByRole('button').filter({ hasText: 'Aysel Məmmədova' }).click()
-  const consent = page.waitForResponse((r) => r.url().endsWith('/oauth/authorize') && r.request().method() === 'POST')
-  await page.locator('.consent-password input').fill('səhv-parol')
-  await page.locator('.google-consent-actions button').last().click()
-  expect((await consent).status()).toBe(401)
-  await expect(page.locator('.oauth-flow-error')).toHaveCount(0) // ümumi "kod yanlışdır" ekranı yox
-  await expect(page.locator('.consent-password-error')).toContainText(/Parol səhvdir|Wrong password/)
-  await expect(page.locator('.consent-password input')).toHaveAttribute('aria-invalid', 'true')
-
-  // Eyni state ilə yenidən — axını yenidən başlatmadan
-  await page.locator('.consent-password input').fill('student123')
-  await expect(page.locator('.consent-password-error')).toHaveCount(0)
-  await page.locator('.google-consent-actions button').last().click()
-  await expect(page.locator('.user-chip')).toBeVisible()
+  await page.getByRole('tab', { name: /Qeydiyyat|Register/ }).click()
+  await expect(page).toHaveURL(/\/register$/)
+  await page.locator('.register-form button[type="submit"]').click() // xəta halı da yoxlansın
+  const { default: AxeBuilder } = await import('@axe-core/playwright')
+  const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()
+  expect(axe.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)).toEqual([])
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)
+  expect(overflow).toBe(false)
+  await page.getByRole('tab', { name: /Daxil ol|Sign in/ }).click()
+  await expect(page).toHaveURL(/\/signin$/)
 })

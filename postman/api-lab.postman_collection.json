@@ -9,6 +9,46 @@
       "name": "Auth",
       "item": [
         {
+          "name": "POST /api/v1/auth/register — Qeydiyyat — ad, soyad, qrup, username, parol (avtomatik login)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Yeni tələbə hesabı yaradılır və dərhal **access + refresh token** qaytarılır (login kimi).\nHər yeni tələbəyə öz sandbox-u verilir: AZN cari hesab (1 000.00) və USD yığım hesabı (500.00), hər birinə kart —\nBank, köçürmə və \"kartı blokla\" tapşırıqları ilk gündən işləyir.\n\nValidasiya: format qaydaları sxemdədir (422 `VALIDATION_ERROR`). Əlavə olaraq server yoxlayır:\nehtiyatda saxlanan username-lər (`admin`, `root` …) → 422; çox yayılmış parol, username/adla eyni parol → 422 `WEAK_PASSWORD`;\ntəkrar username → **409** `USERNAME_TAKEN`. Parol DB-də yalnız scrypt hash kimi saxlanılır.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Nərmin\",\n  \"lastName\": \"Quliyeva\",\n  \"groupName\": \"BA-2026-A\",\n  \"username\": \"nermin.q\",\n  \"password\": \"Gizli-Parol-77\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "POST /api/v1/auth/login — Login — access və refresh token al",
           "request": {
             "method": "POST",

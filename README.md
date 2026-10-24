@@ -206,7 +206,7 @@ erDiagram
 
 ---
 
-## Endpoint-lər (102)
+## Endpoint-lər (103)
 
 Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/docs**.
 

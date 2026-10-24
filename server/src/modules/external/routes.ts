@@ -2,6 +2,7 @@
 import type { AppContext } from '../../app.js';
 import type { Handlers } from '../../openapi/router.js';
 import type { ExternalApi } from './catalog.js';
+import { isAdminRole } from '../../types.js';
 import { ExternalProxy } from './proxy.js';
 
 // Kataloq cavabı — açar heç vaxt daxil edilmir; yalnız "server key bu API üçün mövcuddurmu" bayrağı
@@ -31,7 +32,7 @@ export function externalHandlers({ config }: AppContext): Handlers {
   const proxy = new ExternalProxy(config);
   const handlers: Handlers = {
     externalCatalog: (req, res) => {
-      const admin = req.auth?.role === 'ADMIN';
+      const admin = isAdminRole(req.auth?.role);
       const serverKeyAvailable = config.external.serverKeyEnabled && Boolean(config.external.serverKey) && Boolean(req.auth);
       res.json({
         items: proxy.visibleApis(admin).map((api) => toView(api, serverKeyAvailable)),

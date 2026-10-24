@@ -132,19 +132,26 @@ test('429 UI: SQL Playground limiti (20/dəq) — banner və geri sayım', async
   await expect(page.locator('.explorer-send')).toBeDisabled()
 })
 
-test('Mock Google OAuth: real provider hesabları → parol → code → token → daxil olundu', async ({ page }) => {
+test('Sign-in-də Google yoxdur; OAuth2 Authorization Code dərs demosu (Apps) real provider ilə işləyir', async ({ page }) => {
   await page.goto('/signin')
-  await page.locator('.google-signin-button').click()
-  const chooser = page.locator('.account-chooser')
-  await expect(chooser).toContainText('Aysel Məmmədova') // GET /oauth/authorize (JSON) — seed istifadəçiləri
-  await chooser.getByRole('button').filter({ hasText: 'Aysel Məmmədova' }).click()
-  await page.locator('.consent-password input').fill('student123')
-  await page.locator('.google-consent-actions button').last().click()
-  await expect(page.locator('.user-chip')).toBeVisible()
-  const s = await session(page)
-  expect(s.refreshToken).toMatch(/^rt_/) // W3: OAuth girişində də refresh token verilir (scope genişlənmir)
-  expect(s.scope).toContain('cards:read')
-  expect(s.scope).not.toContain('admin')
+  await expect(page.locator('.google-signin-button')).toHaveCount(0)
+  await signIn(page, 'student', 'student123')
+  await nav(page, 'Apps')
+  await page.locator('.app-card').filter({ has: page.locator('h2', { hasText: /Google/ }) }).getByRole('button').click()
+  const card = page.locator('.consent-card')
+  const authorize = page.waitForResponse((r) => r.url().includes('/oauth/authorize') && r.request().method() === 'GET')
+  await card.getByRole('button').click() // 1. GET /oauth/authorize
+  expect((await authorize).status()).toBe(200)
+  await card.locator('.consent-password input').fill('student123')
+  const consent = page.waitForResponse((r) => r.url().endsWith('/oauth/authorize') && r.request().method() === 'POST')
+  await card.locator('.consent-actions button').last().click() // 2. consent → code
+  expect((await consent).status()).toBe(200)
+  await expect(card.locator('code')).toContainText('code=ac_')
+  await card.getByRole('button').click() // 3. code göstərildi
+  const token = page.waitForResponse((r) => r.url().endsWith('/oauth/token'))
+  await card.getByRole('button').click() // 4. POST /oauth/token
+  expect((await token).status()).toBe(200)
+  await expect(card.locator('.oauth-complete')).toContainText('access_token')
 })
 
 test('smoke: bütün Apps və səhifələr real datanı JS xətası olmadan göstərir', async ({ page }) => {

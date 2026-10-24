@@ -2,9 +2,22 @@
 import type { AppContext } from '../../app.js';
 import type { Handlers } from '../../openapi/router.js';
 import { writeAudit } from '../../lib/audit.js';
+import { isoNow } from '../../lib/crypto.js';
+import { authRepo } from './repo.js';
+import { registerUser } from './register.js';
 
 export function authHandlers({ db, config, auth }: AppContext): Handlers {
   return {
+    // Qeydiyyat → yeni USER + sandbox data → login kimi token cütü (201)
+    authRegister: async (req, res) => {
+      const userId = await registerUser(db, config, req.valid.body);
+      const user = (await authRepo.findUserById(db, userId))!;
+      const tokens = await auth.issueTokenPair(user);
+      await authRepo.touchLogin(db, userId, isoNow(config.now()));
+      res.locals.userId = userId;
+      res.status(201).location('/api/v1/auth/me').set('Cache-Control', 'no-store').json(tokens);
+    },
+
     authLogin: async (req, res) => {
       const { username, password } = req.valid.body;
       const { user, tokens } = await auth.login(username, password);

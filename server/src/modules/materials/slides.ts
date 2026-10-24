@@ -17,7 +17,7 @@ export const titleFromName = (name: string) => path.parse(name).name.replace(/[_
 
 export async function importSlides(db: DB, materials: MaterialsService, slidesDir: string) {
   if (!fs.existsSync(slidesDir)) return [];
-  const admin = (await db.prepare(`SELECT id FROM users WHERE role = 'ADMIN' ORDER BY id LIMIT 1`).pluck().get()) as number | undefined;
+  const admin = (await db.prepare(`SELECT id FROM users WHERE role IN ('ADMIN', 'SUPERADMIN') ORDER BY id LIMIT 1`).pluck().get()) as number | undefined;
   const imported: { file: string; id?: number; error?: string }[] = [];
   const files = fs.readdirSync(slidesDir).filter((f) => ALLOWED.test(f) && !f.startsWith('.')).sort();
   for (const [index, file] of files.entries()) {

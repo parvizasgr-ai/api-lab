@@ -41,7 +41,7 @@ describe("login / rollar", () => {
     const { authClient } = await load();
     const calls = mockFetch(backend("USER"));
     const session = await authClient.login("student", "ok");
-    expect(session.user).toEqual({ id: "1", username: "student", name: "Aysel Məmmədova", email: "student@apilab.az", role: "student", initials: "AM" });
+    expect(session.user).toEqual({ id: "1", username: "student", name: "Aysel Məmmədova", email: "student@apilab.az", role: "student", initials: "AM", groupName: null });
     expect(session).toMatchObject({ accessToken: "access-1", refreshToken: "refresh-1" });
     expect(calls[1]).toMatchObject({ url: "/api/v1/auth/me", headers: { authorization: "Bearer access-1" } });
     expect(JSON.parse(localStorage.getItem("api-lab-session")!).accessToken).toBe("access-1");
@@ -211,5 +211,22 @@ describe("səssiz refresh və OAuth refresh token", () => {
     const { state, accounts } = await authClient.authorizeGoogle();
     const session = await authClient.exchangeGoogleCode(accounts[0], "student123", state);
     expect(session.refreshToken).toBe("rt_oauth");
+  });
+});
+
+describe("qeydiyyat + rollar", () => {
+  it("register: POST /auth/register (tokensiz) → /auth/me → sessiya; SUPERADMIN → superadmin, admin hüquqları", async () => {
+    const { authClient, isAdminUser, mapRole } = await load();
+    const calls = mockFetch((call) =>
+      call.url.endsWith("/api/v1/auth/register")
+        ? json(201, { access_token: "tok", token_type: "Bearer", expires_in: 900, refresh_token: "rt_1", scope: "accounts:read" })
+        : json(200, { id: 4, username: "nermin.q", fullName: "Nərmin Quliyeva", email: null, role: "USER", scopes: ["accounts:read"], groupName: "BA-2026-A" }),
+    );
+    const session = await authClient.register({ firstName: "Nərmin", lastName: "Quliyeva", groupName: "BA-2026-A", username: "nermin.q", password: "Gizli-Parol-77" });
+    expect(calls[0]).toMatchObject({ method: "POST", url: "/api/v1/auth/register" });
+    expect(calls[0].headers.authorization).toBeUndefined();
+    expect(session.user).toMatchObject({ username: "nermin.q", groupName: "BA-2026-A", email: "", role: "student" });
+    expect(mapRole("SUPERADMIN")).toBe("superadmin");
+    expect(isAdminUser({ role: "superadmin" }) && isAdminUser({ role: "admin" }) && !isAdminUser({ role: "student" })).toBe(true);
   });
 });

@@ -7,7 +7,7 @@ import type { Config } from '../../config.js';
 import { ApiError, conflict, notFound } from '../../errors.js';
 import { isoNow } from '../../lib/crypto.js';
 import { writeAudit } from '../../lib/audit.js';
-import type { AuthContext } from '../../types.js';
+import { isAdminRole, type AuthContext } from '../../types.js';
 import { ConversionQueue } from './converter.js';
 import { inspectFile, safeDisplayName, type MaterialExt } from './fileCheck.js';
 import { materialsRepo, type MaterialKind, type MaterialRow } from './repo.js';
@@ -16,7 +16,7 @@ import { MaterialStorage } from './storage.js';
 
 const DEFAULT_KIND: Record<MaterialExt, MaterialKind> = { pdf: 'SLIDES', pptx: 'SLIDES', docx: 'DOCUMENT', md: 'TASKSHEET' };
 const VISIBLE_TO_STUDENTS = new Set(['READY', 'READY_NO_PREVIEW']);
-const isAdmin = (auth?: AuthContext) => auth?.role === 'ADMIN';
+const isAdmin = (auth?: AuthContext) => isAdminRole(auth?.role);
 
 export class MaterialsService {
   readonly storage: MaterialStorage;

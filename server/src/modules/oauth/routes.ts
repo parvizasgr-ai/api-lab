@@ -22,7 +22,7 @@ export function oauthHandlers({ db, config, auth }: AppContext): Handlers {
       redirectUri: q.redirect_uri,
       scope: q.scope || DEFAULT_SCOPE,
       state: q.state,
-      users: await authRepo.listUsers(db),
+      users: (await authRepo.listDemoUsers(db)).map((u) => ({ ...u, email: u.email ?? '' })),
       ...extra,
     });
   };
@@ -37,7 +37,7 @@ export function oauthHandlers({ db, config, auth }: AppContext): Handlers {
           redirectUri: q.redirect_uri,
           scope: q.scope || DEFAULT_SCOPE,
           state: q.state,
-          accounts: (await authRepo.listUsers(db)).map((u) => ({ username: u.username, fullName: u.full_name, email: u.email })),
+          accounts: (await authRepo.listDemoUsers(db)).map((u) => ({ username: u.username, fullName: u.full_name, email: u.email ?? '' })),
         });
       }
       const html = await page(q); // əvvəl yoxlama (xəta JSON qayıtmalıdır), sonra Content-Type

@@ -1,13 +1,18 @@
 // Auth repo — yalnız SQL (prepared statements).
 import type { DB } from '../../db.js';
+import type { Role } from '../../types.js';
 
 export interface UserRow {
   id: number;
   username: string;
   password_hash: string;
   full_name: string;
-  email: string;
-  role: 'USER' | 'ADMIN';
+  first_name: string | null;
+  last_name: string | null;
+  group_name: string | null;
+  email: string | null;
+  role: Role;
+  last_login_at: string | null;
 }
 
 export interface RefreshTokenRow {
@@ -23,7 +28,7 @@ export interface ApiKeyRow {
   id: number;
   owner_user_id: number;
   username: string;
-  role: 'USER' | 'ADMIN';
+  role: Role;
 }
 
 export const authRepo = {
@@ -31,6 +36,10 @@ export const authRepo = {
     (await db.prepare(`SELECT * FROM users WHERE username = ?`).get(username)) as UserRow | undefined,
 
   findUserById: async (db: DB, id: number) => (await db.prepare(`SELECT * FROM users WHERE id = ?`).get(id)) as UserRow | undefined,
+
+  // Mock Google hesab seçimi yalnız seed demo hesablarını göstərir — qeydiyyatdan keçən tələbələr heç vaxt siyahılanmır
+  listDemoUsers: async (db: DB) =>
+    (await db.prepare(`SELECT id, username, full_name, email, role FROM users WHERE username IN ('student', 'admin', 'rauf') ORDER BY id`).all()) as Pick<UserRow, 'id' | 'username' | 'full_name' | 'email' | 'role'>[],
 
   listUsers: async (db: DB) =>
     (await db.prepare(`SELECT id, username, full_name, email, role FROM users ORDER BY id`).all()) as Omit<UserRow, 'password_hash'>[],
@@ -80,6 +89,8 @@ export const authRepo = {
          ON CONFLICT (subject, window_start) DO UPDATE SET count = rate_limit_counters.count + 1`,
       )
       .run(subject, windowStart),
+
+  touchLogin: (db: DB, userId: number, at: string) => db.prepare(`UPDATE users SET last_login_at = ? WHERE id = ?`).run(at, userId),
 
   clearLoginFailures: (db: DB, subject: string) => db.prepare(`DELETE FROM rate_limit_counters WHERE subject = ?`).run(subject),
 };

@@ -1,10 +1,14 @@
+// ADMIN — material/tapşırıq idarəsi; SUPERADMIN (müəllim) — ADMIN-in hər şeyi + bütün istifadəçilər və nəticələri
+export type Role = 'USER' | 'ADMIN' | 'SUPERADMIN';
+export const isAdminRole = (role?: string) => role === 'ADMIN' || role === 'SUPERADMIN';
+
 // Express Request-ə əlavə etdiyimiz sahələr.
 import type { OperationInfo } from './openapi/spec.js';
 
 export interface AuthContext {
   userId: number;
   username: string;
-  role: 'USER' | 'ADMIN';
+  role: Role;
   scopes: string[];
   via: 'bearer' | 'apiKey' | 'basic';
   jti?: string; // yalnız Bearer: logout bu token-i ləğv edir

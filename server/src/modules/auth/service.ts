@@ -61,7 +61,7 @@ export class AuthService {
       return {
         userId: Number(payload.sub),
         username: String(payload.username),
-        role: payload.role === 'ADMIN' ? 'ADMIN' : 'USER',
+        role: payload.role === 'SUPERADMIN' ? 'SUPERADMIN' : payload.role === 'ADMIN' ? 'ADMIN' : 'USER',
         scopes: String(payload.scope ?? '').split(' ').filter(Boolean),
         via: 'bearer',
         jti: payload.jti,
@@ -101,6 +101,7 @@ export class AuthService {
       throw new ApiError(401, 'INVALID_CREDENTIALS', 'Username və ya parol səhvdir');
     }
     await authRepo.clearLoginFailures(this.db, subject);
+    await authRepo.touchLogin(this.db, user.id, isoNow(this.config.now()));
     return { user, tokens: await this.issueTokenPair(user) };
   }
 
@@ -155,6 +156,9 @@ export class AuthService {
       id: user.id,
       username: user.username,
       fullName: user.full_name,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      groupName: user.group_name,
       email: user.email,
       role: user.role,
       scopes: await authRepo.scopesOf(this.db, user.id),

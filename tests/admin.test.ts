@@ -89,7 +89,7 @@ describe('Postman', () => {
     const c = res.body;
     expect(c.info.schema).toBe('https://schema.getpostman.com/json/collection/v2.1.0/collection.json');
     expect(c.item.map((f: { name: string }) => f.name)).toContain('Cards');
-    expect(c.item.reduce((n: number, f: { item: unknown[] }) => n + f.item.length, 0)).toBe(102);
+    expect(c.item.reduce((n: number, f: { item: unknown[] }) => n + f.item.length, 0)).toBe(103);
 
     const auth = c.item.find((f: { name: string }) => f.name === 'Auth');
     const login = auth.item.find((i: { name: string }) => i.name.startsWith('POST /api/v1/auth/login'));

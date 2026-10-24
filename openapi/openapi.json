@@ -94,6 +94,154 @@
     }
   ],
   "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "authRegister",
+        "summary": "Qeydiyyat — ad, soyad, qrup, username, parol (avtomatik login)",
+        "description": "Yeni tələbə hesabı yaradılır və dərhal **access + refresh token** qaytarılır (login kimi).\nHər yeni tələbəyə öz sandbox-u verilir: AZN cari hesab (1 000.00) və USD yığım hesabı (500.00), hər birinə kart —\nBank, köçürmə və \"kartı blokla\" tapşırıqları ilk gündən işləyir.\n\nValidasiya: format qaydaları sxemdədir (422 `VALIDATION_ERROR`). Əlavə olaraq server yoxlayır:\nehtiyatda saxlanan username-lər (`admin`, `root` …) → 422; çox yayılmış parol, username/adla eyni parol → 422 `WEAK_PASSWORD`;\ntəkrar username → **409** `USERNAME_TAKEN`. Parol DB-də yalnız scrypt hash kimi saxlanılır.\n",
+        "x-rate-limit": 10,
+        "x-db-impact": {
+          "reads": [
+            "users"
+          ],
+          "writes": [
+            "INSERT users",
+            "INSERT user_scopes",
+            "INSERT accounts",
+            "INSERT transactions",
+            "INSERT cards",
+            "INSERT audit_log",
+            "INSERT refresh_tokens"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "example": {
+                "firstName": "Nərmin",
+                "lastName": "Quliyeva",
+                "groupName": "BA-2026-A",
+                "username": "nermin.q",
+                "password": "Gizli-Parol-77"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Qeydiyyat uğurludur — tokenlər (login cavabı ilə eyni)",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                },
+                "example": {
+                  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0In0.sig",
+                  "token_type": "Bearer",
+                  "expires_in": 900,
+                  "refresh_token": "rt_4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f",
+                  "scope": "accounts:read bookings:read bookings:write books:write cards:read cards:write music:read music:write transfers:write"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "409": {
+            "description": "Username artıq istifadə olunur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 409,
+                  "code": "USERNAME_TAKEN",
+                  "message": "Bu username artıq istifadə olunur",
+                  "details": [
+                    {
+                      "field": "/username",
+                      "message": "nermin.q"
+                    }
+                  ],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Format səhvi (sxem), ehtiyatda saxlanan username və ya zəif parol",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "format": {
+                    "summary": "Format",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 422,
+                      "code": "VALIDATION_ERROR",
+                      "message": "Sorğu sxemə uyğun deyil",
+                      "details": [
+                        {
+                          "field": "/password",
+                          "message": "must NOT have fewer than 8 characters"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "weak": {
+                    "summary": "Zəif parol",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 422,
+                      "code": "WEAK_PASSWORD",
+                      "message": "Qeydiyyat məlumatları qəbul olunmadı",
+                      "details": [
+                        {
+                          "field": "/password",
+                          "message": "Bu parol çox yayılmışdır — başqa parol seçin"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
@@ -371,6 +519,9 @@
                   "id": 1,
                   "username": "student",
                   "fullName": "Aysel Məmmədova",
+                  "firstName": "Aysel",
+                  "lastName": "Məmmədova",
+                  "groupName": "Demo",
                   "email": "student@apilab.az",
                   "role": "USER",
                   "scopes": [
@@ -11343,6 +11494,7 @@
           "NOT_ACCEPTABLE",
           "UNSUPPORTED_MEDIA_TYPE",
           "CONFLICT",
+          "USERNAME_TAKEN",
           "CARD_ALREADY_BLOCKED",
           "CARD_NOT_BLOCKED",
           "CARD_EXPIRED",
@@ -11363,6 +11515,7 @@
           "SAME_ACCOUNT",
           "IDEMPOTENCY_KEY_REQUIRED",
           "IDEMPOTENCY_KEY_REUSED",
+          "WEAK_PASSWORD",
           "IDEMPOTENCY_IN_PROGRESS",
           "INVALID_DATE_RANGE",
           "ROOM_CAPACITY_EXCEEDED",
@@ -11561,6 +11714,9 @@
           "id",
           "username",
           "fullName",
+          "firstName",
+          "lastName",
+          "groupName",
           "email",
           "role",
           "scopes"
@@ -11575,15 +11731,31 @@
           "fullName": {
             "type": "string"
           },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "groupName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Qeydiyyatda yazılan qrup (məs. BA-2026-A)"
+          },
           "email": {
             "type": "string",
-            "format": "email"
+            "format": "email",
+            "nullable": true,
+            "description": "Qeydiyyat formunda yoxdur — null ola bilər"
           },
           "role": {
             "type": "string",
             "enum": [
               "USER",
-              "ADMIN"
+              "ADMIN",
+              "SUPERADMIN"
             ]
           },
           "scopes": {
@@ -11591,6 +11763,53 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "RegisterName": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 50,
+        "description": "Hərflər (Azərbaycan hərfləri daxil); tire, apostrof və boşluq yalnız hərflərin arasında",
+        "pattern": "^[A-Za-zÀ-ÖØ-öø-ÿĞğİıŞşƏə]+(?:[ '-][A-Za-zÀ-ÖØ-öø-ÿĞğİıŞşƏə]+)*$"
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "firstName",
+          "lastName",
+          "groupName",
+          "username",
+          "password"
+        ],
+        "properties": {
+          "firstName": {
+            "$ref": "#/components/schemas/RegisterName"
+          },
+          "lastName": {
+            "$ref": "#/components/schemas/RegisterName"
+          },
+          "groupName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 30,
+            "description": "Qrupun adı — hərf, rəqəm; boşluq, nöqtə, alt xətt, tire ortada (məs. BA-2026-A, IT BA 2)",
+            "pattern": "^[A-Za-z0-9À-ÖØ-öø-ÿĞğİıŞşƏə]+(?:[ ._-][A-Za-z0-9À-ÖØ-öø-ÿĞğİıŞşƏə]+)*$"
+          },
+          "username": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 30,
+            "description": "Kiçik latın hərfləri və rəqəmlər; nöqtə və alt xətt ortada ola bilər (məs. nermin.q, aysel_2026)",
+            "pattern": "^[a-z0-9][a-z0-9._]{1,28}[a-z0-9]$"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 8,
+            "maxLength": 64,
+            "description": "Ən azı 8 simvol. Username/adla eyni və çox yayılmış parollar (12345678, password …) qəbul olunmur"
           }
         }
       },
@@ -11825,7 +12044,8 @@
           },
           "email": {
             "type": "string",
-            "format": "email"
+            "format": "email",
+            "nullable": true
           },
           "email_verified": {
             "type": "boolean"

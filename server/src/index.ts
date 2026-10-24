@@ -18,15 +18,26 @@ if (problems.length) {
 }
 
 const db = openDb();
-if (userTables(db).length === 0) {
+try {
+  await db.query('SELECT 1');
+} catch (err) {
+  console.error(`PostgreSQL-ə qoşulmaq olmadı (${config.databaseUrl.replace(/:[^:@/]*@/, ':***@')}): ${(err as Error).message}`);
+  console.error('Quraşdırma: README → "PostgreSQL" (brew install postgresql@16 && npm run db:setup)');
+  process.exit(1);
+}
+// RESET_DB_ON_START=true — hər başlanğıcda təmiz seed (Playwright e2e serveri)
+if (process.env.RESET_DB_ON_START === 'true') {
+  console.log('RESET_DB_ON_START: DB sıfırlanır (migration + seed)...');
+  await resetDatabase(db);
+} else if ((await userTables(db)).length === 0) {
   console.log('DB boşdur — migration + seed işlədilir...');
-  resetDatabase(db);
+  await resetDatabase(db);
 } else {
-  const applied = migrate(db);
+  const applied = await migrate(db);
   if (applied.length) console.log('Yeni migration-lar:', applied.join(', '));
 }
 
-if (applyAdminPassword(db, config)) console.log('ADMIN_PASSWORD tətbiq olundu (admin istifadəçisi)');
+if (await applyAdminPassword(db, config)) console.log('ADMIN_PASSWORD tətbiq olundu (admin istifadəçisi)');
 
 const app = createApp({ db });
 const materials = app.locals.materials as MaterialsService;
@@ -37,10 +48,10 @@ console.log(`Material alətləri: soffice ${tools.soffice ? `✓ (${tools.soffic
 if (!tools.soffice || !tools.pdftoppm) console.log('  Quraşdırma: README → "Dərs materialları"');
 
 // materials/slides/ qovluğundakı yeni fayllar + yarımçıq qalmış konvertasiyalar
-for (const r of importSlides(db, materials, config.materials.slidesDir)) {
+for (const r of await importSlides(db, materials, config.materials.slidesDir)) {
   console.log(r.error ? `  ⚠ ${r.file}: ${r.error}` : `  + ${r.file} → material #${r.id}`);
 }
-for (const id of materialsRepo.byStatus(db, ['UPLOADED', 'CONVERTING'])) materials.queue.enqueue(id);
+for (const id of await materialsRepo.byStatus(db, ['UPLOADED', 'CONVERTING'])) materials.queue.enqueue(id);
 
 // HOST=localhost → hər iki loopback: brauzer "localhost"-u ::1 (IPv6) kimi açanda da qoşulsun.
 // İkinci (IPv6) ünvan mövcud deyilsə, xəta yox — yalnız 127.0.0.1 kifayətdir.

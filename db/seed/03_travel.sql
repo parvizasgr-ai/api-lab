@@ -47,8 +47,8 @@ routes(r, from_code, to_code, airline_code, airline_name, flight_no, dep_minute,
 INSERT INTO flights (flight_no, airline_code, airline_name, from_code, to_code, depart_at, arrive_at,
                      duration_min, stops, price_minor, currency, seats_left)
 SELECT r.flight_no, r.airline_code, r.airline_name, r.from_code, r.to_code,
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '+' || d.d || ' days', '+' || r.dep_minute || ' minutes'),
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '+' || d.d || ' days', '+' || (r.dep_minute + r.duration_min) || ' minutes'),
+       seed_ts('day', ('+' || d.d || ' days')::interval + ('+' || r.dep_minute || ' minutes')::interval),
+       seed_ts('day', ('+' || d.d || ' days')::interval + ('+' || (r.dep_minute + r.duration_min) || ' minutes')::interval),
        r.duration_min, r.stops,
        r.base_price_minor + ((d.d * 17 + r.r * 31) % 9) * 1000,
        'AZN',
@@ -60,21 +60,21 @@ ORDER BY d.d, r.dep_minute, r.r;
 -- Hazır aviabilet bronları (reys id-si tarixdən asılıdır, ona görə subquery ilə tapılır)
 INSERT INTO flight_bookings (id, flight_id, user_id, passengers, status, total_minor, currency, created_at, updated_at)
 SELECT 1, f.id, 1, 2, 'CONFIRMED', f.price_minor * 2, f.currency,
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-5 days', '+14 hours'),
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-5 days', '+14 hours')
-FROM flights f WHERE f.flight_no = 'J2 071' AND f.depart_at >= date('now', '+7 days') ORDER BY f.depart_at LIMIT 1;
+       seed_ts('day', ('-5 days')::interval + ('+14 hours')::interval),
+       seed_ts('day', ('-5 days')::interval + ('+14 hours')::interval)
+FROM flights f WHERE f.flight_no = 'J2 071' AND f.depart_at >= seed_date('now', ('+7 days')::interval) ORDER BY f.depart_at LIMIT 1;
 
 INSERT INTO flight_bookings (id, flight_id, user_id, passengers, status, total_minor, currency, created_at, updated_at)
 SELECT 2, f.id, 3, 1, 'CONFIRMED', f.price_minor, f.currency,
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-2 days', '+9 hours'),
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-2 days', '+9 hours')
-FROM flights f WHERE f.flight_no = 'J2 017' AND f.depart_at >= date('now', '+14 days') ORDER BY f.depart_at LIMIT 1;
+       seed_ts('day', ('-2 days')::interval + ('+9 hours')::interval),
+       seed_ts('day', ('-2 days')::interval + ('+9 hours')::interval)
+FROM flights f WHERE f.flight_no = 'J2 017' AND f.depart_at >= seed_date('now', ('+14 days')::interval) ORDER BY f.depart_at LIMIT 1;
 
 INSERT INTO flight_bookings (id, flight_id, user_id, passengers, status, total_minor, currency, created_at, updated_at)
 SELECT 3, f.id, 1, 1, 'CANCELLED', f.price_minor, f.currency,
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-8 days', '+16 hours'),
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-6 days', '+10 hours')
-FROM flights f WHERE f.flight_no = 'J2 223' AND f.depart_at >= date('now', '+9 days') ORDER BY f.depart_at LIMIT 1;
+       seed_ts('day', ('-8 days')::interval + ('+16 hours')::interval),
+       seed_ts('day', ('-6 days')::interval + ('+10 hours')::interval)
+FROM flights f WHERE f.flight_no = 'J2 223' AND f.depart_at >= seed_date('now', ('+9 days')::interval) ORDER BY f.depart_at LIMIT 1;
 
 INSERT INTO flight_passengers (booking_id, first_name, last_name, passport_no_masked) VALUES
   (1, 'Aysel',  'Məmmədova', 'C****4821'),
@@ -141,10 +141,10 @@ WITH b(id, room_id, user_id, in_days, nights, guests, status, created_days_ago) 
 )
 INSERT INTO hotel_bookings (id, room_id, user_id, check_in, check_out, guests, status, total_minor, currency, created_at, updated_at)
 SELECT b.id, b.room_id, b.user_id,
-       date('now', b.in_days || ' days'),
-       date('now', (b.in_days + b.nights) || ' days'),
+       seed_date('now', (b.in_days || ' days')::interval),
+       seed_date('now', ((b.in_days + b.nights) || ' days')::interval),
        b.guests, b.status, r.price_per_night_minor * b.nights, h.currency,
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-' || b.created_days_ago || ' days', '+11 hours'),
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-' || b.created_days_ago || ' days', '+11 hours')
+       seed_ts('day', ('-' || b.created_days_ago || ' days')::interval + ('+11 hours')::interval),
+       seed_ts('day', ('-' || b.created_days_ago || ' days')::interval + ('+11 hours')::interval)
 FROM b JOIN hotel_rooms r ON r.id = b.room_id JOIN hotels h ON h.id = r.hotel_id
 ORDER BY b.id;

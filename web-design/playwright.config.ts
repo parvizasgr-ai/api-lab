@@ -29,7 +29,9 @@ export default defineConfig({
     timeout: 60_000,
     env: {
       PORT: '3000',
-      DB_PATH: path.join(runDir, 'e2e.db'),
+      // PostgreSQL e2e bazası (npm run db:setup yaradır) — hər qaçışda təmiz seed
+      DATABASE_URL: process.env.E2E_DATABASE_URL ?? 'postgres://apilab:apilab@localhost:5432/apilab_e2e',
+      RESET_DB_ON_START: 'true',
       MATERIALS_DIR: path.join(runDir, 'materials'),
       RATE_LIMIT_PER_MIN: '1000', // ümumi limit testləri bloklamasın; 429 testi SQL Playground-un öz limiti (20/dəq) ilə
       MAX_UPLOAD_MB: '1', // 413 testi üçün kiçik limit (default 50 MB)

@@ -38,57 +38,57 @@ export function customersHandlers({ db, config }: AppContext): Handlers {
   const customers = new CustomersService(db, config);
 
   return {
-    listCustomers: (req, res) => {
+    listCustomers: async (req, res) => {
       deprecationHeaders(res, '/api/v2/customers');
-      const page = customers.list(req.valid.query as any);
+      const page = await customers.list(req.valid.query as any);
       send(req, res, { ...page, items: page.items.map(toCustomer) }, { root: 'customerPage', item: 'customer' });
     },
 
-    createCustomer: (req, res) => {
+    createCustomer: async (req, res) => {
       deprecationHeaders(res, '/api/v2/customers');
-      const c = customers.create(req.valid.body);
+      const c = await customers.create(req.valid.body);
       res.status(201).location(`/api/v1/customers/${c.id}`).set('ETag', etagOf(c, 'json')).json(toCustomer(c));
     },
 
-    getCustomer: (req, res) => {
+    getCustomer: async (req, res) => {
       deprecationHeaders(res, `/api/v2/customers/${req.valid.params.customerId}`);
-      const c = customers.get(req.valid.params.customerId);
+      const c = await customers.get(req.valid.params.customerId);
       const etag = etagOf(c, wantsXml(req) ? 'xml' : 'json');
       res.set('ETag', etag);
       if (matches(req.get('if-none-match'), etag)) return res.status(304).end();
       send(req, res, toCustomer(c), { root: 'customer' });
     },
 
-    headCustomer: (req, res) => {
-      const c = customers.get(req.valid.params.customerId); // yoxdursa 404 (HEAD-də gövdə avtomatik göndərilmir)
+    headCustomer: async (req, res) => {
+      const c = await customers.get(req.valid.params.customerId); // yoxdursa 404 (HEAD-də gövdə avtomatik göndərilmir)
       res.set('ETag', etagOf(c, 'json')).status(200).end();
     },
 
-    replaceCustomer: (req, res) => {
+    replaceCustomer: async (req, res) => {
       deprecationHeaders(res, `/api/v2/customers/${req.valid.params.customerId}`);
-      const c = customers.replace(req.valid.params.customerId, req.valid.body);
+      const c = await customers.replace(req.valid.params.customerId, req.valid.body);
       res.set('ETag', etagOf(c, 'json')).json(toCustomer(c));
     },
 
-    patchCustomer: (req, res) => {
+    patchCustomer: async (req, res) => {
       deprecationHeaders(res, `/api/v2/customers/${req.valid.params.customerId}`);
-      const c = customers.patch(req.valid.params.customerId, req.valid.body);
+      const c = await customers.patch(req.valid.params.customerId, req.valid.body);
       res.set('ETag', etagOf(c, 'json')).json(toCustomer(c));
     },
 
-    deleteCustomer: (req, res) => {
+    deleteCustomer: async (req, res) => {
       deprecationHeaders(res, '/api/v2/customers');
-      customers.delete(req.valid.params.customerId);
+      await customers.delete(req.valid.params.customerId);
       res.status(204).end();
     },
 
-    listCustomersV2: (req, res) => {
-      const page = customers.list(req.valid.query as any);
+    listCustomersV2: async (req, res) => {
+      const page = await customers.list(req.valid.query as any);
       res.json({ ...page, items: page.items.map(toCustomerV2) });
     },
 
-    getCustomerV2: (req, res) => {
-      res.json(toCustomerV2(customers.get(req.valid.params.customerId)));
+    getCustomerV2: async (req, res) => {
+      res.json(toCustomerV2(await customers.get(req.valid.params.customerId)));
     },
   };
 }

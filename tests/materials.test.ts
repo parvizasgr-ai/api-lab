@@ -68,7 +68,7 @@ describe('PDF yükləmə → konvertasiya → viewer', () => {
     expect(inline.headers['content-type']).toBe(PDF_MIME);
     expect(inline.headers['content-disposition']).toMatch(/^inline;/);
 
-    expect(t.db.prepare(`SELECT page_no, image_name, thumb_name FROM material_pages WHERE material_id = ? ORDER BY page_no`).all(m.id)).toEqual([
+    expect(await t.db.prepare(`SELECT page_no, image_name, thumb_name FROM material_pages WHERE material_id = ? ORDER BY page_no`).all(m.id)).toEqual([
       { page_no: 1, image_name: 'page-1.png', thumb_name: 'thumb-1.png' },
       { page_no: 2, image_name: 'page-2.png', thumb_name: 'thumb-2.png' },
     ]);
@@ -140,7 +140,7 @@ describe('fayl təhlükəsizliyi', () => {
     expectMatchesSpec(res, 'uploadMaterial');
     expect(res.body.code).toBe('UNSUPPORTED_MEDIA_TYPE');
     expect(res.body.details[0].message).toContain(detail);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM materials`).pluck().get()).toBe(0);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM materials`).pluck().get()).toBe(0);
     expect(fs.readdirSync(path.join(t.config.materials.dir, 'tmp'))).toEqual([]); // tmp fayl silinib
   });
 
@@ -179,7 +179,7 @@ describe('fayl təhlükəsizliyi', () => {
     }
     await t.materials.queue.idle();
     expect(fs.existsSync(path.resolve(root, '../../../../evil.pdf'))).toBe(false);
-    const stored = t.db.prepare(`SELECT stored_name FROM materials`).pluck().all() as string[];
+    const stored = (await t.db.prepare(`SELECT stored_name FROM materials`).pluck().all()) as string[];
     expect(stored.every((s) => /^m_[a-f0-9]{24}\.pdf$/.test(s))).toBe(true);
     expect(allFiles(root).every((f) => f.startsWith(root + path.sep))).toBe(true);
     // Səhifə nömrəsi yalnız integer ola bilər
@@ -251,15 +251,15 @@ describe('PATCH, reconvert, DELETE, görünürlük', () => {
     expect((await t.ready(good)).pageCount).toBe(3);
     await t.api().post(`/api/v1/materials/${good}/reconvert`).set(bearer(t.admin));
     expect(await t.ready(good)).toMatchObject({ status: 'READY', pageCount: 3 });
-    expect(t.db.prepare(`SELECT COUNT(*) FROM material_pages WHERE material_id = ?`).pluck().get(good)).toBe(3);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM material_pages WHERE material_id = ?`).pluck().get(good)).toBe(3);
   });
 
   it('DELETE faylları və sətirləri silir, tapşırıqlar materialsız qalır; ikinci dəfə 404; tələbə 403', async () => {
     const t = await setup();
     const id = (await t.upload(makePdf(2), 'del.pdf', PDF_MIME)).body.id;
     await t.materials.queue.idle();
-    t.db.prepare(`UPDATE tasks SET material_id = ? WHERE id = 1`).run(id);
-    const stored = t.db.prepare(`SELECT stored_name FROM materials WHERE id = ?`).pluck().get(id) as string;
+    await t.db.prepare(`UPDATE tasks SET material_id = ? WHERE id = 1`).run(id);
+    const stored = (await t.db.prepare(`SELECT stored_name FROM materials WHERE id = ?`).pluck().get(id)) as string;
     const dir = path.join(t.config.materials.dir, stored.replace('.pdf', ''));
     expect(fs.existsSync(dir)).toBe(true);
 
@@ -267,8 +267,8 @@ describe('PATCH, reconvert, DELETE, görünürlük', () => {
     const res = await t.api().delete(`/api/v1/materials/${id}`).set(bearer(t.admin));
     expect(res.status).toBe(204);
     expect(fs.existsSync(dir)).toBe(false);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM material_pages WHERE material_id = ?`).pluck().get(id)).toBe(0);
-    expect(t.db.prepare(`SELECT material_id FROM tasks WHERE id = 1`).pluck().get()).toBeNull();
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM material_pages WHERE material_id = ?`).pluck().get(id)).toBe(0);
+    expect(await t.db.prepare(`SELECT material_id FROM tasks WHERE id = 1`).pluck().get()).toBeNull();
     const again = await t.api().delete(`/api/v1/materials/${id}`).set(bearer(t.admin));
     expect(again.status).toBe(404);
     expectMatchesSpec(again, 'deleteMaterial');
@@ -283,18 +283,18 @@ describe('materials/slides importu', () => {
     fs.writeFileSync(path.join(slides, 'API_Ders1_Giris.pdf'), makePdf(1));
     fs.writeFileSync(path.join(slides, 'API_Ders3_Security_Design_BA.pdf'), makePdf(1));
     fs.writeFileSync(path.join(slides, 'readme.txt'), 'ignored');
-    const result = importSlides(t.db, t.materials, slides);
+    const result = await importSlides(t.db, t.materials, slides);
     expect(result.map((r) => r.file)).toEqual(['API_Ders1_Giris.pdf', 'API_Ders3_Security_Design_BA.pdf']);
-    const rows = t.db.prepare(`SELECT lesson, title, kind, uploaded_by FROM materials ORDER BY id`).all();
+    const rows = await t.db.prepare(`SELECT lesson, title, kind, uploaded_by FROM materials ORDER BY id`).all();
     expect(rows).toEqual([
       { lesson: 1, title: 'API Ders1 Giris', kind: 'SLIDES', uploaded_by: 2 },
       { lesson: 3, title: 'API Ders3 Security Design BA', kind: 'SLIDES', uploaded_by: 2 },
     ]);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM tasks WHERE lesson = 1 AND material_id IS NOT NULL`).pluck().get()).toBe(4);
-    expect(importSlides(t.db, t.materials, slides)).toEqual([]);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM tasks WHERE lesson = 1 AND material_id IS NOT NULL`).pluck().get()).toBe(4);
+    expect(await importSlides(t.db, t.materials, slides)).toEqual([]);
     expect(fs.existsSync(path.join(slides, 'API_Ders1_Giris.pdf'))).toBe(true); // mənbə fayl kopyalanır, köçürülmür
     await t.materials.queue.idle();
-    const overview = t.db.prepare(`SELECT title, status, tasks FROM v_material_overview ORDER BY material_id`).all();
+    const overview = await t.db.prepare(`SELECT title, status, tasks FROM v_material_overview ORDER BY material_id`).all();
     expect(overview).toEqual([
       { title: 'API Ders1 Giris', status: 'READY_NO_PREVIEW', tasks: 4 },
       { title: 'API Ders3 Security Design BA', status: 'READY_NO_PREVIEW', tasks: 7 },

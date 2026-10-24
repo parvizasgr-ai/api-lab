@@ -3,11 +3,20 @@ import { ApiError } from '../../errors.js';
 import { tokenize, type Token } from './tokenizer.js';
 
 const FORBIDDEN = new Set([
-  'INSERT', 'UPDATE', 'DELETE', 'REPLACE', 'UPSERT', 'DROP', 'ALTER', 'CREATE', 'ATTACH', 'DETACH', 'PRAGMA',
-  'VACUUM', 'REINDEX', 'ANALYZE', 'BEGIN', 'COMMIT', 'ROLLBACK', 'SAVEPOINT', 'RELEASE', 'TRANSACTION',
+  'INSERT', 'UPDATE', 'DELETE', 'MERGE', 'REPLACE', 'UPSERT', 'DROP', 'ALTER', 'CREATE', 'TRUNCATE', 'ATTACH', 'DETACH', 'PRAGMA',
+  'VACUUM', 'REINDEX', 'ANALYZE', 'CLUSTER', 'REFRESH', 'BEGIN', 'COMMIT', 'ROLLBACK', 'SAVEPOINT', 'RELEASE', 'TRANSACTION',
+  // PostgreSQL: rol/sessiya/fayl əmrləri (playground rolu onsuz da icra edə bilməz — əlavə qat)
+  'COPY', 'GRANT', 'REVOKE', 'SET', 'RESET', 'LOCK', 'LISTEN', 'NOTIFY', 'UNLISTEN', 'DO', 'CALL', 'EXECUTE', 'PREPARE',
+  'DEALLOCATE', 'DISCARD', 'COMMENT', 'SECURITY', 'IMPORT', 'LOAD', 'CHECKPOINT', 'INTO',
 ]);
-// SQLite genişlənmələrinin təhlükəli funksiyaları (better-sqlite3-də onsuz da söndürülüb — əlavə qat)
-const FORBIDDEN_FUNCTIONS = new Set(['load_extension', 'readfile', 'writefile', 'edit', 'fts3_tokenizer']);
+// Fayl sistemi, şəbəkə, sessiya və proses funksiyaları (superuser hüququ tələb edir, playground rolunda yoxdur — əlavə qat)
+const FORBIDDEN_FUNCTIONS = new Set([
+  'load_extension', 'readfile', 'writefile', 'edit', 'fts3_tokenizer',
+  'pg_read_file', 'pg_read_binary_file', 'pg_ls_dir', 'pg_stat_file', 'pg_ls_logdir', 'pg_ls_waldir', 'lo_import', 'lo_export',
+  'lo_from_bytea', 'lo_put', 'dblink', 'dblink_exec', 'pg_terminate_backend', 'pg_cancel_backend', 'pg_reload_conf',
+  'pg_rotate_logfile', 'set_config', 'pg_advisory_lock', 'pg_advisory_xact_lock', 'pg_notify', 'query_to_xml',
+  'query_to_xml_and_xmlschema', 'cursor_to_xml', 'table_to_xml', 'database_to_xml',
+]);
 
 const notAllowed = (message: string, details: { field: string; message: string }[] = []) => new ApiError(422, 'SQL_NOT_ALLOWED', message, details);
 

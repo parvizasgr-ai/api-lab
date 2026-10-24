@@ -4,7 +4,7 @@ import { createTestApp, expectMatchesSpec, bearer } from './helpers.js';
 
 async function setup(config = {}) {
   const t = createTestApp({ config });
-  const date = t.db.prepare(`SELECT date('now', '+3 days')`).pluck().get() as string;
+  const date = (await t.db.prepare(`SELECT to_char(CURRENT_DATE + 3, 'YYYY-MM-DD')`).pluck().get()) as string;
   return { ...t, date, student: (await t.login('student')).access_token };
 }
 
@@ -27,7 +27,7 @@ describe('/bff/dashboard', () => {
     ]);
     expect(res.body.meta.partial).toBe(false);
     // BFF HTTP-yə yenidən çıxmır: request_log-da yalnız 1 sorğu (login + dashboard)
-    expect(t.db.prepare(`SELECT COUNT(*) FROM request_log WHERE path LIKE '/bff/%'`).pluck().get()).toBe(1);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM request_log WHERE path LIKE '/bff/%'`).pluck().get()).toBe(1);
   });
 
   it('tokensiz 401, scope çatışmır 403, bölmə xətası bütün cavabın xətasıdır', async () => {

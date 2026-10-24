@@ -2,27 +2,27 @@
 import type { DB } from '../../db.js';
 
 export const currencyRepo = {
-  listCurrencies: (db: DB) =>
-    db.prepare(`SELECT code, name, symbol FROM currencies ORDER BY CASE code WHEN 'AZN' THEN 0 ELSE 1 END, code`).all() as {
+  listCurrencies: async (db: DB) =>
+    (await db.prepare(`SELECT code, name, symbol FROM currencies ORDER BY CASE code WHEN 'AZN' THEN 0 ELSE 1 END, code`).all()) as {
       code: string;
       name: string;
       symbol: string;
     }[],
 
-  latestDate: (db: DB, onOrBefore?: string) =>
-    db
-      .prepare(`SELECT MAX(rate_date) FROM exchange_rates WHERE base = 'AZN' AND (@d IS NULL OR rate_date <= @d)`)
-      .pluck()
-      .get({ d: onOrBefore ?? null }) as string | null,
+  latestDate: async (db: DB, onOrBefore?: string) =>
+    (await db
+            .prepare(`SELECT MAX(rate_date) FROM exchange_rates WHERE base = 'AZN' AND (@d::text IS NULL OR rate_date <= @d)`)
+            .pluck()
+            .get({ d: onOrBefore ?? null })) as string | null,
 
-  ratesOn: (db: DB, date: string) =>
-    db.prepare(`SELECT quote, rate FROM exchange_rates WHERE base = 'AZN' AND rate_date = ?`).all(date) as { quote: string; rate: number }[],
+  ratesOn: async (db: DB, date: string) =>
+    (await db.prepare(`SELECT quote, rate FROM exchange_rates WHERE base = 'AZN' AND rate_date = ?`).all(date)) as { quote: string; rate: number }[],
 
-  lastDates: (db: DB, days: number) =>
-    db
-      .prepare(`SELECT DISTINCT rate_date FROM exchange_rates WHERE base = 'AZN' ORDER BY rate_date DESC LIMIT ?`)
-      .pluck()
-      .all(days) as string[],
+  lastDates: async (db: DB, days: number) =>
+    (await db
+            .prepare(`SELECT DISTINCT rate_date FROM exchange_rates WHERE base = 'AZN' ORDER BY rate_date DESC LIMIT ?`)
+            .pluck()
+            .all(days)) as string[],
 
   upsertRate: (db: DB, quote: string, rate: number, date: string) =>
     db

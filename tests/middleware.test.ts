@@ -19,7 +19,7 @@ describe('X-Request-Id və request_log', () => {
   it('sorğu request_log-a yazılır (route şablonu, status, user_id)', async () => {
     const { access_token } = await t.login();
     await t.api().get('/api/v1/auth/me').set(bearer(access_token)).set('X-Request-Id', 'log-check-1');
-    const row = t.db.prepare(`SELECT * FROM request_log WHERE request_id = 'log-check-1'`).get() as Record<string, unknown>;
+    const row = (await t.db.prepare(`SELECT * FROM request_log WHERE request_id = 'log-check-1'`).get()) as Record<string, unknown>;
     expect(row).toMatchObject({ method: 'GET', path: '/api/v1/auth/me', route: '/api/v1/auth/me', status: 200, user_id: 1 });
   });
 
@@ -152,7 +152,7 @@ describe('rate limit (60/dəq)', () => {
     const token = await t.auth.issueAccessToken({ id: 1, username: 'student', role: 'USER' }, []);
     expect((await t.api().get('/api/v1/auth/me').set(bearer(token))).status).toBe(200);
 
-    const counter = t.db.prepare(`SELECT count FROM rate_limit_counters WHERE subject LIKE 'ip:%'`).pluck().get();
+    const counter = await t.db.prepare(`SELECT count FROM rate_limit_counters WHERE subject LIKE 'ip:%'`).pluck().get();
     expect(counter).toBe(61);
 
     t.clock.advance(60);
@@ -228,7 +228,7 @@ describe('Idempotency-Key', () => {
     expect(second.headers['idempotent-replayed']).toBe('true');
     expect(first.headers['idempotent-replayed']).toBeUndefined();
     expect(t.calls).toHaveLength(1);
-    const rows = t.db.prepare(`SELECT key, user_id, endpoint, response_status, expires_at, created_at FROM idempotency_keys`).all() as any[];
+    const rows = (await t.db.prepare(`SELECT key, user_id, endpoint, response_status, expires_at, created_at FROM idempotency_keys`).all()) as any[];
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ key: 'block-card-1-abc', user_id: 1, endpoint: 'POST /api/v1/cards/1/block', response_status: 200 });
     expect(new Date(rows[0].expires_at).getTime() - new Date(rows[0].created_at).getTime()).toBe(24 * 3600 * 1000);

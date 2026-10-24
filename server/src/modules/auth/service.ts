@@ -28,8 +28,8 @@ export class AuthService {
     this.secret = new TextEncoder().encode(config.jwtSecret);
   }
 
-  verifyCredentials(username: string, password: string): UserRow | undefined {
-    const user = authRepo.findUserByUsername(this.db, username);
+  async verifyCredentials(username: string, password: string): Promise<UserRow | undefined> {
+    const user = await authRepo.findUserByUsername(this.db, username);
     return user && verifyPassword(password, user.password_hash) ? user : undefined;
   }
 
@@ -57,7 +57,7 @@ export class AuthService {
         issuer: this.config.jwtIssuer,
         currentDate: this.config.now(),
       });
-      if (payload.jti && authRepo.isAccessTokenRevoked(this.db, payload.jti)) throw new Error('REVOKED');
+      if (payload.jti && await authRepo.isAccessTokenRevoked(this.db, payload.jti)) throw new Error('REVOKED');
       return {
         userId: Number(payload.sub),
         username: String(payload.username),
@@ -79,9 +79,9 @@ export class AuthService {
   // grantedScope verilibsə (OAuth) — token yalnız o scope-ları daşıyır və refresh-də də genişlənmir
   async issueTokenPair(user: UserRow, grantedScope: string | null = null): Promise<TokenPair> {
     const now = this.config.now();
-    const scopes = grantedScope === null ? authRepo.scopesOf(this.db, user.id) : grantedScope.split(' ').filter(Boolean);
+    const scopes = grantedScope === null ? await authRepo.scopesOf(this.db, user.id) : grantedScope.split(' ').filter(Boolean);
     const refresh = randomToken('rt');
-    authRepo.insertRefreshToken(this.db, user.id, sha256(refresh), isoAfter(now, this.config.refreshTokenTtlSec), isoNow(now), grantedScope);
+    await authRepo.insertRefreshToken(this.db, user.id, sha256(refresh), isoAfter(now, this.config.refreshTokenTtlSec), isoNow(now), grantedScope);
     return {
       access_token: await this.issueAccessToken(user, scopes),
       token_type: 'Bearer',
@@ -92,42 +92,42 @@ export class AuthService {
   }
 
   async login(username: string, password: string): Promise<{ user: UserRow; tokens: TokenPair }> {
-    this.assertNotLocked(username); // kilid aktivdirsə düzgün parol da yoxlanmır
-    const user = this.verifyCredentials(username, password);
+    await this.assertNotLocked(username); // kilid aktivdirsə düzgün parol da yoxlanmır
+    const user = await this.verifyCredentials(username, password);
     const subject = `login-fail:${username.toLowerCase()}`;
     // İstifadəçi yoxdur və ya parol səhvdir — eyni mesaj (user enumeration-un qarşısı alınır).
     if (!user) {
-      authRepo.recordLoginFailure(this.db, subject, this.loginWindow().start);
+      await authRepo.recordLoginFailure(this.db, subject, this.loginWindow().start);
       throw new ApiError(401, 'INVALID_CREDENTIALS', 'Username və ya parol səhvdir');
     }
-    authRepo.clearLoginFailures(this.db, subject);
+    await authRepo.clearLoginFailures(this.db, subject);
     return { user, tokens: await this.issueTokenPair(user) };
   }
 
   async refresh(refreshToken: string): Promise<TokenPair> {
     const now = isoNow(this.config.now());
-    const row = authRepo.findRefreshToken(this.db, sha256(refreshToken));
+    const row = await authRepo.findRefreshToken(this.db, sha256(refreshToken));
     const invalid = new ApiError(401, 'INVALID_REFRESH_TOKEN', 'Refresh token etibarsızdır və ya ləğv edilib');
     if (!row) throw invalid;
     if (row.revoked_at) {
-      authRepo.revokeAllRefreshTokens(this.db, row.user_id, now); // reuse detection
+      await authRepo.revokeAllRefreshTokens(this.db, row.user_id, now); // reuse detection
       throw invalid;
     }
     if (row.expires_at <= now) throw invalid;
-    const user = authRepo.findUserById(this.db, row.user_id);
+    const user = await authRepo.findUserById(this.db, row.user_id);
     if (!user) throw invalid;
     // Rotation: köhnə token ləğv olunur, yenisi yazılır (hər ikisi sinxron, ilk await-dan əvvəl).
-    authRepo.revokeRefreshToken(this.db, row.id, now);
+    await authRepo.revokeRefreshToken(this.db, row.id, now);
     return this.issueTokenPair(user, row.scope);
   }
 
-  logout(auth: AuthContext, refreshToken: string): void {
+  async logout(auth: AuthContext, refreshToken: string): Promise<void> {
     const now = this.config.now();
-    const row = authRepo.findRefreshToken(this.db, sha256(refreshToken));
+    const row = await authRepo.findRefreshToken(this.db, sha256(refreshToken));
     // Logout idempotentdir: token tapılmasa da 204 qaytarırıq.
-    if (row && row.user_id === auth.userId) authRepo.revokeRefreshToken(this.db, row.id, isoNow(now));
+    if (row && row.user_id === auth.userId) await authRepo.revokeRefreshToken(this.db, row.id, isoNow(now));
     // Cari access token da dərhal etibarsız olur (exp-ə qədər denylist-də qalır)
-    if (auth.jti && auth.exp) authRepo.revokeAccessToken(this.db, auth.jti, auth.userId, isoNow(new Date(auth.exp * 1000)), isoNow(now));
+    if (auth.jti && auth.exp) await authRepo.revokeAccessToken(this.db, auth.jti, auth.userId, isoNow(new Date(auth.exp * 1000)), isoNow(now));
   }
 
   // ---- Login brute-force qoruması: username üzrə uğursuz cəhdlər (rate_limit_counters, subject 'login-fail:<username>')
@@ -138,9 +138,9 @@ export class AuthService {
     return { start: isoNow(new Date(startSec * 1000)), retryAfter: Math.max(1, startSec + windowSec - nowSec) };
   }
 
-  private assertNotLocked(username: string) {
+  private async assertNotLocked(username: string) {
     const { start, retryAfter } = this.loginWindow();
-    const failures = authRepo.loginFailures(this.db, `login-fail:${username.toLowerCase()}`, start);
+    const failures = await authRepo.loginFailures(this.db, `login-fail:${username.toLowerCase()}`, start);
     if (failures >= this.config.loginLockout.maxFailures) {
       throw new ApiError(429, 'TOO_MANY_REQUESTS', `Bu istifadəçi üçün çox sayda uğursuz giriş — ${retryAfter} saniyə sonra yenidən cəhd edin`, [], {
         'Retry-After': String(retryAfter),
@@ -148,8 +148,8 @@ export class AuthService {
     }
   }
 
-  profile(userId: number) {
-    const user = authRepo.findUserById(this.db, userId);
+  async profile(userId: number) {
+    const user = await authRepo.findUserById(this.db, userId);
     if (!user) throw new ApiError(404, 'USER_NOT_FOUND', 'İstifadəçi tapılmadı');
     return {
       id: user.id,
@@ -157,7 +157,7 @@ export class AuthService {
       fullName: user.full_name,
       email: user.email,
       role: user.role,
-      scopes: authRepo.scopesOf(this.db, user.id),
+      scopes: await authRepo.scopesOf(this.db, user.id),
     };
   }
 }

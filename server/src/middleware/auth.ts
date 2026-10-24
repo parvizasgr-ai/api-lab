@@ -39,7 +39,7 @@ export function authenticate(op: OperationInfo, spec: OpenApiDoc, auth: AuthServ
 
     const apiKey = req.get('x-api-key');
     if (schemes.has('apiKeyAuth') && apiKey) {
-      const key = auth.findActiveApiKey(apiKey);
+      const key = await auth.findActiveApiKey(apiKey);
       if (!key) throw unauthorized('INVALID_API_KEY', 'API key etibarsızdır və ya deaktiv edilib', API_KEY_CHALLENGE);
       req.auth = { userId: key.owner_user_id, username: key.username, role: key.role, scopes: [], via: 'apiKey' };
       return next();
@@ -48,7 +48,7 @@ export function authenticate(op: OperationInfo, spec: OpenApiDoc, auth: AuthServ
     if (schemes.has('basicAuth') && /^Basic /i.test(authorization)) {
       const decoded = Buffer.from(authorization.slice(6).trim(), 'base64').toString('utf8');
       const sep = decoded.indexOf(':');
-      const user = sep > 0 ? auth.verifyCredentials(decoded.slice(0, sep), decoded.slice(sep + 1)) : undefined;
+      const user = sep > 0 ? await auth.verifyCredentials(decoded.slice(0, sep), decoded.slice(sep + 1)) : undefined;
       if (!user) throw unauthorized('INVALID_CREDENTIALS', 'Basic credential səhvdir', 'Basic realm="API Lab"');
       req.auth = { userId: user.id, username: user.username, role: user.role, scopes: [], via: 'basic' };
       return next();

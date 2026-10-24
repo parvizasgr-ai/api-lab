@@ -174,8 +174,8 @@ describe('açarlar', () => {
       expect(res.text).not.toContain(STUDENT_KEY);
     }
     expect(ok.body).toEqual({ echo: '***' });
-    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").pluck().all() as string[];
-    for (const table of tables) expect(JSON.stringify(db.prepare(`SELECT * FROM "${table}"`).all()), table).not.toContain(STUDENT_KEY);
+    const tables = (await db.prepare("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'").pluck().all()) as string[];
+    for (const table of tables) expect(JSON.stringify(await db.prepare(`SELECT * FROM "${table}"`).all()), table).not.toContain(STUDENT_KEY);
     const history = await api().get('/api/v1/_history').set(bearer(token));
     expect(history.body.items.some((i: { path: string }) => i.path.startsWith('/external/'))).toBe(true);
     expect(JSON.stringify(history.body)).not.toContain(STUDENT_KEY);

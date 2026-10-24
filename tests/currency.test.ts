@@ -4,9 +4,9 @@ import { createTestApp, expectMatchesSpec } from './helpers.js';
 
 const KEY = { 'X-API-Key': 'apilab-demo-key-2026' };
 
-describe('currencies', () => {
+describe('currencies', async () => {
   const t = createTestApp();
-  const today = t.db.prepare(`SELECT MAX(rate_date) FROM exchange_rates`).pluck().get() as string;
+  const today = (await t.db.prepare(`SELECT MAX(rate_date) FROM exchange_rates`).pluck().get()) as string;
 
   it('GET /currencies — AZN birinci', async () => {
     const res = await t.api().get('/api/v1/currencies').set(KEY);

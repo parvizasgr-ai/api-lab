@@ -59,7 +59,7 @@ describe('/_reset', () => {
     const student = (await t.login('student')).access_token;
     await t.api().post('/api/v1/cards/1/block').set(bearer(student)).send({ reason: 'LOST' });
     await t.api().delete('/api/v1/customers/1');
-    expect(t.db.prepare(`SELECT status FROM cards WHERE id = 1`).pluck().get()).toBe('BLOCKED');
+    expect(await t.db.prepare(`SELECT status FROM cards WHERE id = 1`).pluck().get()).toBe('BLOCKED');
 
     expect((await t.api().post('/api/v1/_reset')).status).toBe(401);
     expect((await t.api().post('/api/v1/_reset').set(bearer(student))).status).toBe(403);
@@ -69,13 +69,13 @@ describe('/_reset', () => {
     expect(res.status).toBe(200);
     expectMatchesSpec(res, 'adminReset');
     expect(res.body.tables).toMatchObject({ customers: 25, cards: 7, card_status_history: 2 });
-    expect(t.db.prepare(`SELECT status FROM cards WHERE id = 1`).pluck().get()).toBe('ACTIVE');
+    expect(await t.db.prepare(`SELECT status FROM cards WHERE id = 1`).pluck().get()).toBe('ACTIVE');
 
     // Sxem yenidən yaradılıb — rate limit, request_log, auth yenə işləyir; köhnə JWT etibarlıdır (stateless)
     const after = await t.api().get('/api/v1/cards').set(bearer(student));
     expect(after.status).toBe(200);
     expect(after.headers['x-ratelimit-remaining']).toBeDefined();
-    expect(t.db.prepare(`SELECT COUNT(*) FROM request_log`).pluck().get()).toBeGreaterThan(0);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM request_log`).pluck().get()).toBeGreaterThan(0);
   });
 });
 

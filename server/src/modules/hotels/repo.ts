@@ -50,7 +50,7 @@ const OVERLAP = `
 // Otaq boşdur: tutum kifayətdir və (tarix verilməyibsə və ya kəsişən bron yoxdur)
 const ROOM_FITS = `
   r.capacity >= @guests
-  AND (@checkIn IS NULL OR NOT EXISTS (SELECT 1 FROM hotel_bookings b WHERE ${OVERLAP}))`;
+  AND (@checkIn::text IS NULL OR NOT EXISTS (SELECT 1 FROM hotel_bookings b WHERE ${OVERLAP}))`;
 
 export interface HotelSearch {
   city: string;
@@ -70,9 +70,9 @@ const PRICE_AZN = `(CASE h.currency WHEN 'AZN' THEN h.price_per_night_minor
 
 const SEARCH_WHERE = `
   WHERE h.city = @city
-    AND (@stars IS NULL OR h.stars >= @stars)
-    AND (@minPrice IS NULL OR ${PRICE_AZN} >= @minPrice)
-    AND (@maxPrice IS NULL OR ${PRICE_AZN} <= @maxPrice)
+    AND (@stars::int IS NULL OR h.stars >= @stars)
+    AND (@minPrice::int IS NULL OR ${PRICE_AZN} >= @minPrice)
+    AND (@maxPrice::int IS NULL OR ${PRICE_AZN} <= @maxPrice)
     AND EXISTS (SELECT 1 FROM hotel_rooms r WHERE r.hotel_id = h.id AND ${ROOM_FITS})`;
 
 const BOOKING_SELECT = `
@@ -83,56 +83,56 @@ const BOOKING_SELECT = `
   JOIN hotels h ON h.id = r.hotel_id`;
 
 export const hotelsRepo = {
-  countSearch: (db: DB, s: HotelSearch) => db.prepare(`SELECT COUNT(*) FROM hotels h ${SEARCH_WHERE}`).pluck().get(s) as number,
+  countSearch: async (db: DB, s: HotelSearch) => (await db.prepare(`SELECT COUNT(*) FROM hotels h ${SEARCH_WHERE}`).pluck().get(s)) as number,
 
-  search: (db: DB, s: HotelSearch, orderBy: string, limit: number, offset: number) =>
-    db
-      .prepare(
-        `SELECT h.*, ${PRICE_AZN} AS price_azn_minor,
-                CASE WHEN @checkIn IS NULL THEN NULL
+  search: async (db: DB, s: HotelSearch, orderBy: string, limit: number, offset: number) =>
+    (await db
+            .prepare(
+              `SELECT h.*, ${PRICE_AZN} AS price_azn_minor,
+                CASE WHEN @checkIn::text IS NULL THEN NULL
                      ELSE (SELECT COUNT(*) FROM hotel_rooms r WHERE r.hotel_id = h.id AND ${ROOM_FITS}) END AS available_rooms
          FROM hotels h ${SEARCH_WHERE}
          ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`,
-      )
-      .all({ ...s, limit, offset }) as HotelRow[],
+            )
+            .all({ ...s, limit, offset })) as HotelRow[],
 
-  getHotel: (db: DB, id: number) =>
-    db.prepare(`SELECT h.*, ${PRICE_AZN} AS price_azn_minor, NULL AS available_rooms FROM hotels h WHERE id = ?`).get(id) as HotelRow | undefined,
+  getHotel: async (db: DB, id: number) =>
+    (await db.prepare(`SELECT h.*, ${PRICE_AZN} AS price_azn_minor, NULL AS available_rooms FROM hotels h WHERE id = ?`).get(id)) as HotelRow | undefined,
 
-  amenities: (db: DB, hotelId: number) =>
-    db.prepare(`SELECT amenity FROM hotel_amenities WHERE hotel_id = ? ORDER BY amenity`).pluck().all(hotelId) as string[],
+  amenities: async (db: DB, hotelId: number) =>
+    (await db.prepare(`SELECT amenity FROM hotel_amenities WHERE hotel_id = ? ORDER BY amenity`).pluck().all(hotelId)) as string[],
 
-  rooms: (db: DB, hotelId: number, checkIn: string | null, checkOut: string | null) =>
-    db
-      .prepare(
-        `SELECT r.*, h.currency,
-                CASE WHEN @checkIn IS NULL THEN NULL
-                     ELSE NOT EXISTS (SELECT 1 FROM hotel_bookings b WHERE ${OVERLAP}) END AS available
+  rooms: async (db: DB, hotelId: number, checkIn: string | null, checkOut: string | null) =>
+    (await db
+            .prepare(
+              `SELECT r.*, h.currency,
+                CASE WHEN @checkIn::text IS NULL THEN NULL
+                     ELSE (NOT EXISTS (SELECT 1 FROM hotel_bookings b WHERE ${OVERLAP}))::int END AS available
          FROM hotel_rooms r JOIN hotels h ON h.id = r.hotel_id
          WHERE r.hotel_id = @hotelId ORDER BY r.price_per_night_minor, r.id`,
-      )
-      .all({ hotelId, checkIn, checkOut }) as RoomRow[],
+            )
+            .all({ hotelId, checkIn, checkOut })) as RoomRow[],
 
-  getRoom: (db: DB, id: number) =>
-    db.prepare(`SELECT r.*, h.currency, NULL AS available FROM hotel_rooms r JOIN hotels h ON h.id = r.hotel_id WHERE r.id = ?`).get(id) as RoomRow | undefined,
+  getRoom: async (db: DB, id: number) =>
+    (await db.prepare(`SELECT r.*, h.currency, NULL AS available FROM hotel_rooms r JOIN hotels h ON h.id = r.hotel_id WHERE r.id = ?`).get(id)) as RoomRow | undefined,
 
   // Kəsişən CONFIRMED bron (bronun özü istisna — PATCH üçün)
-  findOverlap: (db: DB, roomId: number, checkIn: string, checkOut: string, excludeBookingId: number | null = null) =>
-    db
-      .prepare(
-        `SELECT b.id, b.check_in, b.check_out FROM hotel_bookings b, (SELECT @roomId AS id) r
-         WHERE ${OVERLAP} AND (@exclude IS NULL OR b.id <> @exclude) LIMIT 1`,
-      )
-      .get({ roomId, checkIn, checkOut, exclude: excludeBookingId }) as { id: number; check_in: string; check_out: string } | undefined,
+  findOverlap: async (db: DB, roomId: number, checkIn: string, checkOut: string, excludeBookingId: number | null = null) =>
+    (await db
+            .prepare(
+              `SELECT b.id, b.check_in, b.check_out FROM hotel_bookings b, (SELECT @roomId::int AS id) r
+         WHERE ${OVERLAP} AND (@exclude::int IS NULL OR b.id <> @exclude) LIMIT 1`,
+            )
+            .get({ roomId, checkIn, checkOut, exclude: excludeBookingId })) as { id: number; check_in: string; check_out: string } | undefined,
 
-  insertBooking: (db: DB, b: { room_id: number; user_id: number; check_in: string; check_out: string; guests: number; total_minor: number; currency: string; at: string }) =>
+  insertBooking: async (db: DB, b: { room_id: number; user_id: number; check_in: string; check_out: string; guests: number; total_minor: number; currency: string; at: string }) =>
     Number(
-      db
-        .prepare(
-          `INSERT INTO hotel_bookings (room_id, user_id, check_in, check_out, guests, status, total_minor, currency, created_at, updated_at)
+      (await db
+                .prepare(
+                  `INSERT INTO hotel_bookings (room_id, user_id, check_in, check_out, guests, status, total_minor, currency, created_at, updated_at)
            VALUES (@room_id, @user_id, @check_in, @check_out, @guests, 'CONFIRMED', @total_minor, @currency, @at, @at)`,
-        )
-        .run(b).lastInsertRowid,
+                )
+                .run(b)).lastInsertRowid,
     ),
 
   updateBooking: (db: DB, b: { id: number; check_in: string; check_out: string; guests: number; total_minor: number; at: string }) =>
@@ -143,8 +143,8 @@ export const hotelsRepo = {
   cancelBooking: (db: DB, id: number, at: string) =>
     db.prepare(`UPDATE hotel_bookings SET status = 'CANCELLED', updated_at = ? WHERE id = ?`).run(at, id),
 
-  getBooking: (db: DB, id: number) => db.prepare(`${BOOKING_SELECT} WHERE b.id = ?`).get(id) as HotelBookingRow | undefined,
+  getBooking: async (db: DB, id: number) => (await db.prepare(`${BOOKING_SELECT} WHERE b.id = ?`).get(id)) as HotelBookingRow | undefined,
 
-  listBookings: (db: DB, userId: number) =>
-    db.prepare(`${BOOKING_SELECT} WHERE b.user_id = ? ORDER BY b.check_in DESC, b.id DESC`).all(userId) as HotelBookingRow[],
+  listBookings: async (db: DB, userId: number) =>
+    (await db.prepare(`${BOOKING_SELECT} WHERE b.user_id = ? ORDER BY b.check_in DESC, b.id DESC`).all(userId)) as HotelBookingRow[],
 };

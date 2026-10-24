@@ -32,16 +32,16 @@ export function bffHandlers(ctx: AppContext): Handlers {
       const auth = req.auth!;
       const started = performance.now();
       const results = await Promise.all([
-        runCall(req, config, 'accounts.list', () => bank.listAccounts(auth).items),
-        runCall(req, config, 'cards.list', () => bank.listCards(auth).items),
+        runCall(req, config, 'accounts.list', async () => (await bank.listAccounts(auth)).items),
+        runCall(req, config, 'cards.list', async () => (await bank.listCards(auth)).items),
         runCall(req, config, 'transactions.recent', () => bank.recentTransactions(auth, 5)),
-        runCall(req, config, 'currencies.rates', () => {
-          const r = currency.rates('AZN');
+        runCall(req, config, 'currencies.rates', async () => {
+          const r = await currency.rates('AZN');
           return { ...r, rates: { USD: r.rates.USD, EUR: r.rates.EUR } };
         }),
       ]);
       const [accounts, cards, recentTransactions, rates] = results;
-      const profile = ctx.auth.profile(auth.userId);
+      const profile = await ctx.auth.profile(auth.userId);
       res.json({
         user: { id: profile.id, username: profile.username, fullName: profile.fullName },
         accounts: unwrap(accounts),
@@ -56,14 +56,14 @@ export function bffHandlers(ctx: AppContext): Handlers {
       const q = req.valid.query as { from: string; to: string; date: string; city?: string; nights: number; adults: number };
       const started = performance.now();
       const results = await Promise.all([
-        runCall(req, config, 'flights.search', () => {
-          const page = flights.search({ from: q.from, to: q.to, date: q.date, adults: q.adults, sort: 'price', page: 1, size: 10 });
+        runCall(req, config, 'flights.search', async () => {
+          const page = await flights.search({ from: q.from, to: q.to, date: q.date, adults: q.adults, sort: 'price', page: 1, size: 10 });
           return { items: page.items, total: page.total };
         }),
-        runCall(req, config, 'hotels.search', () => {
-          const city = q.city ?? flights.airports(q.to).items.find((a) => a.code === q.to)?.city;
+        runCall(req, config, 'hotels.search', async () => {
+          const city = q.city ?? (await flights.airports(q.to)).items.find((a) => a.code === q.to)?.city;
           if (!city) throw new ApiError(404, 'NOT_FOUND', `Hava limanı tapılmadı: ${q.to}`);
-          const page = hotels.search({ city, checkIn: q.date, checkOut: addDays(q.date, q.nights), guests: q.adults, sort: 'price', page: 1, size: 10 });
+          const page = await hotels.search({ city, checkIn: q.date, checkOut: addDays(q.date, q.nights), guests: q.adults, sort: 'price', page: 1, size: 10 });
           return { items: page.items, total: page.total };
         }),
       ]);
@@ -76,7 +76,7 @@ export function bffHandlers(ctx: AppContext): Handlers {
       const started = performance.now();
       const results = await Promise.all([
         runCall(req, config, 'music.popular', () => music.popular(10)),
-        runCall(req, config, 'music.playlists', () => music.playlists(req.auth!).items),
+        runCall(req, config, 'music.playlists', async () => (await music.playlists(req.auth!)).items),
       ]);
       res.json({ popular: unwrap(results[0]), playlists: unwrap(results[1]), meta: meta(started, results) });
     },

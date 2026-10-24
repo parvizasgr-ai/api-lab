@@ -80,7 +80,7 @@ describe('IDOR / BOLA — student başqasının (rauf, id=3) resurslarına', () 
     const rauf = (await login('rauf')).access_token;
     const student = (await login()).access_token;
     // rauf-un öz iki hesabı arasında köçürmə (alan tərəf də rauf-dur — student heç bir tərəf deyil)
-    const transferId = db.prepare("INSERT INTO transfers (from_account, to_account, amount_minor, currency, created_by) VALUES ('AZ21NABZ0004', 'AZ21NABZ0005', 100, 'AZN', 3)").run().lastInsertRowid;
+    const transferId = (await db.prepare("INSERT INTO transfers (from_account, to_account, amount_minor, currency, created_by) VALUES ('AZ21NABZ0004', 'AZ21NABZ0005', 100, 'AZN', 3)").run()).lastInsertRowid;
     const transfer = { status: 201, body: { id: Number(transferId) } };
     const playlist = await api().post('/api/v1/music/playlists').set(bearer(rauf)).send({ name: 'Rauf-un siyahısı' });
     expect(transfer.status).toBe(201);
@@ -95,7 +95,7 @@ describe('IDOR / BOLA — student başqasının (rauf, id=3) resurslarına', () 
     const { api, login, db } = createTestApp();
     const student = (await login()).access_token;
     const rauf = (await login('rauf')).access_token;
-    const taskId = (db.prepare('SELECT id FROM tasks LIMIT 1').get() as { id: number }).id;
+    const taskId = ((await db.prepare('SELECT id FROM tasks LIMIT 1').get()) as { id: number }).id;
     expect((await api().put(`/api/v1/tasks/${taskId}/progress`).set(bearer(student)).send({ done: true })).status).toBe(200);
     const raufView = await api().get('/api/v1/tasks/progress/me').set(bearer(rauf));
     expect(JSON.stringify(raufView.body)).not.toContain(`"taskId":${taskId},"done":true`);
@@ -141,11 +141,11 @@ describe('SQL injection', () => {
   for (const [label, sql] of sqlCases) {
     it(`_db/query rədd edir və ya zərərsizdir: ${label}`, async () => {
       const { api, db } = createTestApp();
-      const before = (db.prepare('SELECT count(*) c FROM cards').get() as { c: number }).c;
+      const before = ((await db.prepare('SELECT count(*) c FROM cards').get()) as { c: number }).c;
       const res = await api().post('/api/v1/_db/query').send({ sql });
       expect(res.status, JSON.stringify(res.body)).not.toBe(200);
-      expect((db.prepare('SELECT count(*) c FROM cards').get() as { c: number }).c).toBe(before);
-      expect((db.prepare("SELECT count(*) c FROM sqlite_master WHERE name = 'users'").get() as { c: number }).c).toBe(1);
+      expect(((await db.prepare('SELECT count(*) c FROM cards').get()) as { c: number }).c).toBe(before);
+      expect(((await db.prepare("SELECT count(*) c FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'").get()) as { c: number }).c).toBe(1);
     });
   }
 

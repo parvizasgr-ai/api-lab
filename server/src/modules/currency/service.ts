@@ -9,14 +9,14 @@ const round = (n: number, digits: number) => Number(n.toFixed(digits));
 export class CurrencyService {
   constructor(private db: DB) {}
 
-  listCurrencies() {
-    return { items: currencyRepo.listCurrencies(this.db) };
+  async listCurrencies() {
+    return { items: await currencyRepo.listCurrencies(this.db) };
   }
 
   // AZN → hər valyuta (AZN özü = 1)
-  private aznTable(date?: string): { date: string; table: Map<string, number> } {
-    const resolved = date ? date : currencyRepo.latestDate(this.db);
-    const rows = resolved ? currencyRepo.ratesOn(this.db, resolved) : [];
+  private async aznTable(date?: string): Promise<{ date: string; table: Map<string, number> }> {
+    const resolved = date ? date : await currencyRepo.latestDate(this.db);
+    const rows = resolved ? await currencyRepo.ratesOn(this.db, resolved) : [];
     if (!resolved || !rows.length) throw new ApiError(404, 'RATE_NOT_FOUND', `Bu tarix üçün məzənnə tapılmadı${date ? `: ${date}` : ''}`);
     const table = new Map<string, number>([['AZN', 1]]);
     for (const r of rows) table.set(r.quote, r.rate);
@@ -30,23 +30,24 @@ export class CurrencyService {
     return b / a;
   }
 
-  rates(base = 'AZN', date?: string) {
-    const { date: d, table } = this.aznTable(date);
+  async rates(base = 'AZN', date?: string) {
+    const { date: d, table } = await this.aznTable(date);
     const rates: Record<string, number> = {};
     for (const code of table.keys()) if (code !== base) rates[code] = round(this.cross(table, base, code), 6);
     return { base, date: d, rates };
   }
 
-  convert(from: string, to: string, amount: number) {
-    const { date, table } = this.aznTable();
+  async convert(from: string, to: string, amount: number) {
+    const { date, table } = await this.aznTable();
     const rate = round(this.cross(table, from, to), 6);
     return { from, to, amount, rate, result: round(amount * rate, 2), date };
   }
 
-  history(from: string, to: string, days: number) {
-    const dates = currencyRepo.lastDates(this.db, days).reverse();
+  async history(from: string, to: string, days: number) {
+    const dates = (await currencyRepo.lastDates(this.db, days)).reverse();
     if (!dates.length) throw new ApiError(404, 'RATE_NOT_FOUND', 'Məzənnə tarixçəsi yoxdur');
-    const points = dates.map((date) => ({ date, rate: round(this.cross(this.aznTable(date).table, from, to), 6) }));
+    const points: { date: string; rate: number }[] = [];
+    for (const date of dates) points.push({ date, rate: round(this.cross((await this.aznTable(date)).table, from, to), 6) });
     return { from, to, days: points.length, points };
   }
 }

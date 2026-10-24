@@ -53,8 +53,8 @@ const SEARCH_WHERE = `
   WHERE f.from_code = @from AND f.to_code = @to
     AND f.depart_at > @now
     AND f.seats_left >= @adults
-    AND (@date IS NULL OR date(f.depart_at) = @date)
-    AND (@stops IS NULL OR f.stops <= @stops)`;
+    AND (@date::text IS NULL OR substr(f.depart_at, 1, 10) = @date)
+    AND (@stops::int IS NULL OR f.stops <= @stops)`;
 
 const BOOKING_SELECT = `
   SELECT b.id, b.flight_id, b.user_id AS owner_id, b.passengers, b.status, b.total_minor, b.currency, b.created_at,
@@ -64,45 +64,45 @@ const BOOKING_SELECT = `
 const searchParams = (s: FlightSearch) => ({ ...s, date: s.date ?? null, stops: s.stops ?? null });
 
 export const flightsRepo = {
-  airports: (db: DB, q?: string) =>
-    db
-      .prepare(
-        `SELECT code, city, country, name FROM airports
-         WHERE @q IS NULL OR code LIKE @prefix OR city LIKE @like OR name LIKE @like
+  airports: async (db: DB, q?: string) =>
+    (await db
+              .prepare(
+                `SELECT code, city, country, name FROM airports
+         WHERE @q::text IS NULL OR code ILIKE @prefix OR city ILIKE @like OR name ILIKE @like
          ORDER BY code`,
-      )
-      .all({ q: q ?? null, prefix: `${(q ?? '').toUpperCase()}%`, like: `%${q ?? ''}%` }) as {
+              )
+              .all({ q: q ?? null, prefix: `${(q ?? '').toUpperCase()}%`, like: `%${q ?? ''}%` })) as {
       code: string;
       city: string;
       country: string;
       name: string;
     }[],
 
-  countSearch: (db: DB, s: FlightSearch) =>
-    db.prepare(`SELECT COUNT(*) FROM flights f ${SEARCH_WHERE}`).pluck().get(searchParams(s)) as number,
+  countSearch: async (db: DB, s: FlightSearch) =>
+    (await db.prepare(`SELECT COUNT(*) FROM flights f ${SEARCH_WHERE}`).pluck().get(searchParams(s))) as number,
 
-  search: (db: DB, s: FlightSearch, orderBy: string, limit: number, offset: number) =>
-    db
-      .prepare(`${FLIGHT_SELECT} ${SEARCH_WHERE} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`)
-      .all({ ...searchParams(s), limit, offset }) as FlightRow[],
+  search: async (db: DB, s: FlightSearch, orderBy: string, limit: number, offset: number) =>
+    (await db
+            .prepare(`${FLIGHT_SELECT} ${SEARCH_WHERE} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`)
+            .all({ ...searchParams(s), limit, offset })) as FlightRow[],
 
-  getFlight: (db: DB, id: number) => db.prepare(`${FLIGHT_SELECT} WHERE f.id = ?`).get(id) as FlightRow | undefined,
+  getFlight: async (db: DB, id: number) => (await db.prepare(`${FLIGHT_SELECT} WHERE f.id = ?`).get(id)) as FlightRow | undefined,
 
   // "AND seats_left >= ?" — yer yoxlaması UPDATE-in özündədir: eyni anda iki bron gəlsə belə mənfi olmur.
-  takeSeats: (db: DB, flightId: number, n: number) =>
-    db.prepare(`UPDATE flights SET seats_left = seats_left - ? WHERE id = ? AND seats_left >= ?`).run(n, flightId, n).changes === 1,
+  takeSeats: async (db: DB, flightId: number, n: number) =>
+    (await db.prepare(`UPDATE flights SET seats_left = seats_left - ? WHERE id = ? AND seats_left >= ?`).run(n, flightId, n)).changes === 1,
 
   releaseSeats: (db: DB, flightId: number, n: number) =>
     db.prepare(`UPDATE flights SET seats_left = seats_left + ? WHERE id = ?`).run(n, flightId),
 
-  insertBooking: (db: DB, b: { flight_id: number; user_id: number; passengers: number; total_minor: number; currency: string; at: string }) =>
+  insertBooking: async (db: DB, b: { flight_id: number; user_id: number; passengers: number; total_minor: number; currency: string; at: string }) =>
     Number(
-      db
-        .prepare(
-          `INSERT INTO flight_bookings (flight_id, user_id, passengers, status, total_minor, currency, created_at, updated_at)
+      (await db
+                .prepare(
+                  `INSERT INTO flight_bookings (flight_id, user_id, passengers, status, total_minor, currency, created_at, updated_at)
            VALUES (@flight_id, @user_id, @passengers, 'CONFIRMED', @total_minor, @currency, @at, @at)`,
-        )
-        .run(b).lastInsertRowid,
+                )
+                .run(b)).lastInsertRowid,
     ),
 
   insertPassenger: (db: DB, bookingId: number, p: { firstName: string; lastName: string; masked: string | null }) =>
@@ -110,17 +110,17 @@ export const flightsRepo = {
       .prepare(`INSERT INTO flight_passengers (booking_id, first_name, last_name, passport_no_masked) VALUES (?, ?, ?, ?)`)
       .run(bookingId, p.firstName, p.lastName, p.masked),
 
-  getBooking: (db: DB, id: number) => db.prepare(`${BOOKING_SELECT} WHERE b.id = ?`).get(id) as BookingRow | undefined,
+  getBooking: async (db: DB, id: number) => (await db.prepare(`${BOOKING_SELECT} WHERE b.id = ?`).get(id)) as BookingRow | undefined,
 
-  listBookings: (db: DB, userId: number, status?: string) =>
-    db
-      .prepare(`${BOOKING_SELECT} WHERE b.user_id = @userId AND (@status IS NULL OR b.status = @status) ORDER BY b.created_at DESC, b.id DESC`)
-      .all({ userId, status: status ?? null }) as BookingRow[],
+  listBookings: async (db: DB, userId: number, status?: string) =>
+    (await db
+            .prepare(`${BOOKING_SELECT} WHERE b.user_id = @userId AND (@status::text IS NULL OR b.status = @status) ORDER BY b.created_at DESC, b.id DESC`)
+            .all({ userId, status: status ?? null })) as BookingRow[],
 
-  passengersOf: (db: DB, bookingId: number) =>
-    db
-      .prepare(`SELECT first_name, last_name, passport_no_masked FROM flight_passengers WHERE booking_id = ? ORDER BY id`)
-      .all(bookingId) as { first_name: string; last_name: string; passport_no_masked: string | null }[],
+  passengersOf: async (db: DB, bookingId: number) =>
+    (await db
+            .prepare(`SELECT first_name, last_name, passport_no_masked FROM flight_passengers WHERE booking_id = ? ORDER BY id`)
+            .all(bookingId)) as { first_name: string; last_name: string; passport_no_masked: string | null }[],
 
   cancelBooking: (db: DB, id: number, at: string) =>
     db.prepare(`UPDATE flight_bookings SET status = 'CANCELLED', updated_at = ? WHERE id = ?`).run(at, id),

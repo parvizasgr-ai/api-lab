@@ -63,6 +63,6 @@ describe('books', () => {
     expect((await t.api().post('/api/v1/books/2/reviews').set(bearer(access_token)).send({ rating: 6 })).status).toBe(422);
     expect((await t.api().post('/api/v1/books/2/reviews').send({ rating: 4 })).status).toBe(401);
     expect((await t.api().post('/api/v1/books/999/reviews').set(bearer(access_token)).send({ rating: 4 })).status).toBe(404);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM book_reviews`).pluck().get()).toBe(11);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM book_reviews`).pluck().get()).toBe(11);
   });
 });

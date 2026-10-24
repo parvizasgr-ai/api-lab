@@ -21,22 +21,22 @@ export type TaskFields = Omit<TaskRow, 'id' | 'done_at'>;
 const SELECT = `SELECT t.*, tp.done_at FROM tasks t LEFT JOIN task_progress tp ON tp.task_id = t.id AND tp.user_id = @userId`;
 
 export const tasksRepo = {
-  list: (db: DB, userId: number, lesson?: number) =>
-    db.prepare(`${SELECT} WHERE @lesson IS NULL OR t.lesson = @lesson ORDER BY t.lesson, t.sort_order, t.id`).all({ userId, lesson: lesson ?? null }) as TaskRow[],
+  list: async (db: DB, userId: number, lesson?: number) =>
+    (await db.prepare(`${SELECT} WHERE @lesson::int IS NULL OR t.lesson = @lesson ORDER BY t.lesson, t.sort_order, t.id`).all({ userId, lesson: lesson ?? null })) as TaskRow[],
 
-  get: (db: DB, userId: number, id: number) => db.prepare(`${SELECT} WHERE t.id = @id`).get({ userId, id }) as TaskRow | undefined,
+  get: async (db: DB, userId: number, id: number) => (await db.prepare(`${SELECT} WHERE t.id = @id`).get({ userId, id })) as TaskRow | undefined,
 
-  findByTitle: (db: DB, lesson: number, title: string) =>
-    db.prepare(`SELECT id FROM tasks WHERE lesson = ? AND title = ?`).get(lesson, title) as { id: number } | undefined,
+  findByTitle: async (db: DB, lesson: number, title: string) =>
+    (await db.prepare(`SELECT id FROM tasks WHERE lesson = ? AND title = ?`).get(lesson, title)) as { id: number } | undefined,
 
-  insert: (db: DB, t: TaskFields & { at: string }) =>
+  insert: async (db: DB, t: TaskFields & { at: string }) =>
     Number(
-      db
-        .prepare(
-          `INSERT INTO tasks (lesson, title, description_md, method, path, expected_status, sql_check, material_id, sort_order, created_at, updated_at)
+      (await db
+                .prepare(
+                  `INSERT INTO tasks (lesson, title, description_md, method, path, expected_status, sql_check, material_id, sort_order, created_at, updated_at)
            VALUES (@lesson, @title, @description_md, @method, @path, @expected_status, @sql_check, @material_id, @sort_order, @at, @at)`,
-        )
-        .run(t).lastInsertRowid,
+                )
+                .run(t)).lastInsertRowid,
     ),
 
   update: (db: DB, id: number, t: TaskFields & { at: string }) =>
@@ -48,22 +48,22 @@ export const tasksRepo = {
       )
       .run({ ...t, id }),
 
-  delete: (db: DB, id: number) => db.prepare(`DELETE FROM tasks WHERE id = ?`).run(id).changes,
+  delete: async (db: DB, id: number) => (await db.prepare(`DELETE FROM tasks WHERE id = ?`).run(id)).changes,
 
   // INSERT OR IGNORE — ikinci "done" ilk tamamlama vaxtını dəyişmir (PUT idempotentdir)
   markDone: (db: DB, userId: number, taskId: number, at: string) =>
-    db.prepare(`INSERT OR IGNORE INTO task_progress (user_id, task_id, done_at) VALUES (?, ?, ?)`).run(userId, taskId, at),
+    db.prepare(`INSERT INTO task_progress (user_id, task_id, done_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`).run(userId, taskId, at),
 
   markUndone: (db: DB, userId: number, taskId: number) => db.prepare(`DELETE FROM task_progress WHERE user_id = ? AND task_id = ?`).run(userId, taskId),
 
-  summary: (db: DB, userId: number) =>
-    db
-      .prepare(
-        `SELECT t.lesson, COUNT(*) AS total, COUNT(tp.task_id) AS done
+  summary: async (db: DB, userId: number) =>
+    (await db
+            .prepare(
+              `SELECT t.lesson, COUNT(*) AS total, COUNT(tp.task_id) AS done
          FROM tasks t LEFT JOIN task_progress tp ON tp.task_id = t.id AND tp.user_id = ?
          GROUP BY t.lesson ORDER BY t.lesson`,
-      )
-      .all(userId) as { lesson: number; total: number; done: number }[],
+            )
+            .all(userId)) as { lesson: number; total: number; done: number }[],
 
-  materialExists: (db: DB, id: number) => !!db.prepare(`SELECT 1 FROM materials WHERE id = ?`).get(id),
+  materialExists: async (db: DB, id: number) => !!(await db.prepare(`SELECT 1 FROM materials WHERE id = ?`).get(id)),
 };

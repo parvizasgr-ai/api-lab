@@ -8,9 +8,9 @@ const startedAt = Date.now();
 
 export function metaHandlers({ db, spec, config }: AppContext): Handlers {
   return {
-    health: (_req, res) => {
+    health: async (_req, res) => {
       try {
-        db.prepare('SELECT 1').get();
+        await db.prepare('SELECT 1').get();
       } catch {
         throw new ApiError(503, 'SERVICE_UNAVAILABLE', 'DB əlçatan deyil');
       }

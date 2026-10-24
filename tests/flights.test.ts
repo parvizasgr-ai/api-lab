@@ -7,7 +7,7 @@ async function setup() {
   return { ...t, student: (await t.login('student')).access_token, rauf: (await t.login('rauf')).access_token };
 }
 
-const seats = (t: Awaited<ReturnType<typeof setup>>, id: number) => t.db.prepare(`SELECT seats_left FROM flights WHERE id = ?`).pluck().get(id) as number;
+const seats = async (t: Awaited<ReturnType<typeof setup>>, id: number) => (await t.db.prepare(`SELECT seats_left FROM flights WHERE id = ?`).pluck().get(id)) as number;
 
 describe('airports + search', () => {
   let t: Awaited<ReturnType<typeof setup>>;
@@ -26,7 +26,7 @@ describe('airports + search', () => {
   });
 
   it('GET /flights/search — tarix üzrə, qiymətə görə sıralı, yeri olanlar', async () => {
-    const date = t.db.prepare(`SELECT date('now', '+3 days')`).pluck().get() as string;
+    const date = (await t.db.prepare(`SELECT to_char(CURRENT_DATE + 3, 'YYYY-MM-DD')`).pluck().get()) as string;
     const res = await t.api().get('/api/v1/flights/search').query({ from: 'GYD', to: 'IST', date, adults: 2 });
     expect(res.status).toBe(200);
     expectMatchesSpec(res, 'searchFlights');
@@ -60,12 +60,12 @@ describe('bookings', () => {
     t = await setup();
   });
 
-  const roomyFlight = (t: Awaited<ReturnType<typeof setup>>, min = 5) =>
-    t.db.prepare(`SELECT id FROM flights WHERE seats_left >= ? ORDER BY id LIMIT 1`).pluck().get(min) as number;
+  const roomyFlight = async (t: Awaited<ReturnType<typeof setup>>, min = 5) =>
+    (await t.db.prepare(`SELECT id FROM flights WHERE seats_left >= ? ORDER BY id LIMIT 1`).pluck().get(min)) as number;
 
   it('POST → 201 + Location; seats_left sərnişin sayı qədər azalır; pasport maskalanır', async () => {
-    const flightId = roomyFlight(t);
-    const before = seats(t, flightId);
+    const flightId = await roomyFlight(t);
+    const before = await seats(t, flightId);
     const res = await t.api().post('/api/v1/flights/bookings').set(bearer(t.student)).send({
       flightId,
       passengers: [{ firstName: 'Aysel', lastName: 'Məmmədova', passportNo: 'C12344821' }, { firstName: 'Elvin', lastName: 'Məmmədov' }],
@@ -74,10 +74,10 @@ describe('bookings', () => {
     expectMatchesSpec(res, 'createFlightBooking');
     expect(res.headers.location).toBe(`/api/v1/flights/bookings/${res.body.id}`);
     expect(res.body.passengers[0].passportNoMasked).toBe('C****4821');
-    expect(seats(t, flightId)).toBe(before - 2);
-    const price = t.db.prepare(`SELECT price_minor FROM flights WHERE id = ?`).pluck().get(flightId) as number;
+    expect(await seats(t, flightId)).toBe(before - 2);
+    const price = (await t.db.prepare(`SELECT price_minor FROM flights WHERE id = ?`).pluck().get(flightId)) as number;
     expect(res.body.total).toBe((price * 2) / 100);
-    expect(t.db.prepare(`SELECT passport_no_masked FROM flight_passengers WHERE booking_id = ?`).pluck().all(res.body.id)).toEqual(['C****4821', null]);
+    expect(await t.db.prepare(`SELECT passport_no_masked FROM flight_passengers WHERE booking_id = ?`).pluck().all(res.body.id)).toEqual(['C****4821', null]);
 
     const get = await t.api().get(res.headers.location).set(bearer(t.student));
     expectMatchesSpec(get, 'getFlightBooking');
@@ -87,18 +87,18 @@ describe('bookings', () => {
   });
 
   it('SOLD_OUT 409: boş yer yoxdur və ya sərnişin sayı qalan yerdən çoxdur — seats_left dəyişmir', async () => {
-    const soldOut = t.db.prepare(`SELECT id FROM flights WHERE seats_left = 0 LIMIT 1`).pluck().get() as number;
+    const soldOut = (await t.db.prepare(`SELECT id FROM flights WHERE seats_left = 0 LIMIT 1`).pluck().get()) as number;
     const res = await t.api().post('/api/v1/flights/bookings').set(bearer(t.student)).send({ flightId: soldOut, passengers: [{ firstName: 'A', lastName: 'B' }] });
     expect(res.status).toBe(409);
     expectMatchesSpec(res, 'createFlightBooking');
     expect(res.body.code).toBe('SOLD_OUT');
 
-    const few = t.db.prepare(`SELECT id FROM flights WHERE seats_left = 2 LIMIT 1`).pluck().get() as number;
+    const few = (await t.db.prepare(`SELECT id FROM flights WHERE seats_left = 2 LIMIT 1`).pluck().get()) as number;
     const three = Array.from({ length: 3 }, (_, i) => ({ firstName: `P${i}`, lastName: 'Test' }));
     const tooMany = await t.api().post('/api/v1/flights/bookings').set(bearer(t.student)).send({ flightId: few, passengers: three });
     expect(tooMany.status).toBe(409);
-    expect(seats(t, few)).toBe(2);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM flight_bookings`).pluck().get()).toBe(3); // yalnız seed
+    expect(await seats(t, few)).toBe(2);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM flight_bookings`).pluck().get()).toBe(3); // yalnız seed
   });
 
   it('error path-lər: tokensiz 401, sərnişinsiz 422, olmayan reys 404, başqasının bronu 403', async () => {
@@ -112,14 +112,14 @@ describe('bookings', () => {
   });
 
   it('DELETE — soft cancel: status CANCELLED, yerlər qaytarılır; ikinci dəfə 409', async () => {
-    const flightId = t.db.prepare(`SELECT flight_id FROM flight_bookings WHERE id = 1`).pluck().get() as number;
-    const before = seats(t, flightId);
+    const flightId = (await t.db.prepare(`SELECT flight_id FROM flight_bookings WHERE id = 1`).pluck().get()) as number;
+    const before = await seats(t, flightId);
     const res = await t.api().delete('/api/v1/flights/bookings/1').set(bearer(t.student));
     expect(res.status).toBe(200);
     expectMatchesSpec(res, 'cancelFlightBooking');
     expect(res.body.status).toBe('CANCELLED');
-    expect(seats(t, flightId)).toBe(before + 2);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM flight_bookings WHERE id = 1`).pluck().get()).toBe(1); // sətir silinməyib
+    expect(await seats(t, flightId)).toBe(before + 2);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM flight_bookings WHERE id = 1`).pluck().get()).toBe(1); // sətir silinməyib
 
     const again = await t.api().delete('/api/v1/flights/bookings/1').set(bearer(t.student));
     expect(again.status).toBe(409);

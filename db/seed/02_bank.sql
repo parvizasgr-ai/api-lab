@@ -21,46 +21,46 @@ base_rates(k, quote, azn_per_unit, volatile) AS (
 INSERT INTO exchange_rates (base, quote, rate, rate_date)
 SELECT 'AZN', b.quote,
        ROUND(1.0 / (b.azn_per_unit * (1 + b.volatile * ((d.n * 7 + b.k * 3) % 13 - 6) * 0.0007)), 6),
-       date('now', '-' || d.n || ' days')
+       seed_date('now', ('-' || d.n || ' days')::interval)
 FROM days d CROSS JOIN base_rates b
 ORDER BY d.n DESC, b.k;
 
 -- Hesablar. balance_minor sonda əməliyyatların cəmindən hesablanır (aşağıda UPDATE).
 INSERT INTO accounts (id, owner_id, currency, balance_minor, type, opened_at, updated_at) VALUES
-  ('AZ21NABZ0001', 1, 'AZN', 0, 'CURRENT', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-380 days', '+10 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-1 days', '+19 hours')),
-  ('AZ21NABZ0002', 1, 'USD', 0, 'SAVINGS', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-300 days', '+11 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-12 days', '+14 hours')),
-  ('AZ21NABZ0003', 1, 'EUR', 0, 'CURRENT', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-200 days', '+12 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-10 days', '+8 hours')),
-  ('AZ21NABZ0004', 3, 'AZN', 0, 'CURRENT', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-190 days', '+10 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-2 days', '+18 hours')),
-  ('AZ21NABZ0005', 3, 'USD', 0, 'CURRENT', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-150 days', '+15 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-9 days', '+21 hours')),
-  ('AZ21NABZ0006', 2, 'AZN', 0, 'CURRENT', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-480 days', '+9 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-14 days', '+11 hours'));
+  ('AZ21NABZ0001', 1, 'AZN', 0, 'CURRENT', seed_ts('day', ('-380 days')::interval + ('+10 hours')::interval), seed_ts('day', ('-1 days')::interval + ('+19 hours')::interval)),
+  ('AZ21NABZ0002', 1, 'USD', 0, 'SAVINGS', seed_ts('day', ('-300 days')::interval + ('+11 hours')::interval), seed_ts('day', ('-12 days')::interval + ('+14 hours')::interval)),
+  ('AZ21NABZ0003', 1, 'EUR', 0, 'CURRENT', seed_ts('day', ('-200 days')::interval + ('+12 hours')::interval), seed_ts('day', ('-10 days')::interval + ('+8 hours')::interval)),
+  ('AZ21NABZ0004', 3, 'AZN', 0, 'CURRENT', seed_ts('day', ('-190 days')::interval + ('+10 hours')::interval), seed_ts('day', ('-2 days')::interval + ('+18 hours')::interval)),
+  ('AZ21NABZ0005', 3, 'USD', 0, 'CURRENT', seed_ts('day', ('-150 days')::interval + ('+15 hours')::interval), seed_ts('day', ('-9 days')::interval + ('+21 hours')::interval)),
+  ('AZ21NABZ0006', 2, 'AZN', 0, 'CURRENT', seed_ts('day', ('-480 days')::interval + ('+9 hours')::interval), seed_ts('day', ('-14 days')::interval + ('+11 hours')::interval));
 
 -- Kartlar. Əvvəlcə hamısı ACTIVE yaradılır, sonra UPDATE ilə status dəyişdirilir —
 -- beləliklə trg_cards_status_history trigger-i card_status_history-ə avtomatik yazır.
 INSERT INTO cards (id, owner_id, account_id, last4, brand, status, daily_limit_minor, expires_at, created_at, updated_at) VALUES
-  (1, 1, 'AZ21NABZ0001', '4169', 'VISA',       'ACTIVE', 200000, date('now', 'start of month', '+3 years', '-1 day'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-380 days', '+10 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-380 days', '+10 hours')),
-  (2, 1, 'AZ21NABZ0002', '5412', 'MASTERCARD', 'ACTIVE', 100000, date('now', 'start of month', '+2 years', '-1 day'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-300 days', '+11 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-300 days', '+11 hours')),
-  (3, 1, 'AZ21NABZ0001', '7781', 'VISA',       'ACTIVE', 50000,  date('now', 'start of month', '+4 years', '-1 day'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-100 days', '+13 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-100 days', '+13 hours')),
-  (4, 1, 'AZ21NABZ0003', '3307', 'MASTERCARD', 'ACTIVE', 80000,  date('now', 'start of month', '-2 months', '-1 day'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-200 days', '+12 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-200 days', '+12 hours')),
-  (5, 3, 'AZ21NABZ0004', '9021', 'VISA',       'ACTIVE', 150000, date('now', 'start of month', '+3 years', '-1 day'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-190 days', '+10 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-190 days', '+10 hours')),
-  (6, 3, 'AZ21NABZ0005', '1144', 'MASTERCARD', 'ACTIVE', 50000,  date('now', 'start of month', '+2 years', '-1 day'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-150 days', '+15 hours'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-150 days', '+15 hours')),
-  (7, 2, 'AZ21NABZ0006', '6600', 'VISA',       'ACTIVE', 500000, date('now', 'start of month', '+3 years', '-1 day'), strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-480 days', '+9 hours'),  strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-480 days', '+9 hours'));
+  (1, 1, 'AZ21NABZ0001', '4169', 'VISA',       'ACTIVE', 200000, seed_date('month', ('+3 years')::interval + ('-1 day')::interval), seed_ts('day', ('-380 days')::interval + ('+10 hours')::interval), seed_ts('day', ('-380 days')::interval + ('+10 hours')::interval)),
+  (2, 1, 'AZ21NABZ0002', '5412', 'MASTERCARD', 'ACTIVE', 100000, seed_date('month', ('+2 years')::interval + ('-1 day')::interval), seed_ts('day', ('-300 days')::interval + ('+11 hours')::interval), seed_ts('day', ('-300 days')::interval + ('+11 hours')::interval)),
+  (3, 1, 'AZ21NABZ0001', '7781', 'VISA',       'ACTIVE', 50000,  seed_date('month', ('+4 years')::interval + ('-1 day')::interval), seed_ts('day', ('-100 days')::interval + ('+13 hours')::interval), seed_ts('day', ('-100 days')::interval + ('+13 hours')::interval)),
+  (4, 1, 'AZ21NABZ0003', '3307', 'MASTERCARD', 'ACTIVE', 80000,  seed_date('month', ('-2 months')::interval + ('-1 day')::interval), seed_ts('day', ('-200 days')::interval + ('+12 hours')::interval), seed_ts('day', ('-200 days')::interval + ('+12 hours')::interval)),
+  (5, 3, 'AZ21NABZ0004', '9021', 'VISA',       'ACTIVE', 150000, seed_date('month', ('+3 years')::interval + ('-1 day')::interval), seed_ts('day', ('-190 days')::interval + ('+10 hours')::interval), seed_ts('day', ('-190 days')::interval + ('+10 hours')::interval)),
+  (6, 3, 'AZ21NABZ0005', '1144', 'MASTERCARD', 'ACTIVE', 50000,  seed_date('month', ('+2 years')::interval + ('-1 day')::interval), seed_ts('day', ('-150 days')::interval + ('+15 hours')::interval), seed_ts('day', ('-150 days')::interval + ('+15 hours')::interval)),
+  (7, 2, 'AZ21NABZ0006', '6600', 'VISA',       'ACTIVE', 500000, seed_date('month', ('+3 years')::interval + ('-1 day')::interval), seed_ts('day', ('-480 days')::interval + ('+9 hours')::interval),  seed_ts('day', ('-480 days')::interval + ('+9 hours')::interval));
 
 -- Kart 3: tələbə 12 gün əvvəl "itirib" blokladı (unblock dərsi üçün — LOST səbəbi açıla bilər).
 UPDATE cards
 SET status = 'BLOCKED', status_reason = 'LOST', status_changed_by = 1,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-12 days', '+20 hours')
+    updated_at = seed_ts('day', ('-12 days')::interval + ('+20 hours')::interval)
 WHERE id = 3;
 
 -- Kart 4: müddəti bitib (sistem tərəfindən, changed_by = NULL).
 UPDATE cards
 SET status = 'EXPIRED',
-    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of month', '-2 months')
+    updated_at = seed_ts('month', ('-2 months')::interval)
 WHERE id = 4;
 
 -- Bir hazır köçürmə: student → rauf, 50.00 AZN (2 əməliyyat sətri ilə əlaqəlidir).
 INSERT INTO transfers (id, from_account, to_account, amount_minor, currency, status, created_by, created_at) VALUES
   (1, 'AZ21NABZ0001', 'AZ21NABZ0004', 5000, 'AZN', 'COMPLETED', 1,
-      strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-3 days', '+12 hours', '+30 minutes'));
+      seed_ts('day', ('-3 days')::interval + ('+12 hours')::interval + ('+30 minutes')::interval));
 
 -- Əməliyyatlar: (hesab, tip, məbləğ qəpiklə, təsvir, neçə gün əvvəl, günün dəqiqəsi, transfer_id)
 WITH tx(account_id, type, amount_minor, description, days_ago, minute_of_day, transfer_id) AS (
@@ -108,7 +108,7 @@ WITH tx(account_id, type, amount_minor, description, days_ago, minute_of_day, tr
 )
 INSERT INTO transactions (account_id, type, amount_minor, currency, description, transfer_id, created_at)
 SELECT tx.account_id, tx.type, tx.amount_minor, a.currency, tx.description, tx.transfer_id,
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-' || tx.days_ago || ' days', '+' || tx.minute_of_day || ' minutes')
+       seed_ts('day', ('-' || tx.days_ago || ' days')::interval + ('+' || tx.minute_of_day || ' minutes')::interval)
 FROM tx JOIN accounts a ON a.id = tx.account_id
 ORDER BY tx.days_ago DESC, tx.minute_of_day, tx.account_id;
 

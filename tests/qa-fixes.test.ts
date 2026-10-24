@@ -20,7 +20,7 @@ describe('QA-M10: trust proxy yalnız TRUSTED_PROXIES-dən', () => {
     const statuses: number[] = [];
     for (let i = 0; i < 5; i++) statuses.push((await api().get('/api/v1/airports').set('X-Forwarded-For', `198.51.100.${i}`)).status);
     expect(statuses.slice(3)).toEqual([429, 429]);
-    const ips = db.prepare('SELECT DISTINCT ip FROM request_log').pluck().all() as string[];
+    const ips = (await db.prepare('SELECT DISTINCT ip FROM request_log').pluck().all()) as string[];
     expect(ips.some((ip) => ip.startsWith('198.51.100.'))).toBe(false);
   });
 
@@ -49,7 +49,7 @@ describe('QA-L05: login brute-force — username üzrə kilid', () => {
     const { api, db } = createTestApp({ config: { loginLockout: { maxFailures: 3, windowSec: 300 } } });
     for (let i = 0; i < 2; i++) await api().post('/api/v1/auth/login').send({ username: 'rauf', password: 'x' });
     expect((await api().post('/api/v1/auth/login').send({ username: 'rauf', password: 'rauf123' })).status).toBe(200);
-    expect(db.prepare("SELECT count(*) FROM rate_limit_counters WHERE subject = 'login-fail:rauf'").pluck().get()).toBe(0);
+    expect(await db.prepare("SELECT count(*) FROM rate_limit_counters WHERE subject = 'login-fail:rauf'").pluck().get()).toBe(0);
   });
 });
 
@@ -57,7 +57,7 @@ describe('QA-L06: pre-signed imza loglara düşmür', () => {
   it('request_log.path query-siz yazılır (exp/sig saxlanmır)', async () => {
     const { api, db } = createTestApp();
     await api().get('/api/v1/materials/1/download?exp=9999999999&sig=' + 'a'.repeat(64));
-    const paths = db.prepare('SELECT path FROM request_log').pluck().all() as string[];
+    const paths = (await db.prepare('SELECT path FROM request_log').pluck().all()) as string[];
     expect(paths).toContain('/api/v1/materials/1/download');
     expect(paths.join(' ')).not.toContain('sig=');
   });
@@ -95,7 +95,7 @@ describe('QA-L08: logout access token-i də ləğv edir', () => {
     expect(after.status).toBe(401);
     expect(after.body.code).toBe('INVALID_TOKEN');
     expect((await api().get('/api/v1/auth/me').set(bearer(other.access_token))).status).toBe(200);
-    expect(db.prepare('SELECT count(*) FROM revoked_access_tokens').pluck().get()).toBe(1);
+    expect(await db.prepare('SELECT count(*) FROM revoked_access_tokens').pluck().get()).toBe(1);
     const jti = (tok: string) => JSON.parse(Buffer.from(tok.split('.')[1], 'base64url').toString()).jti;
     expect(jti(t.access_token)).not.toBe(jti(other.access_token));
   });
@@ -107,7 +107,7 @@ describe('QA-L08: logout access token-i də ləğv edir', () => {
     clock.advance(16 * 60);
     const b = await login();
     await api().post('/api/v1/auth/logout').set(bearer(b.access_token)).send({ refresh_token: b.refresh_token });
-    expect(db.prepare('SELECT count(*) FROM revoked_access_tokens').pluck().get()).toBe(1);
+    expect(await db.prepare('SELECT count(*) FROM revoked_access_tokens').pluck().get()).toBe(1);
   });
 });
 

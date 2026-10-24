@@ -30,7 +30,7 @@ describe('ADMIN_PASSWORD', () => {
   it('tətbiq olunur və /_reset-dən sonra admin123-ə qayıtmır', async () => {
     const { api, db, config } = createTestApp({ config: { adminPassword: 'Sinif-2026-Gizli!' } });
     const { applyAdminPassword } = await import('../server/src/lib/exposure.js');
-    applyAdminPassword(db, config); // server başlanğıcı (index.ts) kimi
+    await applyAdminPassword(db, config); // server başlanğıcı (index.ts) kimi
     expect((await api().post('/api/v1/auth/login').send({ username: 'admin', password: 'admin123' })).status).toBe(401);
     const login = await api().post('/api/v1/auth/login').send({ username: 'admin', password: 'Sinif-2026-Gizli!' });
     expect(login.status).toBe(200);

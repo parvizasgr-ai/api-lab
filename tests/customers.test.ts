@@ -26,8 +26,9 @@ describe('customers v1', () => {
     expect(q.body.items.map((c: { email: string }) => c.email)).toEqual(['tural.quliyev@example.az']);
 
     const sorted = await t.api().get('/api/v1/customers').query({ sort: '-lastName', size: 1 });
-    // SQLite BINARY collation Unicode kod nöqtəsinə görə sıralayır: 'Ə' (U+018F) 'Z'-dən sonra gəlir.
-    expect(sorted.body.items[0].lastName).toBe('Əsgərov');
+    // PostgreSQL locale sıralaması: Ə — E-dən sonra (Azərbaycan əlifbası), Z ən sonda → azalan sırada birinci Zeynalova
+    // (SQLite binar sıralamada Ə bütün latın hərflərindən sonra gəlirdi)
+    expect(sorted.body.items[0].lastName).toBe('Zeynalova');
   });
 
   it('POST — 201 + Location + ETag; təkrar email 409; səhv data 422; səhv Content-Type 415', async () => {
@@ -134,7 +135,7 @@ describe('customers v1', () => {
     expect(again.status).toBe(404);
     expect(again.body.code).toBe('CUSTOMER_NOT_FOUND');
     expect((await t.api().head('/api/v1/customers/2')).status).toBe(404);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM customers WHERE id = 2`).pluck().get()).toBe(0);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM customers WHERE id = 2`).pluck().get()).toBe(0);
 
     const options = await t.api().options('/api/v1/customers');
     expect(options.status).toBe(204);

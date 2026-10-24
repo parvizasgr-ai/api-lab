@@ -23,8 +23,8 @@ function where(f: CustomerFilter) {
   const parts: string[] = [];
   if (f.city) parts.push('city = @city');
   if (f.active !== undefined) parts.push('active = @active');
-  // LIKE-da % və _ xüsusi simvollardır — istifadəçi mətnində onları escape edirik.
-  if (f.q) parts.push(`(first_name LIKE @q ESCAPE '\\' OR last_name LIKE @q ESCAPE '\\' OR email LIKE @q ESCAPE '\\')`);
+  // ILIKE-da % və _ xüsusi simvollardır — istifadəçi mətnində onları escape edirik.
+  if (f.q) parts.push(`(first_name ILIKE @q ESCAPE '\\' OR last_name ILIKE @q ESCAPE '\\' OR email ILIKE @q ESCAPE '\\')`);
   return {
     sql: parts.length ? `WHERE ${parts.join(' AND ')}` : '',
     params: {
@@ -36,28 +36,28 @@ function where(f: CustomerFilter) {
 }
 
 export const customersRepo = {
-  count(db: DB, f: CustomerFilter): number {
+  async count(db: DB, f: CustomerFilter): Promise<number> {
     const w = where(f);
-    return db.prepare(`SELECT COUNT(*) FROM customers ${w.sql}`).pluck().get(w.params) as number;
+    return (await db.prepare(`SELECT COUNT(*) FROM customers ${w.sql}`).pluck().get(w.params)) as number;
   },
 
-  list(db: DB, f: CustomerFilter, orderBy: string, limit: number, offset: number) {
+  async list(db: DB, f: CustomerFilter, orderBy: string, limit: number, offset: number) {
     const w = where(f);
-    return db
-      .prepare(`SELECT * FROM customers ${w.sql} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`)
-      .all({ ...w.params, limit, offset }) as CustomerRow[];
+    return (await db
+          .prepare(`SELECT * FROM customers ${w.sql} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`)
+          .all({ ...w.params, limit, offset })) as CustomerRow[];
   },
 
-  get: (db: DB, id: number) => db.prepare(`SELECT * FROM customers WHERE id = ?`).get(id) as CustomerRow | undefined,
+  get: async (db: DB, id: number) => (await db.prepare(`SELECT * FROM customers WHERE id = ?`).get(id)) as CustomerRow | undefined,
 
-  insert: (db: DB, c: Omit<CustomerRow, 'id'>) =>
+  insert: async (db: DB, c: Omit<CustomerRow, 'id'>) =>
     Number(
-      db
-        .prepare(
-          `INSERT INTO customers (first_name, last_name, email, phone, city, active, created_at, updated_at)
+      (await db
+                .prepare(
+                  `INSERT INTO customers (first_name, last_name, email, phone, city, active, created_at, updated_at)
            VALUES (@first_name, @last_name, @email, @phone, @city, @active, @created_at, @updated_at)`,
-        )
-        .run(c).lastInsertRowid,
+                )
+                .run(c)).lastInsertRowid,
     ),
 
   update: (db: DB, c: Omit<CustomerRow, 'created_at'>) =>
@@ -69,5 +69,5 @@ export const customersRepo = {
       )
       .run(c),
 
-  delete: (db: DB, id: number) => db.prepare(`DELETE FROM customers WHERE id = ?`).run(id).changes,
+  delete: async (db: DB, id: number) => (await db.prepare(`DELETE FROM customers WHERE id = ?`).run(id)).changes,
 };

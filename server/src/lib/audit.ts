@@ -8,8 +8,8 @@ export function writeAudit(
   req: Request,
   now: Date,
   entry: { userId?: number | null; action: string; entity: string; entityId: string | number; details?: unknown },
-): void {
-  db.prepare(
+): Promise<unknown> {
+  return db.prepare(
     `INSERT INTO audit_log (user_id, action, entity, entity_id, details, ip, request_id, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(

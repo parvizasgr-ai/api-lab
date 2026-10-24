@@ -4,24 +4,26 @@ Tələbələrin **Postman / curl** ilə real API sorğuları göndərdiyi və n�
 IT Business Analyst kursu üçün hazırlanıb (Div Academy, UNEC): Dərs 1 — API əsasları, Dərs 2 — HTTP və REST, Dərs 3 — Security, Design, API Specification.
 
 - **API-first:** hər şey [`openapi/openapi.yaml`](openapi/openapi.yaml)-dan idarə olunur — route-lar, request validation, Swagger UI, Postman collection.
-- **Real DB:** SQLite (`data/apilab.db`), raw SQL, ORM yoxdur. Hər API əməliyyatını SQL Playground-da `SELECT` ilə görmək olur.
+- **Real DB:** PostgreSQL 16, raw SQL, ORM yoxdur. Hər API əməliyyatını SQL Playground-da (və ya DataGrip/psql ilə) `SELECT` ilə görmək olur.
 - **Hamısı lokal:** internet lazım deyil (YouTube axtarışı və məzənnə yeniləməsi opsionaldır).
 
 ---
 
 ## Tələbələr üçün 10 dəqiqəlik başlanğıc
 
-**Lazımdır:** [Node.js 20+](https://nodejs.org) (yoxlayın: `node -v`), Postman və ya terminal (curl).
+**Lazımdır:** [Node.js 20+](https://nodejs.org) (yoxlayın: `node -v`), PostgreSQL 16, Postman və ya terminal (curl).
 
-### 1. Serveri işə salın (2 dəq)
+### 1. Serveri işə salın (3 dəq)
 
 ```bash
+brew install postgresql@16 && brew services start postgresql@16   # macOS; Windows/Linux — aşağıda "PostgreSQL"
 git clone <repo-url> api-lab && cd api-lab
 npm install
+npm run db:setup     # rollar + bazalar + migration + demo data
 npm run dev
 ```
 
-Terminalda `API Lab: http://localhost:3000` görünməlidir. İlk dəfə DB avtomatik yaradılır və demo data ilə doldurulur.
+Terminalda `API Lab: http://localhost:3000` görünməlidir.
 
 | Ünvan | Nə var |
 |---|---|
@@ -96,9 +98,10 @@ Seed **deterministikdir** (eyni gündə hər reset eyni datanı verir), tarixlə
 | `npm run test:coverage` / `test:web` / `test:e2e` | Backend coverage / portal unit coverage / build + Playwright |
 | `npm run lint` | ESLint + Spectral (OpenAPI lint) |
 | `npm run typecheck` | TypeScript yoxlaması |
-| `npm run db:reset` | DB-ni sıfırlayır (drop → migrate → seed), `db/schema.sql`-i yeniləyir, cədvəl saylarını göstərir |
+| `npm run db:setup` | PostgreSQL-i hazırlayır: rollar (`apilab`, `apilab_playground`), bazalar (`apilab`, `apilab_e2e`), ilk migration + seed. Təkrar işlətmək təhlükəsizdir |
+| `npm run db:reset` | DB-ni sıfırlayır (public sxemi silinir → migrate → seed), cədvəl saylarını göstərir |
 | `npm run db:migrate` / `db:seed` | Yalnız yeni migration-lar / yalnız data |
-| `npm run db:shell` | `sqlite3` CLI (`.tables`, `.schema cards`) |
+| `npm run db:shell` | `psql` (`\\dt`, `\\d cards`) |
 | `npm run materials:seed` | `materials/slides/` qovluğundakı yeni faylları import edir və konvertasiyanı gözləyir |
 | `npm run openapi:lint` / `openapi:bundle` | Spec lint / YAML → JSON |
 | `npm run postman:export` | Postman fayllarını `postman/` qovluğuna yazır |
@@ -556,21 +559,33 @@ SELECT subject, window_start, count FROM rate_limit_counters ORDER BY window_sta
 SELECT * FROM v_api_usage_by_endpoint ORDER BY calls DESC;
 ```
 
-> **Sıralama qeydi (collation):** SQLite mətni Unicode kod nöqtəsinə görə sıralayır (BINARY collation). Ona görə Azərbaycan hərfləri latın hərflərindən **sonra** gəlir:
-> `ORDER BY last_name` → `… Zeynalova, Əliyeva, Əsgərov` (`Ə` = U+018F > `Z`). Həmçinin `LIKE` yalnız ASCII hərflərdə böyük/kiçik hərfi fərqləndirmir (`'bak'` ↔ `'Bakı'` tapılır, `'ə'` ↔ `'Ə'` yox).
-> PostgreSQL-də `COLLATE "az-x-icu"` ilə düzgün Azərbaycan əlifbası sırası almaq olar — yaxşı müzakirə mövzusu.
+> **Sıralama qeydi (collation):** PostgreSQL mətni bazanın locale-ına görə sıralayır — `Ə` `E`-nin yanında gəlir (Azərbaycan əlifbasına yaxın), `ORDER BY last_name DESC` → `Zeynalova, …`.
+> Axtarışlar `ILIKE` ilə böyük/kiçik hərfə həssas deyil (`'bak'` ↔ `'Bakı'`, `'ə'` ↔ `'Ə'`). Tam Azərbaycan əlifbası sırası üçün `COLLATE "az-x-icu"` — yaxşı müzakirə mövzusu.
 
 ---
 
-## PostgreSQL (opsional)
+## PostgreSQL
 
-```bash
-npm run pg:up        # docker compose -f docker-compose.postgres.yml up -d
-psql postgresql://apilab:apilab@localhost:5432/apilab -c '\dt'
-```
+Server PostgreSQL 16 ilə işləyir. Quraşdırma:
 
-[`db/postgres/schema.sql`](db/postgres/schema.sql) — eyni 36 cədvəl, constraint-lər, 2 trigger (plpgsql) və 6 view; faylın əvvəlində SQLite ↔ PostgreSQL fərqləri izah olunub.
-Bu, **yalnız sxem səviyyəsindədir**: API server runtime-da SQLite işlədir (better-sqlite3 sinxrondur, `pg` asinxron — ikinci driver bütün repo qatını ikiləşdirərdi), seed faylları isə SQLite tarix funksiyalarından istifadə edir.
+| OS | Əmr |
+|---|---|
+| macOS | `brew install postgresql@16 && brew services start postgresql@16` |
+| Ubuntu | `sudo apt install postgresql-16` (sonra `PG_SUPERUSER_URL=postgres://postgres@localhost/postgres`) |
+| Windows | [EDB installer](https://www.postgresql.org/download/windows/) — `PG_SUPERUSER_URL=postgres://postgres:<parol>@localhost/postgres` |
+
+Sonra `npm run db:setup`. Skript superuser kimi (`PG_SUPERUSER_URL`, default — macOS istifadəçisi) qoşulur və bunları yaradır:
+
+| Obyekt | Nə üçün |
+|---|---|
+| rol `apilab` | Tətbiq — bazaların sahibi, `CREATEDB` (testlər hər worker üçün baza yaradır) |
+| rol `apilab_playground` | SQL Playground — **yalnız oxu**; sirr sütunlu cədvəllərə (`users.password_hash` və s.) birbaşa giriş yoxdur, `lab` sxemindəki maskalı view-lar görünür |
+| baza `apilab` | Əsas baza (`DATABASE_URL`) |
+| baza `apilab_e2e` | Playwright testləri (hər qaçışda təmiz seed) |
+
+Sxem `db/migrations/*.sql`-dadır (`001_init.sql` — 37 cədvəl, 2 trigger, 6 view; `002_playground.sql` — playground rolu və maskalar). Seed tarixləri bu günə nisbidir (`db/seed/00_helpers.sql`: `seed_ts`, `seed_date`). Bütün sessiyalar UTC-dədir.
+
+Testlər (`npm test`) eyni PostgreSQL-dən istifadə edir: qaçışın əvvəlində şablon baza qurulur, hər test app-i öz təmiz bazasını alır.
 
 ---
 

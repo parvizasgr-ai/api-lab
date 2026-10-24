@@ -24,7 +24,7 @@ export function exposureProblems(config: Pick<Config, 'host' | 'jwtSecret' | 'ad
 }
 
 // ADMIN_PASSWORD verilibsə admin istifadəçisinin parolunu onunla əvəz edir (seed-dən sonra da)
-export function applyAdminPassword(db: DB, config: Pick<Config, 'adminPassword'>): boolean {
+export async function applyAdminPassword(db: DB, config: Pick<Config, 'adminPassword'>): Promise<boolean> {
   if (!config.adminPassword) return false;
-  return db.prepare(`UPDATE users SET password_hash = ? WHERE username = 'admin'`).run(hashPassword(config.adminPassword)).changes > 0;
+  return (await db.prepare(`UPDATE users SET password_hash = ? WHERE username = 'admin'`).run(hashPassword(config.adminPassword))).changes > 0;
 }

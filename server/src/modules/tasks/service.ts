@@ -48,16 +48,16 @@ export class TasksService {
     return isoNow(this.ctx.config.now());
   }
 
-  private load(userId: number, id: number) {
-    const t = tasksRepo.get(this.db, userId, id);
+  private async load(userId: number, id: number) {
+    const t = await tasksRepo.get(this.db, userId, id);
     if (!t) throw notFound('TASK_NOT_FOUND', 'Tapşırıq tapılmadı');
     return t;
   }
 
   // Tapşırığın SQL yoxlaması da SQL Playground qaydalarına uyğun olmalıdır (yalnız SELECT)
-  private fields(input: TaskInput): TaskFields {
+  private async fields(input: TaskInput): Promise<TaskFields> {
     if (input.sqlCheck) guardQuery(input.sqlCheck, 200);
-    if (input.materialId && !tasksRepo.materialExists(this.db, input.materialId)) throw notFound('MATERIAL_NOT_FOUND', 'Material tapılmadı');
+    if (input.materialId && !(await tasksRepo.materialExists(this.db, input.materialId))) throw notFound('MATERIAL_NOT_FOUND', 'Material tapılmadı');
     return {
       lesson: input.lesson,
       title: input.title,
@@ -71,26 +71,26 @@ export class TasksService {
     };
   }
 
-  private unique<T>(fn: () => T): T {
+  private async unique<T>(fn: () => Promise<T>): Promise<T> {
     try {
-      return fn();
+      return await fn();
     } catch (err) {
-      if ((err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') throw conflict('TASK_EXISTS', 'Bu dərsdə eyni başlıqlı tapşırıq artıq var');
+      if ((err as { code?: string }).code === '23505') throw conflict('TASK_EXISTS', 'Bu dərsdə eyni başlıqlı tapşırıq artıq var');
       throw err;
     }
   }
 
-  list(auth: AuthContext, lesson?: number) {
-    return { items: tasksRepo.list(this.db, auth.userId, lesson).map(toTask) };
+  async list(auth: AuthContext, lesson?: number) {
+    return { items: (await tasksRepo.list(this.db, auth.userId, lesson)).map(toTask) };
   }
 
-  create(auth: AuthContext, input: TaskInput) {
-    const id = this.unique(() => tasksRepo.insert(this.db, { ...this.fields(input), at: this.now() }));
-    return toTask(this.load(auth.userId, id));
+  async create(auth: AuthContext, input: TaskInput) {
+    const id = await this.unique(async () => tasksRepo.insert(this.db, { ...await this.fields(input), at: this.now() }));
+    return toTask(await this.load(auth.userId, id));
   }
 
-  update(auth: AuthContext, id: number, patch: Partial<TaskInput>) {
-    const t = this.load(auth.userId, id);
+  async update(auth: AuthContext, id: number, patch: Partial<TaskInput>) {
+    const t = await this.load(auth.userId, id);
     const merged: TaskInput = {
       lesson: patch.lesson ?? t.lesson,
       title: patch.title ?? t.title,
@@ -102,52 +102,57 @@ export class TasksService {
       materialId: patch.materialId === undefined ? t.material_id : patch.materialId,
       sortOrder: patch.sortOrder ?? t.sort_order,
     };
-    this.unique(() => tasksRepo.update(this.db, id, { ...this.fields(merged), at: this.now() }));
-    return toTask(this.load(auth.userId, id));
+    await this.unique(async () => tasksRepo.update(this.db, id, { ...await this.fields(merged), at: this.now() }));
+    return toTask(await this.load(auth.userId, id));
   }
 
-  delete(id: number) {
-    if (tasksRepo.delete(this.db, id) === 0) throw notFound('TASK_NOT_FOUND', 'Tapşırıq tapılmadı');
+  async delete(id: number) {
+    if (await tasksRepo.delete(this.db, id) === 0) throw notFound('TASK_NOT_FOUND', 'Tapşırıq tapılmadı');
   }
 
-  setProgress(auth: AuthContext, taskId: number, done: boolean) {
-    this.load(auth.userId, taskId);
-    if (done) tasksRepo.markDone(this.db, auth.userId, taskId, this.now());
-    else tasksRepo.markUndone(this.db, auth.userId, taskId);
-    const t = this.load(auth.userId, taskId);
+  async setProgress(auth: AuthContext, taskId: number, done: boolean) {
+    await this.load(auth.userId, taskId);
+    if (done) await tasksRepo.markDone(this.db, auth.userId, taskId, this.now());
+    else await tasksRepo.markUndone(this.db, auth.userId, taskId);
+    const t = await this.load(auth.userId, taskId);
     return { taskId, done: t.done_at !== null, doneAt: t.done_at };
   }
 
-  myProgress(auth: AuthContext) {
-    const byLesson = tasksRepo.summary(this.db, auth.userId);
-    const items = tasksRepo
-      .list(this.db, auth.userId)
+  async myProgress(auth: AuthContext) {
+    const byLesson = await tasksRepo.summary(this.db, auth.userId);
+    const items = (await tasksRepo
+          .list(this.db, auth.userId))
       .filter((t) => t.done_at)
       .map((t) => ({ taskId: t.id, done: true, doneAt: t.done_at }));
     return { total: byLesson.reduce((n, l) => n + l.total, 0), done: items.length, byLesson, items };
   }
 
   // Bütün fayl bir transaction-dadır: bir tapşırıq səhvdirsə, heç nə yazılmır
-  import(req: Request) {
+  async import(req: Request) {
     const f = req.file!;
     inspectFile(f.path, f.originalname, f.mimetype, ['md']);
     const parsed = parseTaskMarkdown(fs.readFileSync(f.path, 'utf8'));
     let created = 0;
     let updated = 0;
-    const ids = this.db.transaction(() =>
-      parsed.map((p, i) => {
-        const existing = tasksRepo.findByTitle(this.db, p.lesson, p.title);
-        const fields = this.fields({ ...p, sortOrder: p.sortOrder ?? i + 1 });
+    const ids = await this.db.transaction(async () => {
+      const out: number[] = [];
+      for (const [i, p] of parsed.entries()) {
+        const existing = await tasksRepo.findByTitle(this.db, p.lesson, p.title);
+        const fields = await this.fields({ ...p, sortOrder: p.sortOrder ?? i + 1 });
         if (existing) {
-          const current = this.load(req.auth!.userId, existing.id);
-          tasksRepo.update(this.db, existing.id, { ...fields, material_id: current.material_id, at: this.now() });
+          const current = await this.load(req.auth!.userId, existing.id);
+          await tasksRepo.update(this.db, existing.id, { ...fields, material_id: current.material_id, at: this.now() });
           updated++;
-          return existing.id;
+          out.push(existing.id);
+          continue;
         }
         created++;
-        return tasksRepo.insert(this.db, { ...fields, at: this.now() });
-      }),
-    )();
-    return { created, updated, tasks: ids.map((id) => toTask(this.load(req.auth!.userId, id))) };
+        out.push(await tasksRepo.insert(this.db, { ...fields, at: this.now() }));
+      }
+      return out;
+    })();
+    const tasks = [];
+    for (const id of ids) tasks.push(toTask(await this.load(req.auth!.userId, id)));
+    return { created, updated, tasks };
   }
 }

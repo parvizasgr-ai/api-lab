@@ -1,5 +1,5 @@
 -- 03. Aylıq xərc/gəlir (GROUP BY ay + tip)
-SELECT strftime('%Y-%m', created_at)        AS month,
+SELECT substr(created_at, 1, 7)             AS month,
        type,
        COUNT(*)                             AS tx_count,
        ROUND(SUM(amount_minor) / 100.0, 2)  AS total

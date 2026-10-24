@@ -14,9 +14,9 @@ async function setup() {
   return { ...t, student, rauf };
 }
 
-const balance = (t: T, id: string) => t.db.prepare(`SELECT balance_minor FROM accounts WHERE id = ?`).pluck().get(id) as number;
-const historyCount = (t: T, cardId: number) =>
-  t.db.prepare(`SELECT COUNT(*) FROM card_status_history WHERE card_id = ?`).pluck().get(cardId) as number;
+const balance = async (t: T, id: string) => (await t.db.prepare(`SELECT balance_minor FROM accounts WHERE id = ?`).pluck().get(id)) as number;
+const historyCount = async (t: T, cardId: number) =>
+  (await t.db.prepare(`SELECT COUNT(*) FROM card_status_history WHERE card_id = ?`).pluck().get(cardId)) as number;
 
 describe('accounts', () => {
   let t: Awaited<ReturnType<typeof setup>>;
@@ -84,22 +84,22 @@ describe('cards — blok/unblock', () => {
   });
 
   it('blok: 200, card_status_history-də 1 yeni sətir, ikinci dəfə 409', async () => {
-    const before = historyCount(t, 1);
+    const before = await historyCount(t, 1);
     const res = await t.api().post('/api/v1/cards/1/block').set(bearer(t.student)).send({ reason: 'LOST', comment: 'Metroda itirdim' });
     expect(res.status).toBe(200);
     expectMatchesSpec(res, 'blockCard');
     expect(res.body).toMatchObject({ cardId: 1, previousStatus: 'ACTIVE', status: 'BLOCKED', reason: 'LOST' });
-    expect(historyCount(t, 1)).toBe(before + 1);
-    const row = t.db.prepare(`SELECT old_status, new_status, reason, changed_by FROM card_status_history WHERE card_id = 1`).get();
+    expect(await historyCount(t, 1)).toBe(before + 1);
+    const row = await t.db.prepare(`SELECT old_status, new_status, reason, changed_by FROM card_status_history WHERE card_id = 1`).get();
     expect(row).toEqual({ old_status: 'ACTIVE', new_status: 'BLOCKED', reason: 'LOST', changed_by: 1 });
-    const audit = t.db.prepare(`SELECT details FROM audit_log WHERE action = 'CARD_BLOCKED'`).pluck().get() as string;
+    const audit = (await t.db.prepare(`SELECT details FROM audit_log WHERE action = 'CARD_BLOCKED'`).pluck().get()) as string;
     expect(JSON.parse(audit)).toEqual({ reason: 'LOST', comment: 'Metroda itirdim' });
 
     const again = await t.api().post('/api/v1/cards/1/block').set(bearer(t.student)).send({ reason: 'LOST' });
     expect(again.status).toBe(409);
     expectMatchesSpec(again, 'blockCard');
     expect(again.body.code).toBe('CARD_ALREADY_BLOCKED');
-    expect(historyCount(t, 1)).toBe(before + 1);
+    expect(await historyCount(t, 1)).toBe(before + 1);
   });
 
   it('blok: səhv reason 422, başqasının kartı 403, tokensiz 401, olmayan 404, müddəti bitmiş 409', async () => {
@@ -123,7 +123,7 @@ describe('cards — blok/unblock', () => {
     expect(expired.body.code).toBe('CARD_EXPIRED');
 
     // Heç biri DB-ni dəyişməyib
-    expect(t.db.prepare(`SELECT status FROM cards WHERE id IN (1, 5) ORDER BY id`).pluck().all()).toEqual(['ACTIVE', 'ACTIVE']);
+    expect(await t.db.prepare(`SELECT status FROM cards WHERE id IN (1, 5) ORDER BY id`).pluck().all()).toEqual(['ACTIVE', 'ACTIVE']);
   });
 
   it('blok + eyni Idempotency-Key: replay (200, eyni cavab), 409 deyil; tarixçədə yenə 1 sətir', async () => {
@@ -134,7 +134,7 @@ describe('cards — blok/unblock', () => {
     expect(second.status).toBe(200);
     expect(second.headers['idempotent-replayed']).toBe('true');
     expect(second.body).toEqual(first.body);
-    expect(historyCount(t, 1)).toBe(1);
+    expect(await historyCount(t, 1)).toBe(1);
   });
 
   it('unblock: LOST → 200 ACTIVE; STOLEN → 422; aktiv kart → 409', async () => {
@@ -142,7 +142,7 @@ describe('cards — blok/unblock', () => {
     expect(res.status).toBe(200);
     expectMatchesSpec(res, 'unblockCard');
     expect(res.body).toMatchObject({ previousStatus: 'BLOCKED', status: 'ACTIVE' });
-    expect(t.db.prepare(`SELECT status, status_reason FROM cards WHERE id = 3`).get()).toEqual({ status: 'ACTIVE', status_reason: null });
+    expect(await t.db.prepare(`SELECT status, status_reason FROM cards WHERE id = 3`).get()).toEqual({ status: 'ACTIVE', status_reason: null });
 
     // body opsionaldır
     expect((await t.api().post('/api/v1/cards/1/unblock').set(bearer(t.student))).status).toBe(409);
@@ -165,16 +165,16 @@ describe('transfers', () => {
     t.api().post('/api/v1/transfers').set(bearer(token)).set('Idempotency-Key', key).send(data);
 
   it('201 + Location; balanslar dəyişir; 2 əməliyyat sətri; GET /transfers/{id}', async () => {
-    const from = balance(t, 'AZ21NABZ0001');
-    const to = balance(t, 'AZ21NABZ0004');
+    const from = await balance(t, 'AZ21NABZ0001');
+    const to = await balance(t, 'AZ21NABZ0004');
     const res = await transfer(t.student, 'transfer-happy-01');
     expect(res.status).toBe(201);
     expectMatchesSpec(res, 'createTransfer');
     expect(res.headers.location).toBe(`/api/v1/transfers/${res.body.id}`);
     expect(res.body).toMatchObject({ amount: 25.5, currency: 'AZN', status: 'COMPLETED' });
-    expect(balance(t, 'AZ21NABZ0001')).toBe(from - 2550);
-    expect(balance(t, 'AZ21NABZ0004')).toBe(to + 2550);
-    const legs = t.db.prepare(`SELECT account_id, type, amount_minor FROM transactions WHERE transfer_id = ? ORDER BY id`).all(res.body.id);
+    expect(await balance(t, 'AZ21NABZ0001')).toBe(from - 2550);
+    expect(await balance(t, 'AZ21NABZ0004')).toBe(to + 2550);
+    const legs = await t.db.prepare(`SELECT account_id, type, amount_minor FROM transactions WHERE transfer_id = ? ORDER BY id`).all(res.body.id);
     expect(legs).toEqual([
       { account_id: 'AZ21NABZ0001', type: 'DEBIT', amount_minor: 2550 },
       { account_id: 'AZ21NABZ0004', type: 'CREDIT', amount_minor: 2550 },
@@ -190,14 +190,14 @@ describe('transfers', () => {
   });
 
   it('eyni Idempotency-Key ikinci dəfə pul çıxarmır', async () => {
-    const from = balance(t, 'AZ21NABZ0001');
+    const from = await balance(t, 'AZ21NABZ0001');
     const first = await transfer(t.student, 'transfer-retry-01');
     const second = await transfer(t.student, 'transfer-retry-01');
     expect(second.status).toBe(201);
     expect(second.headers['idempotent-replayed']).toBe('true');
     expect(second.body.id).toBe(first.body.id);
-    expect(balance(t, 'AZ21NABZ0001')).toBe(from - 2550);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM transfers`).pluck().get()).toBe(2); // seed 1 + yeni 1
+    expect(await balance(t, 'AZ21NABZ0001')).toBe(from - 2550);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM transfers`).pluck().get()).toBe(2); // seed 1 + yeni 1
   });
 
   it.each([
@@ -205,12 +205,12 @@ describe('transfers', () => {
     ['CURRENCY_MISMATCH', { ...body, fromAccountId: 'AZ21NABZ0002', currency: 'USD' }],
     ['SAME_ACCOUNT', { ...body, toAccountId: 'AZ21NABZ0001' }],
   ])('422 %s — heç bir balans dəyişmir', async (code, data) => {
-    const snapshot = t.db.prepare(`SELECT id, balance_minor FROM accounts ORDER BY id`).all();
+    const snapshot = await t.db.prepare(`SELECT id, balance_minor FROM accounts ORDER BY id`).all();
     const res = await transfer(t.student, `transfer-${code}`, data);
     expect(res.status).toBe(422);
     expectMatchesSpec(res, 'createTransfer');
     expect(res.body.code).toBe(code);
-    expect(t.db.prepare(`SELECT id, balance_minor FROM accounts ORDER BY id`).all()).toEqual(snapshot);
+    expect(await t.db.prepare(`SELECT id, balance_minor FROM accounts ORDER BY id`).all()).toEqual(snapshot);
   });
 
   it('başqasının hesabından → 403, olmayan hesaba → 404', async () => {
@@ -223,11 +223,13 @@ describe('transfers', () => {
 
   it('ATOMİKLİK: DEBIT yazıldıqdan sonra CREDIT uğursuz olarsa — ROLLBACK, heç nə dəyişmir', async () => {
     // CREDIT sətrinin yazılmasını DB səviyyəsində "sındırırıq" (DEBIT və balans dəyişikliyi artıq icra olunub)
-    t.db.exec(`CREATE TRIGGER test_break_credit BEFORE INSERT ON transactions WHEN NEW.type = 'CREDIT'
-               BEGIN SELECT RAISE(ABORT, 'simulated failure'); END`);
-    const snapshot = t.db.prepare(`SELECT id, balance_minor FROM accounts ORDER BY id`).all();
+    await t.db.exec(`CREATE FUNCTION test_break_credit() RETURNS trigger LANGUAGE plpgsql AS $$
+                       BEGIN RAISE EXCEPTION 'simulated failure'; END $$;
+                     CREATE TRIGGER test_break_credit BEFORE INSERT ON transactions
+                       FOR EACH ROW WHEN (NEW.type = 'CREDIT') EXECUTE FUNCTION test_break_credit();`);
+    const snapshot = await t.db.prepare(`SELECT id, balance_minor FROM accounts ORDER BY id`).all();
     const counts = () => t.db.prepare(`SELECT (SELECT COUNT(*) FROM transfers) || '/' || (SELECT COUNT(*) FROM transactions)`).pluck().get();
-    const before = counts();
+    const before = await counts();
 
     const original = console.error;
     console.error = () => {};
@@ -235,15 +237,15 @@ describe('transfers', () => {
     console.error = original;
 
     expect(res.status).toBe(500);
-    expect(t.db.prepare(`SELECT id, balance_minor FROM accounts ORDER BY id`).all()).toEqual(snapshot);
-    expect(counts()).toBe(before);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM idempotency_keys`).pluck().get()).toBe(0); // xəta saxlanmır
+    expect(await t.db.prepare(`SELECT id, balance_minor FROM accounts ORDER BY id`).all()).toEqual(snapshot);
+    expect(await counts()).toBe(before);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM idempotency_keys`).pluck().get()).toBe(0); // xəta saxlanmır
   });
 
   it('bir neçə köçürmədən sonra balans uzlaşması pozulmur (db/queries/02)', async () => {
     await transfer(t.student, 'transfer-recon-01');
     await transfer(t.rauf, 'transfer-recon-02', { fromAccountId: 'AZ21NABZ0004', toAccountId: 'AZ21NABZ0001', amount: 10, currency: 'AZN' });
     const sql = fs.readFileSync(path.join(ROOT_DIR, 'db/queries/02_balance_reconciliation.sql'), 'utf8');
-    expect(t.db.prepare(sql).all()).toEqual([]);
+    expect(await t.db.prepare(sql).all()).toEqual([]);
   });
 });

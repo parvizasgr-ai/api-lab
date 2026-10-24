@@ -44,87 +44,87 @@ export class CustomersService {
     private config: Config,
   ) {}
 
-  list(q: { city?: string; active?: boolean; q?: string; page: number; size: number; sort?: string }) {
+  async list(q: { city?: string; active?: boolean; q?: string; page: number; size: number; sort?: string }) {
     const filter = { city: q.city, active: q.active, q: q.q };
-    const total = customersRepo.count(this.db, filter);
-    const rows = customersRepo.list(this.db, filter, orderBy(q.sort ?? 'id', SORT), q.size, offsetOf(q.page, q.size));
+    const total = await customersRepo.count(this.db, filter);
+    const rows = await customersRepo.list(this.db, filter, orderBy(q.sort ?? 'id', SORT), q.size, offsetOf(q.page, q.size));
     return pageOf(rows, q.page, q.size, total);
   }
 
-  get(id: number): CustomerRow {
-    const c = customersRepo.get(this.db, id);
+  async get(id: number): Promise<CustomerRow> {
+    const c = await customersRepo.get(this.db, id);
     if (!c) throw notFound('CUSTOMER_NOT_FOUND', 'Müştəri tapılmadı');
     return c;
   }
 
   // Email unikallığını DB özü qoruyur (UNIQUE constraint) — biz yalnız xətanı 409-a çeviririk.
-  private withUniqueEmail<T>(email: string, fn: () => T): T {
+  private async withUniqueEmail<T>(email: string, fn: () => Promise<T>): Promise<T> {
     try {
-      return fn();
+      return await fn();
     } catch (err) {
-      if ((err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      if ((err as { code?: string }).code === '23505') {
         throw conflict('EMAIL_EXISTS', 'Bu email artıq qeydiyyatdadır', [{ field: 'email', message: email }]);
       }
       throw err;
     }
   }
 
-  create(input: CustomerInput): CustomerRow {
+  async create(input: CustomerInput): Promise<CustomerRow> {
     const now = isoNow(this.config.now());
-    const id = this.withUniqueEmail(input.email, () =>
-      customersRepo.insert(this.db, {
-        first_name: input.firstName,
-        last_name: input.lastName,
-        email: input.email,
-        phone: input.phone ?? null,
-        city: input.city ?? null,
-        active: input.active === false ? 0 : 1,
-        created_at: now,
-        updated_at: now,
-      }),
-    );
+    const id = await this.withUniqueEmail(input.email, () =>
+          customersRepo.insert(this.db, {
+            first_name: input.firstName,
+            last_name: input.lastName,
+            email: input.email,
+            phone: input.phone ?? null,
+            city: input.city ?? null,
+            active: input.active === false ? 0 : 1,
+            created_at: now,
+            updated_at: now,
+          }),
+        );
     return this.get(id);
   }
 
   // PUT: bütün sahələr sorğudan gəlir (sxemdə hamısı required) — köhnə dəyərlər istifadə OLUNMUR.
-  replace(id: number, input: Required<CustomerInput>): CustomerRow {
-    this.get(id);
-    this.withUniqueEmail(input.email, () =>
-      customersRepo.update(this.db, {
-        id,
-        first_name: input.firstName,
-        last_name: input.lastName,
-        email: input.email,
-        phone: input.phone,
-        city: input.city,
-        active: input.active ? 1 : 0,
-        updated_at: isoNow(this.config.now()),
-      }),
-    );
+  async replace(id: number, input: Required<CustomerInput>): Promise<CustomerRow> {
+    await this.get(id);
+    await this.withUniqueEmail(input.email, () =>
+            customersRepo.update(this.db, {
+              id,
+              first_name: input.firstName,
+              last_name: input.lastName,
+              email: input.email,
+              phone: input.phone,
+              city: input.city,
+              active: input.active ? 1 : 0,
+              updated_at: isoNow(this.config.now()),
+            }),
+          );
     return this.get(id);
   }
 
   // PATCH: mövcud sətir + yalnız göndərilən sahələr. phone/city: null göndərmək dəyəri silir (JSON Merge Patch məntiqi).
-  patch(id: number, input: Partial<CustomerInput>): CustomerRow {
-    const c = this.get(id);
+  async patch(id: number, input: Partial<CustomerInput>): Promise<CustomerRow> {
+    const c = await this.get(id);
     const email = input.email ?? c.email;
-    this.withUniqueEmail(email, () =>
-      customersRepo.update(this.db, {
-        id,
-        first_name: input.firstName ?? c.first_name,
-        last_name: input.lastName ?? c.last_name,
-        email,
-        phone: input.phone === undefined ? c.phone : input.phone,
-        city: input.city === undefined ? c.city : input.city,
-        active: input.active === undefined ? c.active : input.active ? 1 : 0,
-        updated_at: isoNow(this.config.now()),
-      }),
-    );
+    await this.withUniqueEmail(email, () =>
+            customersRepo.update(this.db, {
+              id,
+              first_name: input.firstName ?? c.first_name,
+              last_name: input.lastName ?? c.last_name,
+              email,
+              phone: input.phone === undefined ? c.phone : input.phone,
+              city: input.city === undefined ? c.city : input.city,
+              active: input.active === undefined ? c.active : input.active ? 1 : 0,
+              updated_at: isoNow(this.config.now()),
+            }),
+          );
     return this.get(id);
   }
 
-  delete(id: number): void {
-    if (customersRepo.delete(this.db, id) === 0) throw notFound('CUSTOMER_NOT_FOUND', 'Müştəri tapılmadı');
+  async delete(id: number): Promise<void> {
+    if (await customersRepo.delete(this.db, id) === 0) throw notFound('CUSTOMER_NOT_FOUND', 'Müştəri tapılmadı');
   }
 }
 

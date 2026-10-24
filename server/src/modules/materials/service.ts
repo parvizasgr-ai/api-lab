@@ -66,94 +66,96 @@ export class MaterialsService {
   }
 
   // Tələbə yalnız hazır materialları görür; ADMIN — hamısını (statusu izləmək üçün)
-  private load(id: number, auth?: AuthContext): MaterialRow {
-    const m = materialsRepo.get(this.db, id);
+  private async load(id: number, auth?: AuthContext): Promise<MaterialRow> {
+    const m = await materialsRepo.get(this.db, id);
     if (!m || (auth && !isAdmin(auth) && !VISIBLE_TO_STUDENTS.has(m.status))) throw notFound('MATERIAL_NOT_FOUND', 'Material tapılmadı');
     return m;
   }
 
-  list(auth: AuthContext, q: { lesson?: number; kind?: string; q?: string }) {
-    return { items: materialsRepo.list(this.db, { ...q, readyOnly: !isAdmin(auth) }).map((m) => this.toMaterial(m)) };
+  async list(auth: AuthContext, q: { lesson?: number; kind?: string; q?: string }) {
+    return { items: (await materialsRepo.list(this.db, { ...q, readyOnly: !isAdmin(auth) })).map((m) => this.toMaterial(m)) };
   }
 
-  get(auth: AuthContext, id: number) {
-    return this.toMaterial(this.load(id, auth));
+  async get(auth: AuthContext, id: number) {
+    return this.toMaterial(await this.load(id, auth));
   }
 
   // Ümumi qəbul: həm HTTP upload, həm də materials/slides import-u bunu çağırır
-  create(file: { path: string; originalName: string; mime: string; move: boolean }, meta: { title: string; description?: string; lesson?: number | null; kind?: MaterialKind; sortOrder?: number }, uploadedBy: number | null) {
+  async create(file: { path: string; originalName: string; mime: string; move: boolean }, meta: { title: string; description?: string; lesson?: number | null; kind?: MaterialKind; sortOrder?: number }, uploadedBy: number | null) {
     const checked = inspectFile(file.path, file.originalName, file.mime);
     const storedName = this.storage.newStoredName(checked.ext);
     this.storage.store(storedName, file.path, file.move);
-    const id = materialsRepo.insert(this.db, {
-      lesson: meta.lesson ?? null,
-      title: meta.title,
-      description: meta.description ?? null,
-      kind: meta.kind ?? DEFAULT_KIND[checked.ext],
-      original_filename: safeDisplayName(file.originalName),
-      stored_name: storedName,
-      mime: checked.mime,
-      size_bytes: checked.size,
-      uploaded_by: uploadedBy,
-      sort_order: meta.sortOrder ?? 0,
-      created_at: this.now(),
-    });
+    const id = await materialsRepo.insert(this.db, {
+          lesson: meta.lesson ?? null,
+          title: meta.title,
+          description: meta.description ?? null,
+          kind: meta.kind ?? DEFAULT_KIND[checked.ext],
+          original_filename: safeDisplayName(file.originalName),
+          stored_name: storedName,
+          mime: checked.mime,
+          size_bytes: checked.size,
+          uploaded_by: uploadedBy,
+          sort_order: meta.sortOrder ?? 0,
+          created_at: this.now(),
+        });
+    const accepted = (await materialsRepo.get(this.db, id))!; // 202 cavabı qəbul anındakı vəziyyəti (UPLOADED) göstərir
     this.queue.enqueue(id);
-    return materialsRepo.get(this.db, id)!;
+    return accepted;
   }
 
-  upload(req: Request) {
+  async upload(req: Request) {
     const f = req.file!;
     const body = req.valid.body;
-    const m = this.create({ path: f.path, originalName: f.originalname, mime: f.mimetype, move: true }, body, req.auth!.userId);
-    writeAudit(this.db, req, this.ctx.config.now(), { action: 'MATERIAL_UPLOADED', entity: 'materials', entityId: m.id, details: { originalFilename: m.original_filename, sizeBytes: m.size_bytes } });
+    const m = await this.create({ path: f.path, originalName: f.originalname, mime: f.mimetype, move: true }, body, req.auth!.userId);
+    await writeAudit(this.db, req, this.ctx.config.now(), { action: 'MATERIAL_UPLOADED', entity: 'materials', entityId: m.id, details: { originalFilename: m.original_filename, sizeBytes: m.size_bytes } });
     return this.toMaterial(m);
   }
 
-  update(id: number, patch: { title?: string; description?: string | null; lesson?: number | null; kind?: MaterialKind; sortOrder?: number }) {
-    const m = this.load(id);
-    materialsRepo.update(this.db, id, {
-      title: patch.title ?? m.title,
-      description: patch.description === undefined ? m.description : patch.description,
-      lesson: patch.lesson === undefined ? m.lesson : patch.lesson,
-      kind: patch.kind ?? m.kind,
-      sort_order: patch.sortOrder ?? m.sort_order,
-      at: this.now(),
-    });
-    return this.toMaterial(materialsRepo.get(this.db, id)!);
+  async update(id: number, patch: { title?: string; description?: string | null; lesson?: number | null; kind?: MaterialKind; sortOrder?: number }) {
+    const m = await this.load(id);
+    await materialsRepo.update(this.db, id, {
+            title: patch.title ?? m.title,
+            description: patch.description === undefined ? m.description : patch.description,
+            lesson: patch.lesson === undefined ? m.lesson : patch.lesson,
+            kind: patch.kind ?? m.kind,
+            sort_order: patch.sortOrder ?? m.sort_order,
+            at: this.now(),
+          });
+    return this.toMaterial((await materialsRepo.get(this.db, id))!);
   }
 
   private assertNotBusy(m: MaterialRow) {
     if (m.status === 'CONVERTING' || this.queue.isPending(m.id)) throw conflict('MATERIAL_BUSY', 'Material hazırda konvertasiya olunur — bitməsini gözləyin');
   }
 
-  delete(req: Request, id: number) {
-    const m = this.load(id);
+  async delete(req: Request, id: number) {
+    const m = await this.load(id);
     this.assertNotBusy(m);
-    materialsRepo.delete(this.db, id);
+    await materialsRepo.delete(this.db, id);
     this.storage.remove(m.stored_name);
-    writeAudit(this.db, req, this.ctx.config.now(), { action: 'MATERIAL_DELETED', entity: 'materials', entityId: id, details: { originalFilename: m.original_filename } });
+    await writeAudit(this.db, req, this.ctx.config.now(), { action: 'MATERIAL_DELETED', entity: 'materials', entityId: id, details: { originalFilename: m.original_filename } });
   }
 
-  reconvert(req: Request, id: number) {
-    const m = this.load(id);
+  async reconvert(req: Request, id: number) {
+    const m = await this.load(id);
     this.assertNotBusy(m);
-    this.db.transaction(() => {
-      materialsRepo.replacePages(this.db, id, []);
-      materialsRepo.setStatus(this.db, id, 'UPLOADED', this.now());
-    })();
+    await this.db.transaction(async () => {
+            await materialsRepo.replacePages(this.db, id, []);
+            await materialsRepo.setStatus(this.db, id, 'UPLOADED', this.now());
+          })();
     fs.rmSync(this.storage.pagesDir(m.stored_name), { recursive: true, force: true });
     fs.rmSync(this.storage.convertedPdfPath(m.stored_name), { force: true });
+    await writeAudit(this.db, req, this.ctx.config.now(), { action: 'MATERIAL_RECONVERT', entity: 'materials', entityId: id });
+    const accepted = this.toMaterial((await materialsRepo.get(this.db, id))!);
     this.queue.enqueue(id);
-    writeAudit(this.db, req, this.ctx.config.now(), { action: 'MATERIAL_RECONVERT', entity: 'materials', entityId: id });
-    return this.toMaterial(materialsRepo.get(this.db, id)!);
+    return accepted;
   }
 
-  pages(auth: AuthContext, id: number) {
-    const m = this.load(id, auth);
+  async pages(auth: AuthContext, id: number) {
+    const m = await this.load(id, auth);
     const base = `/api/v1/materials/${id}/pages`;
     const items = m.status === 'READY'
-      ? materialsRepo.pages(this.db, id).map((p) => ({
+      ? (await materialsRepo.pages(this.db, id)).map((p) => ({
           pageNo: p.page_no,
           imageUrl: signPath(this.ctx.config, `${base}/${p.page_no}/image`),
           thumbUrl: signPath(this.ctx.config, `${base}/${p.page_no}/thumb`),
@@ -170,23 +172,23 @@ export class MaterialsService {
     if (!verifySignature(this.ctx.config, req.path, exp, sig)) throw new ApiError(401, 'INVALID_SIGNATURE', 'Pre-signed URL etibarsızdır və ya vaxtı keçib');
   }
 
-  pageFile(req: Request, id: number, pageNo: number, variant: 'image' | 'thumb') {
+  async pageFile(req: Request, id: number, pageNo: number, variant: 'image' | 'thumb') {
     this.authorizeFile(req);
-    const m = this.load(id, req.auth);
-    const page = materialsRepo.page(this.db, id, pageNo);
+    const m = await this.load(id, req.auth);
+    const page = await materialsRepo.page(this.db, id, pageNo);
     if (!page) throw notFound('PAGE_NOT_FOUND', 'Səhifə tapılmadı');
     return this.storage.pagePath(m.stored_name, variant === 'image' ? page.image_name : page.thumb_name);
   }
 
-  original(req: Request, id: number) {
+  async original(req: Request, id: number) {
     this.authorizeFile(req);
-    const m = this.load(id, req.auth);
+    const m = await this.load(id, req.auth);
     return { file: this.storage.originalPath(m.stored_name), name: m.original_filename, mime: m.mime };
   }
 
-  pdf(req: Request, id: number) {
+  async pdf(req: Request, id: number) {
     this.authorizeFile(req);
-    const m = this.load(id, req.auth);
+    const m = await this.load(id, req.auth);
     const file = this.storage.pdfPath(m.stored_name);
     if (!file) throw notFound('NO_PDF_VERSION', 'Bu materialın PDF versiyası yoxdur');
     return { file, name: `${path.parse(m.original_filename).name}.pdf` };

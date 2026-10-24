@@ -58,9 +58,9 @@ describe('_db/query', () => {
     expect(res.body.code).toBe('SQL_NOT_ALLOWED');
   });
 
-  it('DB dəyişməyib (bütün cəhdlərdən sonra)', () => {
-    expect(t.db.prepare(`SELECT COUNT(*) FROM cards`).pluck().get()).toBe(7);
-    expect(t.db.prepare(`SELECT status FROM cards WHERE id = 1`).pluck().get()).toBe('ACTIVE');
+  it('DB dəyişməyib (bütün cəhdlərdən sonra)', async () => {
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM cards`).pluck().get()).toBe(7);
+    expect(await t.db.prepare(`SELECT status FROM cards WHERE id = 1`).pluck().get()).toBe('ACTIVE');
   });
 
   it('sintaksis xətası → 422 SQL_SYNTAX_ERROR', async () => {
@@ -84,7 +84,7 @@ describe('_db/query', () => {
     expect(guardQuery('SELECT id FROM flights LIMIT 10, 900', 200).executedSql).toBe('SELECT id FROM flights LIMIT 10, 201');
   });
 
-  it('gizli sütunlar sızmır: SELECT *, birbaşa ad, CTE ilə ad dəyişmə, ifadə, group_concat', async () => {
+  it('gizli sütunlar sızmır: SELECT *, birbaşa ad, CTE ilə ad dəyişmə, ifadə, string_agg', async () => {
     const star = await query('SELECT * FROM users');
     expect(star.status).toBe(200);
     expect(star.body.columns).not.toContain('password_hash');
@@ -96,7 +96,7 @@ describe('_db/query', () => {
 
     const attempts = [
       'WITH t(a, b, c) AS (SELECT id, username, password_hash FROM users) SELECT substr(c, 1, 100) AS x FROM t',
-      'SELECT group_concat(password_hash) AS all_hashes FROM users',
+      'SELECT string_agg(password_hash, \',\') AS all_hashes FROM users',
       "SELECT key_hash || '' AS k FROM api_keys",
       'SELECT client_secret_hash AS s FROM oauth_clients',
       'SELECT u.*, length(u.password_hash) AS len FROM users u',
@@ -111,16 +111,16 @@ describe('_db/query', () => {
     const expr = await query('SELECT substr(password_hash, 1, 8) AS x FROM users WHERE id = 1');
     expect(expr.body.rows[0].x).toBe('[hidden#');
     // əsl DB toxunulmayıb
-    expect(t.db.prepare(`SELECT password_hash FROM users WHERE id = 1`).pluck().get()).toMatch(/^scrypt\$/);
+    expect(await t.db.prepare(`SELECT password_hash FROM users WHERE id = 1`).pluck().get()).toMatch(/^scrypt\$/);
   });
 
   it('hər sorğu audit_log-a yazılır (uğurlu və rədd edilmiş), token varsa istifadəçi ilə', async () => {
-    const before = t.db.prepare(`SELECT COUNT(*) FROM audit_log WHERE action = 'SQL_QUERY'`).pluck().get() as number;
+    const before = (await t.db.prepare(`SELECT COUNT(*) FROM audit_log WHERE action = 'SQL_QUERY'`).pluck().get()) as number;
     const { access_token } = await t.login();
     await t.api().post('/api/v1/_db/query').set(bearer(access_token)).send({ sql: 'SELECT 1 AS one' });
     await query('DROP TABLE cards');
-    const rows = t.db.prepare(`SELECT user_id, details FROM audit_log WHERE action = 'SQL_QUERY' ORDER BY id DESC LIMIT 2`).all() as { user_id: number | null; details: string }[];
-    expect(t.db.prepare(`SELECT COUNT(*) FROM audit_log WHERE action = 'SQL_QUERY'`).pluck().get()).toBe(before + 2);
+    const rows = (await t.db.prepare(`SELECT user_id, details FROM audit_log WHERE action = 'SQL_QUERY' ORDER BY id DESC LIMIT 2`).all()) as { user_id: number | null; details: string }[];
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM audit_log WHERE action = 'SQL_QUERY'`).pluck().get()).toBe(before + 2);
     expect(JSON.parse(rows[0].details)).toMatchObject({ sql: 'DROP TABLE cards', result: 'SQL_NOT_ALLOWED' });
     expect(rows[1].user_id).toBe(1);
     expect(JSON.parse(rows[1].details)).toMatchObject({ result: 'OK', rowCount: 1 });

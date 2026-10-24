@@ -56,53 +56,53 @@ const CARD_SELECT = `SELECT c.*, a.currency FROM cards c JOIN accounts a ON a.id
 function transactionWhere(f: TransactionFilter) {
   const where = ['account_id = @accountId'];
   if (f.from) where.push('created_at >= @from');
-  if (f.to) where.push(`created_at < date(@to, '+1 day')`); // "to" tarixi daxildir
+  if (f.to) where.push(`created_at < to_char(@to::date + 1, 'YYYY-MM-DD')`); // "to" tarixi daxildir
   if (f.type) where.push('type = @type');
   return { sql: where.join(' AND '), params: { accountId: f.accountId, from: f.from, to: f.to, type: f.type } };
 }
 
 export const bankRepo = {
-  listAccounts: (db: DB, ownerId: number) =>
-    db.prepare(`SELECT * FROM accounts WHERE owner_id = ? ORDER BY id`).all(ownerId) as AccountRow[],
+  listAccounts: async (db: DB, ownerId: number) =>
+    (await db.prepare(`SELECT * FROM accounts WHERE owner_id = ? ORDER BY id`).all(ownerId)) as AccountRow[],
 
-  getAccount: (db: DB, id: string) => db.prepare(`SELECT * FROM accounts WHERE id = ?`).get(id) as AccountRow | undefined,
+  getAccount: async (db: DB, id: string) => (await db.prepare(`SELECT * FROM accounts WHERE id = ?`).get(id)) as AccountRow | undefined,
 
-  countTransactions(db: DB, f: TransactionFilter): number {
+  async countTransactions(db: DB, f: TransactionFilter): Promise<number> {
     const w = transactionWhere(f);
-    return db.prepare(`SELECT COUNT(*) FROM transactions WHERE ${w.sql}`).pluck().get(w.params) as number;
+    return (await db.prepare(`SELECT COUNT(*) FROM transactions WHERE ${w.sql}`).pluck().get(w.params)) as number;
   },
 
-  listTransactions(db: DB, f: TransactionFilter, orderBy: string, limit: number, offset: number) {
+  async listTransactions(db: DB, f: TransactionFilter, orderBy: string, limit: number, offset: number) {
     const w = transactionWhere(f);
-    return db
-      .prepare(`SELECT * FROM transactions WHERE ${w.sql} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`)
-      .all({ ...w.params, limit, offset }) as TransactionRow[];
+    return (await db
+          .prepare(`SELECT * FROM transactions WHERE ${w.sql} ORDER BY ${orderBy} LIMIT @limit OFFSET @offset`)
+          .all({ ...w.params, limit, offset })) as TransactionRow[];
   },
 
-  recentTransactions: (db: DB, ownerId: number, limit: number) =>
-    db
-      .prepare(
-        `SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id
+  recentTransactions: async (db: DB, ownerId: number, limit: number) =>
+    (await db
+            .prepare(
+              `SELECT t.* FROM transactions t JOIN accounts a ON a.id = t.account_id
          WHERE a.owner_id = ? ORDER BY t.created_at DESC, t.id DESC LIMIT ?`,
-      )
-      .all(ownerId, limit) as TransactionRow[],
+            )
+            .all(ownerId, limit)) as TransactionRow[],
 
-  listCards(db: DB, ownerId: number, status?: string) {
-    return db
-      .prepare(`${CARD_SELECT} WHERE c.owner_id = @ownerId AND (@status IS NULL OR c.status = @status) ORDER BY c.id`)
-      .all({ ownerId, status: status ?? null }) as CardRow[];
+  async listCards(db: DB, ownerId: number, status?: string) {
+    return (await db
+          .prepare(`${CARD_SELECT} WHERE c.owner_id = @ownerId AND (@status::text IS NULL OR c.status = @status) ORDER BY c.id`)
+          .all({ ownerId, status: status ?? null })) as CardRow[];
   },
 
-  getCard: (db: DB, id: number) => db.prepare(`${CARD_SELECT} WHERE c.id = ?`).get(id) as CardRow | undefined,
+  getCard: async (db: DB, id: number) => (await db.prepare(`${CARD_SELECT} WHERE c.id = ?`).get(id)) as CardRow | undefined,
 
-  cardHistory: (db: DB, cardId: number) =>
-    db
-      .prepare(
-        `SELECT h.old_status, h.new_status, h.reason, u.username AS changed_by, h.changed_at
+  cardHistory: async (db: DB, cardId: number) =>
+    (await db
+            .prepare(
+              `SELECT h.old_status, h.new_status, h.reason, u.username AS changed_by, h.changed_at
          FROM card_status_history h LEFT JOIN users u ON u.id = h.changed_by
          WHERE h.card_id = ? ORDER BY h.changed_at, h.id`,
-      )
-      .all(cardId) as { old_status: string; new_status: string; reason: string | null; changed_by: string | null; changed_at: string }[],
+            )
+            .all(cardId)) as { old_status: string; new_status: string; reason: string | null; changed_by: string | null; changed_at: string }[],
 
   // status_reason və status_changed_by eyni UPDATE-də yazılır → trg_cards_status_history onları NEW.*-dan oxuyur.
   updateCardStatus: (db: DB, id: number, status: string, reason: string | null, changedBy: number, at: string) =>
@@ -113,14 +113,14 @@ export const bankRepo = {
   changeBalance: (db: DB, accountId: string, deltaMinor: number, at: string) =>
     db.prepare(`UPDATE accounts SET balance_minor = balance_minor + ?, updated_at = ? WHERE id = ?`).run(deltaMinor, at, accountId),
 
-  insertTransfer: (db: DB, t: Omit<TransferRow, 'id' | 'status'> & { created_by: number }) =>
+  insertTransfer: async (db: DB, t: Omit<TransferRow, 'id' | 'status'> & { created_by: number }) =>
     Number(
-      db
-        .prepare(
-          `INSERT INTO transfers (from_account, to_account, amount_minor, currency, status, created_by, created_at)
+      (await db
+                .prepare(
+                  `INSERT INTO transfers (from_account, to_account, amount_minor, currency, status, created_by, created_at)
            VALUES (@from_account, @to_account, @amount_minor, @currency, 'COMPLETED', @created_by, @created_at)`,
-        )
-        .run(t).lastInsertRowid,
+                )
+                .run(t)).lastInsertRowid,
     ),
 
   insertTransaction: (db: DB, t: Omit<TransactionRow, 'id'>) =>
@@ -131,5 +131,5 @@ export const bankRepo = {
       )
       .run(t),
 
-  getTransfer: (db: DB, id: number) => db.prepare(`SELECT * FROM transfers WHERE id = ?`).get(id) as TransferRow | undefined,
+  getTransfer: async (db: DB, id: number) => (await db.prepare(`SELECT * FROM transfers WHERE id = ?`).get(id)) as TransferRow | undefined,
 };

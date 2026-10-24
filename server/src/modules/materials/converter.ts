@@ -39,11 +39,14 @@ export class ConversionQueue {
     return this.pending.has(id);
   }
 
-  enqueue(id: number) {
+  enqueue(id: number): void {
     if (this.pending.has(id)) return;
     this.pending.add(id);
     const gen = this.generation;
-    this.chain = this.chain.then(() => (gen === this.generation ? this.convert(id, gen) : undefined)).finally(() => this.pending.delete(id));
+    this.chain = this.chain
+      .then(() => (gen === this.generation ? this.convert(id, gen) : undefined))
+      .catch((err: Error) => console.error(`[materials] #${id} konvertasiya xətası:`, err.message))
+      .finally(() => this.pending.delete(id));
   }
 
   reset() {
@@ -61,14 +64,14 @@ export class ConversionQueue {
   }
 
   private async convert(id: number, gen: number): Promise<void> {
-    const m = materialsRepo.get(this.db, id);
+    const m = await materialsRepo.get(this.db, id);
     if (!m) return;
-    const setStatus: typeof materialsRepo.setStatus = (...args) => (gen === this.generation ? materialsRepo.setStatus(...args) : (undefined as never));
-    setStatus(this.db, id, 'CONVERTING', this.now());
+    const setStatus: typeof materialsRepo.setStatus = async (...args) => (gen === this.generation ? await materialsRepo.setStatus(...args) : (undefined as never));
+    await setStatus(this.db, id, 'CONVERTING', this.now());
     try {
       const ext = path.extname(m.stored_name).slice(1);
       if (ext === 'md') {
-        setStatus(this.db, id, 'READY', this.now()); // markdown birbaşa oxunur, şəkil lazım deyil
+        await setStatus(this.db, id, 'READY', this.now()); // markdown birbaşa oxunur, şəkil lazım deyil
         return;
       }
       const tools = detectTools(this.config);
@@ -76,7 +79,7 @@ export class ConversionQueue {
 
       if (ext === 'pptx' || ext === 'docx') {
         if (!tools.soffice) {
-          setStatus(this.db, id, 'READY_NO_PREVIEW', this.now(), { error: 'LibreOffice (soffice) quraşdırılmayıb — yalnız endirmə mümkündür' });
+          await setStatus(this.db, id, 'READY_NO_PREVIEW', this.now(), { error: 'LibreOffice (soffice) quraşdırılmayıb — yalnız endirmə mümkündür' });
           return;
         }
         const outDir = this.storage.dirOf(m.stored_name);
@@ -89,7 +92,7 @@ export class ConversionQueue {
       const pdf = this.storage.pdfPath(m.stored_name);
       if (!pdf) throw new Error('PDF versiyası yaradılmadı');
       if (!tools.pdftoppm) {
-        setStatus(this.db, id, 'READY_NO_PREVIEW', this.now(), { error: 'pdftoppm (poppler-utils) quraşdırılmayıb — yalnız endirmə mümkündür' });
+        await setStatus(this.db, id, 'READY_NO_PREVIEW', this.now(), { error: 'pdftoppm (poppler-utils) quraşdırılmayıb — yalnız endirmə mümkündür' });
         return;
       }
 
@@ -120,12 +123,12 @@ export class ConversionQueue {
       if (!pages.length) throw new Error('PDF-dən heç bir səhifə çıxarılmadı');
 
       if (gen !== this.generation) return;
-      this.db.transaction(() => {
-        materialsRepo.replacePages(this.db, id, pages);
-        setStatus(this.db, id, 'READY', this.now(), { pageCount: pages.length });
-      })();
+      await this.db.transaction(async () => {
+                await materialsRepo.replacePages(this.db, id, pages);
+                await setStatus(this.db, id, 'READY', this.now(), { pageCount: pages.length });
+              })();
     } catch (err) {
-      setStatus(this.db, id, 'FAILED', this.now(), { error: (err as Error).message.slice(0, 1000) });
+      await setStatus(this.db, id, 'FAILED', this.now(), { error: (err as Error).message.slice(0, 1000) });
     }
   }
 }

@@ -14,7 +14,7 @@ describe('login', () => {
     expect(res.body.scope).toContain('cards:write');
     expect(res.headers['cache-control']).toBe('no-store');
     // Refresh token DB-də açıq saxlanmır — yalnız hash
-    const stored = t.db.prepare(`SELECT token_hash FROM refresh_tokens ORDER BY id DESC LIMIT 1`).pluck().get();
+    const stored = await t.db.prepare(`SELECT token_hash FROM refresh_tokens ORDER BY id DESC LIMIT 1`).pluck().get();
     expect(stored).not.toBe(res.body.refresh_token);
     expect(stored).toMatch(/^[a-f0-9]{64}$/);
   });
@@ -23,8 +23,8 @@ describe('login', () => {
     await t.api().post('/api/v1/auth/login').set('X-Request-Id', 'login-ok-1').send({ username: 'rauf', password: 'rauf123' });
     await t.api().post('/api/v1/auth/login').set('X-Request-Id', 'login-fail-1').send({ username: 'rauf', password: 'wrong-pass' });
     const userOf = (id: string) => t.db.prepare(`SELECT user_id FROM request_log WHERE request_id = ?`).pluck().get(id);
-    expect(userOf('login-ok-1')).toBe(3);
-    expect(userOf('login-fail-1')).toBeNull();
+    expect(await userOf('login-ok-1')).toBe(3);
+    expect(await userOf('login-fail-1')).toBeNull();
   });
 
   it('JWT claim-ləri: sub, username, role, scope, exp = iat + 15 dəq', async () => {
@@ -142,7 +142,7 @@ describe('refresh token rotation + logout', () => {
     await t.api().post('/api/v1/auth/refresh').send({ refresh_token: first.refresh_token }); // reuse
     const res = await t.api().post('/api/v1/auth/refresh').send({ refresh_token: second.refresh_token });
     expect(res.status).toBe(401);
-    const active = t.db.prepare(`SELECT COUNT(*) FROM refresh_tokens WHERE user_id = 1 AND revoked_at IS NULL`).pluck().get();
+    const active = await t.db.prepare(`SELECT COUNT(*) FROM refresh_tokens WHERE user_id = 1 AND revoked_at IS NULL`).pluck().get();
     expect(active).toBe(0);
   });
 
@@ -160,7 +160,7 @@ describe('refresh token rotation + logout', () => {
     expect(res.text).toBe('');
     const after = await t.api().post('/api/v1/auth/refresh').send({ refresh_token });
     expect(after.status).toBe(401);
-    const revoked = t.db.prepare(`SELECT revoked_at FROM refresh_tokens WHERE user_id = 1`).pluck().get();
+    const revoked = await t.db.prepare(`SELECT revoked_at FROM refresh_tokens WHERE user_id = 1`).pluck().get();
     expect(revoked).not.toBeNull();
   });
 });

@@ -2,8 +2,8 @@
 
 INSERT INTO customers (id, first_name, last_name, email, phone, city, active, created_at, updated_at)
 SELECT id, first_name, last_name, email, phone, city, active,
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-' || (200 - id * 7) || ' days', '+' || (540 + id * 13) || ' minutes'),
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-' || (200 - id * 7) || ' days', '+' || (540 + id * 13) || ' minutes')
+       seed_ts('day', ('-' || (200 - id * 7) || ' days')::interval + ('+' || (540 + id * 13) || ' minutes')::interval),
+       seed_ts('day', ('-' || (200 - id * 7) || ' days')::interval + ('+' || (540 + id * 13) || ' minutes')::interval)
 FROM (
   SELECT 1 AS id, 'Nigar' AS first_name, 'Əliyeva' AS last_name, 'nigar.aliyeva@example.az' AS email, '+994501234501' AS phone, 'Bakı' AS city, 1 AS active
   UNION ALL SELECT  2, 'Tural',   'Quliyev',      'tural.quliyev@example.az',      '+994552345602', 'Bakı',       1
@@ -76,16 +76,16 @@ INSERT INTO books (id, title, author, genre, year, description, rating, pages) V
   (40, 'Zero to One',                   'Peter Thiel',                 'Biznes',      2014, 'Startaplar və gələcəyin qurulması haqqında qeydlər.', 4.2, 224);
 
 INSERT INTO book_reviews (book_id, user_id, rating, comment, created_at) VALUES
-  (12, 1, 5, 'Bakının XX əsr əvvəlindəki atmosferi çox canlıdır.',          strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-60 days', '+20 hours')),
-  (12, 3, 4, 'Gözəl roman, sonluğu kədərlidir.',                             strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-45 days', '+21 hours')),
-  (15, 1, 5, 'Cahandar ağa obrazı unudulmazdır.',                            strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-40 days', '+19 hours')),
-  (18, 3, 5, 'Bu gün də aktualdır.',                                         strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-30 days', '+22 hours')),
-  (34, 1, 5, 'Backend və arxitektura üçün mütləq oxunmalıdır.',              strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-25 days', '+18 hours')),
-  (34, 2, 4, 'Ağır, amma çox dəyərli.',                                      strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-20 days', '+17 hours')),
-  (36, 1, 4, 'REST-in nəzəri əsasları üçün yaxşıdır.',                       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-15 days', '+20 hours')),
-  (39, 2, 3, 'Sertifikat üçün lazımdır, amma quru yazılıb.',                 strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-10 days', '+12 hours')),
-  (5,  3, 5, 'Füzulinin dili əvəzsizdir.',                                   strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-8 days', '+21 hours')),
-  (23, 1, 3, 'Motivasiyaedici, amma bir az sadədir.',                        strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-3 days', '+22 hours'));
+  (12, 1, 5, 'Bakının XX əsr əvvəlindəki atmosferi çox canlıdır.',          seed_ts('day', ('-60 days')::interval + ('+20 hours')::interval)),
+  (12, 3, 4, 'Gözəl roman, sonluğu kədərlidir.',                             seed_ts('day', ('-45 days')::interval + ('+21 hours')::interval)),
+  (15, 1, 5, 'Cahandar ağa obrazı unudulmazdır.',                            seed_ts('day', ('-40 days')::interval + ('+19 hours')::interval)),
+  (18, 3, 5, 'Bu gün də aktualdır.',                                         seed_ts('day', ('-30 days')::interval + ('+22 hours')::interval)),
+  (34, 1, 5, 'Backend və arxitektura üçün mütləq oxunmalıdır.',              seed_ts('day', ('-25 days')::interval + ('+18 hours')::interval)),
+  (34, 2, 4, 'Ağır, amma çox dəyərli.',                                      seed_ts('day', ('-20 days')::interval + ('+17 hours')::interval)),
+  (36, 1, 4, 'REST-in nəzəri əsasları üçün yaxşıdır.',                       seed_ts('day', ('-15 days')::interval + ('+20 hours')::interval)),
+  (39, 2, 3, 'Sertifikat üçün lazımdır, amma quru yazılıb.',                 seed_ts('day', ('-10 days')::interval + ('+12 hours')::interval)),
+  (5,  3, 5, 'Füzulinin dili əvəzsizdir.',                                   seed_ts('day', ('-8 days')::interval + ('+21 hours')::interval)),
+  (23, 1, 3, 'Motivasiyaedici, amma bir az sadədir.',                        seed_ts('day', ('-3 days')::interval + ('+22 hours')::interval));
 
 -- YouTube ID-ləri oEmbed ilə yoxlanılıb (videolar mövcuddur). duration_sec təxminidir.
 INSERT INTO tracks (id, youtube_id, title, artist, genre, duration_sec) VALUES
@@ -121,9 +121,9 @@ INSERT INTO tracks (id, youtube_id, title, artist, genre, duration_sec) VALUES
   (30, 'dQw4w9WgXcQ', 'Never Gonna Give You Up',     'Rick Astley',              'Pop',     213);
 
 INSERT INTO playlists (id, user_id, name, created_at) VALUES
-  (1, 1, 'Eurovision Azərbaycan', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-50 days', '+20 hours')),
-  (2, 1, 'Dərs zamanı fon musiqisi', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-20 days', '+9 hours')),
-  (3, 3, 'Rok klassikası', strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-35 days', '+22 hours'));
+  (1, 1, 'Eurovision Azərbaycan', seed_ts('day', ('-50 days')::interval + ('+20 hours')::interval)),
+  (2, 1, 'Dərs zamanı fon musiqisi', seed_ts('day', ('-20 days')::interval + ('+9 hours')::interval)),
+  (3, 3, 'Rok klassikası', seed_ts('day', ('-35 days')::interval + ('+22 hours')::interval));
 
 INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES
   (1, 1, 1), (1, 2, 2), (1, 3, 3), (1, 4, 4), (1, 5, 5),
@@ -142,6 +142,6 @@ WITH ph(user_id, track_id, days_ago, minute_of_day) AS (
 )
 INSERT INTO play_history (user_id, track_id, played_at)
 SELECT user_id, track_id,
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-' || days_ago || ' days', '+' || minute_of_day || ' minutes')
+       seed_ts('day', ('-' || days_ago || ' days')::interval + ('+' || minute_of_day || ' minutes')::interval)
 FROM ph
 ORDER BY days_ago DESC, minute_of_day;

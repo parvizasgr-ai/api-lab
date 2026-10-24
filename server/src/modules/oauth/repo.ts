@@ -19,8 +19,8 @@ export interface OAuthCodeRow {
 }
 
 export const oauthRepo = {
-  findClient: (db: DB, clientId: string) =>
-    db.prepare(`SELECT * FROM oauth_clients WHERE client_id = ?`).get(clientId) as OAuthClientRow | undefined,
+  findClient: async (db: DB, clientId: string) =>
+    (await db.prepare(`SELECT * FROM oauth_clients WHERE client_id = ?`).get(clientId)) as OAuthClientRow | undefined,
 
   insertCode: (db: DB, c: Omit<OAuthCodeRow, 'used_at'> & { created_at: string }) =>
     db
@@ -30,10 +30,10 @@ export const oauthRepo = {
       )
       .run(c),
 
-  findCode: (db: DB, code: string) =>
-    db.prepare(`SELECT * FROM oauth_codes WHERE code = ?`).get(code) as OAuthCodeRow | undefined,
+  findCode: async (db: DB, code: string) =>
+    (await db.prepare(`SELECT * FROM oauth_codes WHERE code = ?`).get(code)) as OAuthCodeRow | undefined,
 
   // "AND used_at IS NULL" — eyni anda iki sorğu gəlsə belə yalnız biri uğurlu olur.
-  markCodeUsed: (db: DB, code: string, at: string) =>
-    db.prepare(`UPDATE oauth_codes SET used_at = ? WHERE code = ? AND used_at IS NULL`).run(at, code).changes === 1,
+  markCodeUsed: async (db: DB, code: string, at: string) =>
+    (await db.prepare(`UPDATE oauth_codes SET used_at = ? WHERE code = ? AND used_at IS NULL`).run(at, code)).changes === 1,
 };

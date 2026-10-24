@@ -6,5 +6,5 @@ FROM hotel_bookings b
 JOIN users u ON u.id = b.user_id
 WHERE b.room_id = 1
   AND b.status = 'CONFIRMED'
-  AND date('now', '+6 days') < b.check_out
-  AND date('now', '+7 days') > b.check_in;
+  AND to_char(CURRENT_DATE + 6, 'YYYY-MM-DD') < b.check_out
+  AND to_char(CURRENT_DATE + 7, 'YYYY-MM-DD') > b.check_in;

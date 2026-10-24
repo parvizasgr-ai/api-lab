@@ -3,8 +3,8 @@
 
 INSERT INTO tasks (id, lesson, title, description_md, method, path, expected_status, sql_check, sort_order, created_at, updated_at)
 SELECT id, lesson, title, description_md, method, path, expected_status, sql_check, sort_order,
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-7 days', '+9 hours'),
-       strftime('%Y-%m-%dT%H:%M:%SZ', 'now', 'start of day', '-7 days', '+9 hours')
+       seed_ts('day', ('-7 days')::interval + ('+9 hours')::interval),
+       seed_ts('day', ('-7 days')::interval + ('+9 hours')::interval)
 FROM (
   -- ---------------------------------------------------------------- Dərs 1: API əsasları
   SELECT 1 AS id, 1 AS lesson, 'Valyuta məzənnələrini al' AS title,

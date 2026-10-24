@@ -38,7 +38,7 @@ export class HotelsService {
     return { checkIn, checkOut };
   }
 
-  private toHotel(h: HotelRow) {
+  private async toHotel(h: HotelRow) {
     return {
       id: h.id,
       name: h.name,
@@ -48,7 +48,7 @@ export class HotelsService {
       pricePerNightFrom: fromMinor(h.price_per_night_minor),
       currency: h.currency,
       pricePerNightFromAzn: h.price_azn_minor === null ? null : fromMinor(h.price_azn_minor),
-      amenities: hotelsRepo.amenities(this.db, h.id),
+      amenities: await hotelsRepo.amenities(this.db, h.id),
       ...(h.available_rooms === null ? {} : { availableRooms: h.available_rooms }),
     };
   }
@@ -80,7 +80,7 @@ export class HotelsService {
     updatedAt: b.updated_at,
   });
 
-  search(q: { city: string; checkIn?: string; checkOut?: string; guests: number; stars?: number; minPrice?: number; maxPrice?: number; sort: string; page: number; size: number }) {
+  async search(q: { city: string; checkIn?: string; checkOut?: string; guests: number; stars?: number; minPrice?: number; maxPrice?: number; sort: string; page: number; size: number }) {
     const dates = this.checkDates(q.checkIn, q.checkOut);
     const s = {
       city: q.city,
@@ -91,26 +91,26 @@ export class HotelsService {
       minPrice: q.minPrice === undefined ? null : toMinor(q.minPrice),
       maxPrice: q.maxPrice === undefined ? null : toMinor(q.maxPrice),
     };
-    const total = hotelsRepo.countSearch(this.db, s);
-    const rows = hotelsRepo.search(this.db, s, orderBy(q.sort, SORT, 'h.id'), q.size, offsetOf(q.page, q.size));
-    return pageOf(rows.map((h) => this.toHotel(h)), q.page, q.size, total);
+    const total = await hotelsRepo.countSearch(this.db, s);
+    const rows = await hotelsRepo.search(this.db, s, orderBy(q.sort, SORT, 'h.id'), q.size, offsetOf(q.page, q.size));
+    return pageOf(await Promise.all(rows.map((h) => this.toHotel(h))), q.page, q.size, total);
   }
 
-  getHotel(id: number) {
-    const h = hotelsRepo.getHotel(this.db, id);
+  async getHotel(id: number) {
+    const h = await hotelsRepo.getHotel(this.db, id);
     if (!h) throw notFound('HOTEL_NOT_FOUND', 'Otel tapılmadı');
-    return { ...this.toHotel(h), description: h.description, roomCount: hotelsRepo.rooms(this.db, id, null, null).length };
+    return { ...await this.toHotel(h), description: h.description, roomCount: (await hotelsRepo.rooms(this.db, id, null, null)).length };
   }
 
-  rooms(hotelId: number, checkIn?: string, checkOut?: string) {
-    if (!hotelsRepo.getHotel(this.db, hotelId)) throw notFound('HOTEL_NOT_FOUND', 'Otel tapılmadı');
+  async rooms(hotelId: number, checkIn?: string, checkOut?: string) {
+    if (!(await hotelsRepo.getHotel(this.db, hotelId))) throw notFound('HOTEL_NOT_FOUND', 'Otel tapılmadı');
     const dates = this.checkDates(checkIn, checkOut);
-    return { items: hotelsRepo.rooms(this.db, hotelId, dates?.checkIn ?? null, dates?.checkOut ?? null).map(this.toRoom) };
+    return { items: (await hotelsRepo.rooms(this.db, hotelId, dates?.checkIn ?? null, dates?.checkOut ?? null)).map(this.toRoom) };
   }
 
-  private assertBookable(room: RoomRow, checkIn: string, checkOut: string, guests: number, excludeBookingId: number | null) {
+  private async assertBookable(room: RoomRow, checkIn: string, checkOut: string, guests: number, excludeBookingId: number | null) {
     if (guests > room.capacity) throw unprocessable('ROOM_CAPACITY_EXCEEDED', `Otaq tutumu: ${room.capacity}, qonaq: ${guests}`);
-    const overlap = hotelsRepo.findOverlap(this.db, room.id, checkIn, checkOut, excludeBookingId);
+    const overlap = await hotelsRepo.findOverlap(this.db, room.id, checkIn, checkOut, excludeBookingId);
     if (overlap) {
       throw conflict('ROOM_NOT_AVAILABLE', 'Otaq seçilmiş tarixlərdə doludur', [
         { field: 'checkIn', message: `Kəsişən bron: #${overlap.id} (${overlap.check_in} – ${overlap.check_out})` },
@@ -118,64 +118,64 @@ export class HotelsService {
     }
   }
 
-  book(req: Request, body: { roomId: number; checkIn: string; checkOut: string; guests: number }) {
+  async book(req: Request, body: { roomId: number; checkIn: string; checkOut: string; guests: number }) {
     const { checkIn, checkOut } = this.checkDates(body.checkIn, body.checkOut, true)!;
-    const id = this.db.transaction(() => {
-      const room = hotelsRepo.getRoom(this.db, body.roomId);
-      if (!room) throw notFound('ROOM_NOT_FOUND', 'Otaq tapılmadı');
-      this.assertBookable(room, checkIn, checkOut, body.guests, null);
-      const bookingId = hotelsRepo.insertBooking(this.db, {
-        room_id: room.id,
-        user_id: req.auth!.userId,
-        check_in: checkIn,
-        check_out: checkOut,
-        guests: body.guests,
-        total_minor: room.price_per_night_minor * nightsBetween(checkIn, checkOut),
-        currency: room.currency,
-        at: isoNow(this.ctx.config.now()),
-      });
-      writeAudit(this.db, req, this.ctx.config.now(), { action: 'HOTEL_BOOKED', entity: 'hotel_bookings', entityId: bookingId, details: { roomId: room.id, checkIn, checkOut } });
-      return bookingId;
-    }).immediate();
-    return this.toBooking(hotelsRepo.getBooking(this.db, id)!);
+    const id = await this.db.transaction(async () => {
+          const room = await hotelsRepo.getRoom(this.db, body.roomId);
+          if (!room) throw notFound('ROOM_NOT_FOUND', 'Otaq tapılmadı');
+          await this.assertBookable(room, checkIn, checkOut, body.guests, null);
+          const bookingId = await hotelsRepo.insertBooking(this.db, {
+                  room_id: room.id,
+                  user_id: req.auth!.userId,
+                  check_in: checkIn,
+                  check_out: checkOut,
+                  guests: body.guests,
+                  total_minor: room.price_per_night_minor * nightsBetween(checkIn, checkOut),
+                  currency: room.currency,
+                  at: isoNow(this.ctx.config.now()),
+                });
+          await writeAudit(this.db, req, this.ctx.config.now(), { action: 'HOTEL_BOOKED', entity: 'hotel_bookings', entityId: bookingId, details: { roomId: room.id, checkIn, checkOut } });
+          return bookingId;
+        }).immediate();
+    return this.toBooking((await hotelsRepo.getBooking(this.db, id))!);
   }
 
-  listBookings(auth: AuthContext) {
-    return { items: hotelsRepo.listBookings(this.db, auth.userId).map(this.toBooking) };
+  async listBookings(auth: AuthContext) {
+    return { items: (await hotelsRepo.listBookings(this.db, auth.userId)).map(this.toBooking) };
   }
 
-  getBooking(auth: AuthContext, id: number) {
-    return this.toBooking(loadOwned(hotelsRepo.getBooking(this.db, id), auth, 'BOOKING_NOT_FOUND', 'Bron tapılmadı'));
+  async getBooking(auth: AuthContext, id: number) {
+    return this.toBooking(loadOwned(await hotelsRepo.getBooking(this.db, id), auth, 'BOOKING_NOT_FOUND', 'Bron tapılmadı'));
   }
 
-  update(req: Request, id: number, patch: { checkIn?: string; checkOut?: string; guests?: number }) {
-    this.db.transaction(() => {
-      const b = loadOwned(hotelsRepo.getBooking(this.db, id), req.auth, 'BOOKING_NOT_FOUND', 'Bron tapılmadı');
-      if (b.status === 'CANCELLED') throw conflict('BOOKING_ALREADY_CANCELLED', 'Ləğv edilmiş bron dəyişdirilə bilməz');
-      const { checkIn, checkOut } = this.checkDates(patch.checkIn ?? b.check_in, patch.checkOut ?? b.check_out, true)!;
-      const guests = patch.guests ?? b.guests;
-      const room = hotelsRepo.getRoom(this.db, b.room_id)!;
-      this.assertBookable(room, checkIn, checkOut, guests, b.id);
-      hotelsRepo.updateBooking(this.db, {
-        id,
-        check_in: checkIn,
-        check_out: checkOut,
-        guests,
-        total_minor: room.price_per_night_minor * nightsBetween(checkIn, checkOut),
-        at: isoNow(this.ctx.config.now()),
-      });
-      writeAudit(this.db, req, this.ctx.config.now(), { action: 'HOTEL_BOOKING_UPDATED', entity: 'hotel_bookings', entityId: id, details: patch });
-    }).immediate();
-    return this.toBooking(hotelsRepo.getBooking(this.db, id)!);
+  async update(req: Request, id: number, patch: { checkIn?: string; checkOut?: string; guests?: number }) {
+    await this.db.transaction(async () => {
+            const b = loadOwned(await hotelsRepo.getBooking(this.db, id), req.auth, 'BOOKING_NOT_FOUND', 'Bron tapılmadı');
+            if (b.status === 'CANCELLED') throw conflict('BOOKING_ALREADY_CANCELLED', 'Ləğv edilmiş bron dəyişdirilə bilməz');
+            const { checkIn, checkOut } = this.checkDates(patch.checkIn ?? b.check_in, patch.checkOut ?? b.check_out, true)!;
+            const guests = patch.guests ?? b.guests;
+            const room = (await hotelsRepo.getRoom(this.db, b.room_id))!;
+            await this.assertBookable(room, checkIn, checkOut, guests, b.id);
+            await hotelsRepo.updateBooking(this.db, {
+                      id,
+                      check_in: checkIn,
+                      check_out: checkOut,
+                      guests,
+                      total_minor: room.price_per_night_minor * nightsBetween(checkIn, checkOut),
+                      at: isoNow(this.ctx.config.now()),
+                    });
+            await writeAudit(this.db, req, this.ctx.config.now(), { action: 'HOTEL_BOOKING_UPDATED', entity: 'hotel_bookings', entityId: id, details: patch });
+          }).immediate();
+    return this.toBooking((await hotelsRepo.getBooking(this.db, id))!);
   }
 
-  cancel(req: Request, id: number) {
-    this.db.transaction(() => {
-      const b = loadOwned(hotelsRepo.getBooking(this.db, id), req.auth, 'BOOKING_NOT_FOUND', 'Bron tapılmadı');
-      if (b.status === 'CANCELLED') throw conflict('BOOKING_ALREADY_CANCELLED', 'Bron artıq ləğv edilib');
-      hotelsRepo.cancelBooking(this.db, id, isoNow(this.ctx.config.now()));
-      writeAudit(this.db, req, this.ctx.config.now(), { action: 'HOTEL_BOOKING_CANCELLED', entity: 'hotel_bookings', entityId: id });
-    }).immediate();
-    return this.toBooking(hotelsRepo.getBooking(this.db, id)!);
+  async cancel(req: Request, id: number) {
+    await this.db.transaction(async () => {
+            const b = loadOwned(await hotelsRepo.getBooking(this.db, id), req.auth, 'BOOKING_NOT_FOUND', 'Bron tapılmadı');
+            if (b.status === 'CANCELLED') throw conflict('BOOKING_ALREADY_CANCELLED', 'Bron artıq ləğv edilib');
+            await hotelsRepo.cancelBooking(this.db, id, isoNow(this.ctx.config.now()));
+            await writeAudit(this.db, req, this.ctx.config.now(), { action: 'HOTEL_BOOKING_CANCELLED', entity: 'hotel_bookings', entityId: id });
+          }).immediate();
+    return this.toBooking((await hotelsRepo.getBooking(this.db, id))!);
   }
 }

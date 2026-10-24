@@ -1,4 +1,4 @@
-// Test köməkçiləri: hər test faylı öz in-memory DB-si və "dondurulmuş" saatı ilə app yaradır.
+// Test köməkçiləri: hər test app-i öz təmiz PostgreSQL DB-si (şablondan) və "dondurulmuş" saatı ilə yaranır.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,7 +6,8 @@ import request from 'supertest';
 import { expect } from 'vitest';
 import { createApp } from '../server/src/app.js';
 import { config as baseConfig, type Config } from '../server/src/config.js';
-import { openDb, resetDatabase, type DB } from '../server/src/db.js';
+import type { DB } from '../server/src/db.js';
+import { createTestDb, testView } from './setup/pg.js';
 import type { Handlers } from '../server/src/openapi/router.js';
 import { listOperations, loadOpenApi } from '../server/src/openapi/spec.js';
 import { ResponseValidator } from '../server/src/openapi/validator.js';
@@ -22,8 +23,7 @@ export interface TestClock {
 }
 
 export function createTestApp(options: { config?: Partial<Config>; handlers?: Handlers } = {}) {
-  const db: DB = openDb(':memory:');
-  resetDatabase(db);
+  const db: DB = createTestDb(); // şablondan təmiz PostgreSQL DB (sorğular DB hazır olana qədər gözləyir)
   // Saat dəqiqənin əvvəlinə dondurulur → rate limit pəncərəsi test ortasında dəyişmir.
   const start = new Date();
   start.setUTCSeconds(0, 0);
@@ -52,6 +52,7 @@ export function createTestApp(options: { config?: Partial<Config>; handlers?: Ha
   }
   const app = createApp({ db, config, handlers: options.handlers });
   const auth = new AuthService(db, config);
+  const view = testView(db); // testlər DB-ni bu görünüşlə oxuyur (log yazıları tamamlanmış olur)
   const api = () => request(app);
 
   async function login(username = 'student', password = `${username}123`) {
@@ -60,7 +61,7 @@ export function createTestApp(options: { config?: Partial<Config>; handlers?: Ha
     return res.body as { access_token: string; refresh_token: string; scope: string };
   }
 
-  return { app, db, clock, config, auth, api, login };
+  return { app, db: view, clock, config, auth, api, login };
 }
 
 // Contract test: real cavab OpenAPI sxeminə uyğun olmalıdır.

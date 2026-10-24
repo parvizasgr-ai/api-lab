@@ -71,7 +71,7 @@ describe('POST /oauth/authorize (consent)', () => {
     expect(url.origin + url.pathname).toBe(REDIRECT);
     expect(url.searchParams.get('state')).toBe('state-12345678');
     const code = url.searchParams.get('code')!;
-    const row = t.db.prepare(`SELECT * FROM oauth_codes WHERE code = ?`).get(code) as { expires_at: string; created_at: string; used_at: null };
+    const row = (await t.db.prepare(`SELECT * FROM oauth_codes WHERE code = ?`).get(code)) as { expires_at: string; created_at: string; used_at: null };
     expect(new Date(row.expires_at).getTime() - new Date(row.created_at).getTime()).toBe(60_000);
     expect(row.used_at).toBeNull();
   });

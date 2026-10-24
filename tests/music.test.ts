@@ -17,12 +17,12 @@ describe('music search + play', () => {
 
   it('play → embed URL (video axını yoxdur) + play_history-də 1 sətir', async () => {
     const { access_token } = await t.login();
-    const before = t.db.prepare(`SELECT COUNT(*) FROM play_history WHERE track_id = 1`).pluck().get() as number;
+    const before = (await t.db.prepare(`SELECT COUNT(*) FROM play_history WHERE track_id = 1`).pluck().get()) as number;
     const res = await t.api().post('/api/v1/music/tracks/1/play').set(bearer(access_token));
     expect(res.status).toBe(200);
     expectMatchesSpec(res, 'playTrack');
     expect(res.body).toMatchObject({ trackId: 1, youtubeId: '_0tlQUW5X0U', embedUrl: 'https://www.youtube.com/embed/_0tlQUW5X0U' });
-    expect(t.db.prepare(`SELECT COUNT(*) FROM play_history WHERE track_id = 1`).pluck().get()).toBe(before + 1);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM play_history WHERE track_id = 1`).pluck().get()).toBe(before + 1);
     expect((await t.api().post('/api/v1/music/tracks/1/play')).status).toBe(401);
     const nf = await t.api().post('/api/v1/music/tracks/999/play').set(bearer(access_token));
     expect(nf.status).toBe(404);
@@ -61,9 +61,9 @@ describe('YouTube rejimi (YOUTUBE_API_KEY təyin olunub)', () => {
       ['Running Scared', 183], // artıq DB-də idi — seed məlumatı saxlanılır
     ]);
     expect(t.calls[0]).toContain('key=test-key');
-    expect(t.db.prepare(`SELECT COUNT(*) FROM tracks`).pluck().get()).toBe(31);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM tracks`).pluck().get()).toBe(31);
     await t.api().get('/api/v1/music/search?q=mugham');
-    expect(t.db.prepare(`SELECT COUNT(*) FROM tracks`).pluck().get()).toBe(31);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM tracks`).pluck().get()).toBe(31);
     // q olmadan — həmişə DB
     expect((await t.api().get('/api/v1/music/search?genre=Pop')).body.source).toBe('db');
   });
@@ -115,7 +115,7 @@ describe('playlists', () => {
     expect(dup.status).toBe(409);
     expectMatchesSpec(dup, 'addPlaylistTrack');
     expect(dup.body.code).toBe('TRACK_ALREADY_IN_PLAYLIST');
-    expect(t.db.prepare(`SELECT track_id FROM playlist_tracks WHERE playlist_id = 1 ORDER BY position`).pluck().all()).toEqual([1, 2, 3, 4, 5]);
+    expect(await t.db.prepare(`SELECT track_id FROM playlist_tracks WHERE playlist_id = 1 ORDER BY position`).pluck().all()).toEqual([1, 2, 3, 4, 5]);
 
     expect((await t.api().get('/api/v1/music/playlists/1').set(bearer(rauf))).status).toBe(403);
     expect((await t.api().post('/api/v1/music/playlists/1/tracks').set(bearer(rauf)).send({ trackId: 9 })).status).toBe(403);

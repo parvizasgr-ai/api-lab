@@ -27,33 +27,33 @@ export interface MaterialRow {
 const SELECT = `SELECT m.*, u.username AS uploaded_by_username FROM materials m LEFT JOIN users u ON u.id = m.uploaded_by`;
 
 export const materialsRepo = {
-  list: (db: DB, f: { lesson?: number; kind?: string; q?: string; readyOnly: boolean }) =>
-    db
-      .prepare(
-        `${SELECT}
-         WHERE (@lesson IS NULL OR m.lesson = @lesson)
-           AND (@kind IS NULL OR m.kind = @kind)
-           AND (@q IS NULL OR m.title LIKE @q OR m.description LIKE @q OR m.original_filename LIKE @q)
+  list: async (db: DB, f: { lesson?: number; kind?: string; q?: string; readyOnly: boolean }) =>
+    (await db
+              .prepare(
+                `${SELECT}
+         WHERE (@lesson::int IS NULL OR m.lesson = @lesson)
+           AND (@kind::text IS NULL OR m.kind = @kind)
+           AND (@q::text IS NULL OR m.title ILIKE @q OR m.description ILIKE @q OR m.original_filename ILIKE @q)
            AND (@readyOnly = 0 OR m.status IN ('READY', 'READY_NO_PREVIEW'))
          ORDER BY m.lesson IS NULL, m.lesson, m.sort_order, m.id`,
-      )
-      .all({ lesson: f.lesson ?? null, kind: f.kind ?? null, q: f.q ? `%${f.q}%` : null, readyOnly: f.readyOnly ? 1 : 0 }) as MaterialRow[],
+              )
+              .all({ lesson: f.lesson ?? null, kind: f.kind ?? null, q: f.q ? `%${f.q}%` : null, readyOnly: f.readyOnly ? 1 : 0 })) as MaterialRow[],
 
-  get: (db: DB, id: number) => db.prepare(`${SELECT} WHERE m.id = ?`).get(id) as MaterialRow | undefined,
+  get: async (db: DB, id: number) => (await db.prepare(`${SELECT} WHERE m.id = ?`).get(id)) as MaterialRow | undefined,
 
-  findByOriginalName: (db: DB, name: string) => db.prepare(`SELECT id FROM materials WHERE original_filename = ?`).get(name) as { id: number } | undefined,
+  findByOriginalName: async (db: DB, name: string) => (await db.prepare(`SELECT id FROM materials WHERE original_filename = ?`).get(name)) as { id: number } | undefined,
 
-  byStatus: (db: DB, statuses: MaterialStatus[]) =>
-    db.prepare(`SELECT id FROM materials WHERE status IN (SELECT value FROM json_each(?)) ORDER BY id`).pluck().all(JSON.stringify(statuses)) as number[],
+  byStatus: async (db: DB, statuses: MaterialStatus[]) =>
+    (await db.prepare(`SELECT id FROM materials WHERE status = ANY(?::text[]) ORDER BY id`).pluck().all([statuses])) as number[],
 
-  insert: (db: DB, m: Omit<MaterialRow, 'id' | 'page_count' | 'status' | 'error_message' | 'uploaded_by_username' | 'updated_at'>) =>
+  insert: async (db: DB, m: Omit<MaterialRow, 'id' | 'page_count' | 'status' | 'error_message' | 'uploaded_by_username' | 'updated_at'>) =>
     Number(
-      db
-        .prepare(
-          `INSERT INTO materials (lesson, title, description, kind, original_filename, stored_name, mime, size_bytes, status, uploaded_by, sort_order, created_at, updated_at)
+      (await db
+                .prepare(
+                  `INSERT INTO materials (lesson, title, description, kind, original_filename, stored_name, mime, size_bytes, status, uploaded_by, sort_order, created_at, updated_at)
            VALUES (@lesson, @title, @description, @kind, @original_filename, @stored_name, @mime, @size_bytes, 'UPLOADED', @uploaded_by, @sort_order, @created_at, @created_at)`,
-        )
-        .run(m).lastInsertRowid,
+                )
+                .run(m)).lastInsertRowid,
     ),
 
   update: (db: DB, id: number, fields: { title: string; description: string | null; lesson: number | null; kind: string; sort_order: number; at: string }) =>
@@ -68,24 +68,24 @@ export const materialsRepo = {
 
   delete: (db: DB, id: number) => db.prepare(`DELETE FROM materials WHERE id = ?`).run(id),
 
-  pages: (db: DB, id: number) =>
-    db.prepare(`SELECT page_no, image_name, thumb_name FROM material_pages WHERE material_id = ? ORDER BY page_no`).all(id) as {
+  pages: async (db: DB, id: number) =>
+    (await db.prepare(`SELECT page_no, image_name, thumb_name FROM material_pages WHERE material_id = ? ORDER BY page_no`).all(id)) as {
       page_no: number;
       image_name: string;
       thumb_name: string;
     }[],
 
-  page: (db: DB, id: number, pageNo: number) =>
-    db.prepare(`SELECT image_name, thumb_name FROM material_pages WHERE material_id = ? AND page_no = ?`).get(id, pageNo) as
-      | { image_name: string; thumb_name: string }
+  page: async (db: DB, id: number, pageNo: number) =>
+    (await db.prepare(`SELECT image_name, thumb_name FROM material_pages WHERE material_id = ? AND page_no = ?`).get(id, pageNo)) as
+      Promise<| { image_name: string; thumb_name: string }>
       | undefined,
 
-  replacePages: (db: DB, id: number, pages: { page_no: number; image_name: string; thumb_name: string }[]) => {
-    db.prepare(`DELETE FROM material_pages WHERE material_id = ?`).run(id);
+  replacePages: async (db: DB, id: number, pages: { page_no: number; image_name: string; thumb_name: string }[]) => {
+    await db.prepare(`DELETE FROM material_pages WHERE material_id = ?`).run(id);
     const insert = db.prepare(`INSERT INTO material_pages (material_id, page_no, image_name, thumb_name) VALUES (?, ?, ?, ?)`);
-    for (const p of pages) insert.run(id, p.page_no, p.image_name, p.thumb_name);
+    for (const p of pages) await insert.run(id, p.page_no, p.image_name, p.thumb_name);
   },
 
-  linkTasks: (db: DB, materialId: number, lesson: number) =>
-    db.prepare(`UPDATE tasks SET material_id = ? WHERE lesson = ? AND material_id IS NULL`).run(materialId, lesson).changes,
+  linkTasks: async (db: DB, materialId: number, lesson: number) =>
+    (await db.prepare(`UPDATE tasks SET material_id = ? WHERE lesson = ? AND material_id IS NULL`).run(materialId, lesson)).changes,
 };

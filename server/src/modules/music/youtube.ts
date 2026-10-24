@@ -30,7 +30,7 @@ export async function searchYoutube(fetchFn: typeof fetch, apiKey: string, q: st
       throw new ApiError(502, 'BAD_GATEWAY', 'YouTube API cavab vermədi');
     }
     if (!res.ok) throw new ApiError(502, 'BAD_GATEWAY', `YouTube API xətası: HTTP ${res.status}`);
-    return res.json() as Promise<any>;
+    return (await res.json()) as any;
   };
   const search = await get(
     `${API}/search?part=snippet&type=video&videoCategoryId=10&maxResults=${max}&q=${encodeURIComponent(q)}&key=${encodeURIComponent(apiKey)}`,

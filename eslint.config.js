@@ -13,6 +13,16 @@ export default tseslint.config(
     files: ['web-design/src/**/*.{ts,tsx}'],
     languageOptions: { globals: { ...globals.browser } },
   },
+  // Server və testlər: DB qatı asinxrondur — gözlənilməmiş (await-siz) Promise yarış vəziyyəti yaradır, ona görə xətadır
+  {
+    files: ['server/**/*.ts', 'scripts/**/*.ts', 'tests/**/*.ts'],
+    languageOptions: { parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname } },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: { arguments: false } }],
+      '@typescript-eslint/await-thenable': 'error',
+    },
+  },
   {
     languageOptions: { globals: { ...globals.node } },
     rules: {

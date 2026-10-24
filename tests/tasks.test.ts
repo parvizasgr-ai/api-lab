@@ -53,7 +53,7 @@ describe('irəliləyiş', () => {
 
     const undo = await mark(t.student, 1, false);
     expect(undo.body).toEqual({ taskId: 1, done: false, doneAt: null });
-    expect(t.db.prepare(`SELECT task_id FROM task_progress WHERE user_id = 1`).pluck().all()).toEqual([5]);
+    expect(await t.db.prepare(`SELECT task_id FROM task_progress WHERE user_id = 1`).pluck().all()).toEqual([5]);
 
     expect((await mark(t.student, 999, true)).status).toBe(404);
     expect((await t.api().put('/api/v1/tasks/1/progress').set(bearer(t.student)).send({ done: 'yes' })).status).toBe(422);
@@ -85,7 +85,7 @@ describe('ADMIN CRUD', () => {
 
     await t.api().put(`/api/v1/tasks/${created.body.id}/progress`).set(bearer(t.student)).send({ done: true });
     expect((await t.api().delete(`/api/v1/tasks/${created.body.id}`).set(bearer(t.admin))).status).toBe(204);
-    expect(t.db.prepare(`SELECT COUNT(*) FROM task_progress WHERE task_id = ?`).pluck().get(created.body.id)).toBe(0);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM task_progress WHERE task_id = ?`).pluck().get(created.body.id)).toBe(0);
     expect((await t.api().delete(`/api/v1/tasks/${created.body.id}`).set(bearer(t.admin))).status).toBe(404);
   });
 });
@@ -125,7 +125,7 @@ describe('markdown import', () => {
     expect(updated.descriptionMd).toContain('**USD**');
     expect(created).toMatchObject({ lesson: 2, method: 'OPTIONS', expectedStatus: 204, sortOrder: 10, sqlCheck: null });
     expect(created.descriptionMd).toContain('```bash');
-    expect(t.db.prepare(`SELECT COUNT(*) FROM tasks`).pluck().get()).toBe(17);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM tasks`).pluck().get()).toBe(17);
   });
 
   it('səhv fayl → 422 INVALID_TASK_FILE (sətir nömrələri ilə), heç nə yazılmır; .md olmayan fayl 415; tələbə 403', async () => {
@@ -157,7 +157,7 @@ describe('markdown import', () => {
         expect.stringMatching(/^line 6: .*SELECT/),
       ]),
     );
-    expect(t.db.prepare(`SELECT COUNT(*) FROM tasks`).pluck().get()).toBe(16);
+    expect(await t.db.prepare(`SELECT COUNT(*) FROM tasks`).pluck().get()).toBe(16);
 
     const pdf = await t.api().post('/api/v1/tasks/import').set(bearer(t.admin)).attach('file', Buffer.from('%PDF-1.4'), { filename: 'tasks.pdf', contentType: 'application/pdf' });
     expect(pdf.status).toBe(415);

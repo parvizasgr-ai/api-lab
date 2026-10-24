@@ -6,15 +6,15 @@ import { CurrencyService } from './service.js';
 export function currencyHandlers({ db }: AppContext): Handlers {
   const currency = new CurrencyService(db);
   return {
-    listCurrencies: (_req, res) => res.json(currency.listCurrencies()),
-    getRates: (req, res) => res.json(currency.rates(req.valid.query.base, req.valid.query.date)),
-    convertCurrency: (req, res) => {
+    listCurrencies: async (_req, res) => res.json(await currency.listCurrencies()),
+    getRates: async (req, res) => res.json(await currency.rates(req.valid.query.base, req.valid.query.date)),
+    convertCurrency: async (req, res) => {
       const { from, to, amount } = req.valid.query;
-      res.json(currency.convert(from, to, amount));
+      res.json(await currency.convert(from, to, amount));
     },
-    getRateHistory: (req, res) => {
+    getRateHistory: async (req, res) => {
       const { from, to, days } = req.valid.query;
-      res.json(currency.history(from, to, days));
+      res.json(await currency.history(from, to, days));
     },
   };
 }

@@ -27,7 +27,9 @@ export const config = {
   // Verilibsə admin parolu hər başlanğıcda və /_reset-dən sonra bununla əvəz olunur (LAN rejimində məcburidir)
   adminPassword: env.ADMIN_PASSWORD ?? '',
   publicUrl: env.PUBLIC_URL ?? `http://localhost:${env.PORT ?? 3000}`,
-  dbPath: env.DB_PATH ?? path.join(ROOT_DIR, 'data', 'apilab.db'),
+  // PostgreSQL: tətbiq (sahib) rolu. SQL Playground ayrıca read-only rol ilə qoşulur (apilab_playground).
+  databaseUrl: env.DATABASE_URL ?? 'postgres://apilab:apilab@localhost:5432/apilab',
+  playgroundPassword: env.PLAYGROUND_DB_PASSWORD ?? 'apilab_playground',
   migrationsDir: path.join(ROOT_DIR, 'db', 'migrations'),
   seedDir: path.join(ROOT_DIR, 'db', 'seed'),
   openapiJson: path.join(ROOT_DIR, 'openapi', 'openapi.json'),

@@ -15,21 +15,21 @@ export const lessonFromName = (name: string): number | null => {
 
 export const titleFromName = (name: string) => path.parse(name).name.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-export function importSlides(db: DB, materials: MaterialsService, slidesDir: string) {
+export async function importSlides(db: DB, materials: MaterialsService, slidesDir: string) {
   if (!fs.existsSync(slidesDir)) return [];
-  const admin = db.prepare(`SELECT id FROM users WHERE role = 'ADMIN' ORDER BY id LIMIT 1`).pluck().get() as number | undefined;
+  const admin = (await db.prepare(`SELECT id FROM users WHERE role = 'ADMIN' ORDER BY id LIMIT 1`).pluck().get()) as number | undefined;
   const imported: { file: string; id?: number; error?: string }[] = [];
   const files = fs.readdirSync(slidesDir).filter((f) => ALLOWED.test(f) && !f.startsWith('.')).sort();
-  files.forEach((file, index) => {
-    if (materialsRepo.findByOriginalName(db, file)) return;
+  for (const [index, file] of files.entries()) {
+    if (await materialsRepo.findByOriginalName(db, file)) continue;
     try {
       const lesson = lessonFromName(file);
-      const m = materials.create({ path: path.join(slidesDir, file), originalName: file, mime: 'application/octet-stream', move: false }, { title: titleFromName(file), lesson, sortOrder: index }, admin ?? null);
-      if (lesson && m.kind === 'SLIDES') materialsRepo.linkTasks(db, m.id, lesson); // dərs tapşırıqları bu slaydlara bağlanır
+      const m = await materials.create({ path: path.join(slidesDir, file), originalName: file, mime: 'application/octet-stream', move: false }, { title: titleFromName(file), lesson, sortOrder: index }, admin ?? null);
+      if (lesson && m.kind === 'SLIDES') await materialsRepo.linkTasks(db, m.id, lesson); // dərs tapşırıqları bu slaydlara bağlanır
       imported.push({ file, id: m.id });
     } catch (err) {
       imported.push({ file, error: (err as Error).message });
     }
-  });
+  }
   return imported;
 }

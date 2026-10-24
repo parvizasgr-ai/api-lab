@@ -16,30 +16,30 @@ function sendFile(res: Response, file: string, contentType: string, contentDispo
 
 export function materialsHandlers(_ctx: AppContext, materials: MaterialsService): Handlers {
   return {
-    listMaterials: (req, res) => res.json(materials.list(req.auth!, req.valid.query as any)),
-    getMaterial: (req, res) => res.json(materials.get(req.auth!, req.valid.params.materialId)),
-    uploadMaterial: (req, res) => {
-      const m = materials.upload(req);
+    listMaterials: async (req, res) => res.json(await materials.list(req.auth!, req.valid.query as any)),
+    getMaterial: async (req, res) => res.json(await materials.get(req.auth!, req.valid.params.materialId)),
+    uploadMaterial: async (req, res) => {
+      const m = await materials.upload(req);
       res.status(202).location(m.links.self).json(m);
     },
-    updateMaterial: (req, res) => res.json(materials.update(req.valid.params.materialId, req.valid.body)),
-    deleteMaterial: (req, res) => {
-      materials.delete(req, req.valid.params.materialId);
+    updateMaterial: async (req, res) => res.json(await materials.update(req.valid.params.materialId, req.valid.body)),
+    deleteMaterial: async (req, res) => {
+      await materials.delete(req, req.valid.params.materialId);
       res.status(204).end();
     },
-    reconvertMaterial: (req, res) => {
-      const m = materials.reconvert(req, req.valid.params.materialId);
+    reconvertMaterial: async (req, res) => {
+      const m = await materials.reconvert(req, req.valid.params.materialId);
       res.status(202).location(m.links.self).json(m);
     },
-    listMaterialPages: (req, res) => res.json(materials.pages(req.auth!, req.valid.params.materialId)),
-    getMaterialPageImage: (req, res) => sendFile(res, materials.pageFile(req, req.valid.params.materialId, req.valid.params.pageNo, 'image'), 'image/png'),
-    getMaterialPageThumb: (req, res) => sendFile(res, materials.pageFile(req, req.valid.params.materialId, req.valid.params.pageNo, 'thumb'), 'image/png'),
-    downloadMaterial: (req, res) => {
-      const f = materials.original(req, req.valid.params.materialId);
+    listMaterialPages: async (req, res) => res.json(await materials.pages(req.auth!, req.valid.params.materialId)),
+    getMaterialPageImage: async (req, res) => sendFile(res, await materials.pageFile(req, req.valid.params.materialId, req.valid.params.pageNo, 'image'), 'image/png'),
+    getMaterialPageThumb: async (req, res) => sendFile(res, await materials.pageFile(req, req.valid.params.materialId, req.valid.params.pageNo, 'thumb'), 'image/png'),
+    downloadMaterial: async (req, res) => {
+      const f = await materials.original(req, req.valid.params.materialId);
       sendFile(res, f.file, f.mime, disposition('attachment', f.name));
     },
-    getMaterialPdf: (req, res) => {
-      const f = materials.pdf(req, req.valid.params.materialId);
+    getMaterialPdf: async (req, res) => {
+      const f = await materials.pdf(req, req.valid.params.materialId);
       sendFile(res, f.file, 'application/pdf', disposition('inline', f.name));
     },
   };

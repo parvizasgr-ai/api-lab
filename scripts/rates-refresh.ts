@@ -28,14 +28,18 @@ try {
   const azn: Record<string, number> = { USD: 1 / USD_AZN, AED: USD_AED / USD_AZN };
   for (const [code, rate] of Object.entries(usd)) azn[code] = rate / USD_AZN;
   const db = openDb();
-  db.transaction(() => {
-    for (const [code, rate] of Object.entries(azn)) currencyRepo.upsertRate(db, code, Number(rate.toFixed(6)), today);
+  await db.transaction(async () => {
+    for (const [code, rate] of Object.entries(azn)) await currencyRepo.upsertRate(db, code, Number(rate.toFixed(6)), today);
     // GEL üçün dünənki dəyəri bu günə köçür (mənbədə yoxdur)
-    db.prepare(
-      `INSERT OR IGNORE INTO exchange_rates (base, quote, rate, rate_date)
-       SELECT base, quote, rate, ? FROM exchange_rates WHERE quote = 'GEL' ORDER BY rate_date DESC LIMIT 1`,
-    ).run(today);
+    await db
+      .prepare(
+        `INSERT INTO exchange_rates (base, quote, rate, rate_date)
+         SELECT base, quote, rate, ? FROM exchange_rates WHERE quote = 'GEL' ORDER BY rate_date DESC LIMIT 1
+         ON CONFLICT DO NOTHING`,
+      )
+      .run(today);
   })();
+  await db.close();
   console.log(`Məzənnələr yeniləndi (${today}):`);
   console.table(Object.entries(azn).map(([quote, rate]) => ({ base: 'AZN', quote, rate: Number(rate.toFixed(6)), azn_per_unit: Number((1 / rate).toFixed(4)) })));
 } catch (err) {

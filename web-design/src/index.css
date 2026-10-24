@@ -8503,3 +8503,8 @@ footer {
   .ext-page { width: calc(100% - 32px); padding-top: 32px; }
   .ext-grid { grid-template-columns: 1fr; }
 }
+
+/* Mock Google: səhv parol consent ekranında; "başqa hesab" demo-da əlçatan deyil */
+.consent-password-error { display: block; margin-top: 6px; color: var(--danger); font-size: 12px; font-weight: 600; }
+.consent-password input[aria-invalid="true"] { border-color: var(--danger); }
+.account-chooser button.account-unavailable { cursor: default; opacity: 0.6; }

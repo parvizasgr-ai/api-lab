@@ -612,6 +612,8 @@ const translations = {
     nextPage: "Növbəti",
     pageOf: "səhifə",
     invalidCode: "Kod yanlışdır və ya vaxtı bitib",
+    oauthWrongPassword: "Parol səhvdir — yenidən yazın (demo: student123, rauf123)",
+    oauthServerError: "Server cavab vermədi",
     invalidCodeText: "Authorization Code və ya state yoxlaması uğursuz oldu.",
     exchangingCode: "Code token ilə dəyişdirilir...",
     codeReceived: "Authorization code alındı",
@@ -1178,6 +1180,8 @@ const translations = {
     nextPage: "Next",
     pageOf: "page",
     invalidCode: "Invalid or expired code",
+    oauthWrongPassword: "Wrong password — try again (demo: student123, rauf123)",
+    oauthServerError: "The server did not respond",
     invalidCodeText: "The Authorization Code or state verification failed.",
     exchangingCode: "Exchanging code for token...",
     codeReceived: "Authorization code received",
@@ -3548,6 +3552,8 @@ function GoogleOAuthModal({
   const [password, setPassword] = useState("");
   const [error, setError] = useState<"denied" | "invalid" | null>(null);
   const [errorDetail, setErrorDetail] = useState("");
+  const [errorTitle, setErrorTitle] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [showCalls, setShowCalls] = useState(false);
   const [successName, setSuccessName] = useState("");
   const [calls, setCalls] = useState<NetworkCall[]>([]);
@@ -3598,6 +3604,15 @@ function GoogleOAuthModal({
     return () => dialog.removeEventListener("keydown", handleKeyDown);
   }, [onClose, step, error, showCalls]);
 
+  // Xətanın başlığı səbəbə görə: code/state problemi ayrıca, server/şəbəkə xətası ayrıca (hamısı "kod yanlışdır" deyil)
+  const showFlowError = (caught: unknown) => {
+    const code = caught instanceof AuthClientError ? caught.code : "";
+    const codeProblem = ["invalid_grant", "INVALID_OAUTH_STATE", "NO_CODE", "INVALID_REDIRECT_URI"].includes(code);
+    setErrorTitle(codeProblem ? t.invalidCode : code === "NETWORK_ERROR" ? t.oauthServerError : t.errorTitle);
+    setErrorDetail(errorText(caught));
+    setError("invalid");
+  };
+
   // 1. GET /oauth/authorize — provider-dən client və hesablar
   useEffect(() => {
     let cancelled = false;
@@ -3611,8 +3626,7 @@ function GoogleOAuthModal({
       })
       .catch((caught) => {
         if (cancelled) return;
-        setErrorDetail(errorText(caught));
-        setError("invalid");
+        showFlowError(caught);
       });
     return () => {
       cancelled = true;
@@ -3622,14 +3636,21 @@ function GoogleOAuthModal({
   // 2–4. consent (POST /oauth/authorize) → code + state yoxlaması → POST /oauth/token → GET /oauth/userinfo
   const allow = async () => {
     if (!selectedAccount) return;
+    setPasswordError("");
     setStep(3);
     try {
       const session = await authClient.exchangeGoogleCode(selectedAccount, password, oauthState);
       setSuccessName(session.user.name);
       window.setTimeout(() => onSignedIn(session), 900);
     } catch (caught) {
-      setErrorDetail(errorText(caught));
-      setError("invalid");
+      // Səhv parol: consent ekranında qalırıq — code verilməyib, state hələ etibarlıdır, yenidən yazmaq olar
+      if (caught instanceof AuthClientError && caught.status === 401 && caught.code === "INVALID_CREDENTIALS") {
+        setPassword("");
+        setPasswordError(t.oauthWrongPassword);
+        setStep(2);
+        return;
+      }
+      showFlowError(caught);
     }
   };
 
@@ -3641,6 +3662,8 @@ function GoogleOAuthModal({
   const reset = () => {
     setError(null);
     setErrorDetail("");
+    setErrorTitle("");
+    setPasswordError("");
     setSelectedAccount(null);
     setPassword("");
     setSuccessName("");
@@ -3687,7 +3710,7 @@ function GoogleOAuthModal({
           {error ? (
             <div className="oauth-flow-error" role="alert">
               <span>!</span>
-              <h2>{error === "denied" ? t.accessDenied : t.invalidCode}</h2>
+              <h2>{error === "denied" ? t.accessDenied : errorTitle || t.invalidCode}</h2>
               <p>
                 {error === "denied"
                   ? t.accessDeniedText
@@ -3727,10 +3750,8 @@ function GoogleOAuthModal({
                     <Icon name="chevron" size={17} />
                   </button>
                 ))}
-                <button
-                  onClick={() => setError("invalid")}
-                  type="button"
-                >
+                {/* Demo provider-də yalnız seed hesabları var — düymə məlumat xarakterlidir (əvvəl yalançı "kod yanlışdır" göstərirdi) */}
+                <button aria-disabled="true" className="account-unavailable" disabled type="button">
                   <span className="google-account-avatar add">
                     <Icon name="plus" size={18} />
                   </span>
@@ -3764,14 +3785,20 @@ function GoogleOAuthModal({
               <label className="consent-password">
                 <span>{t.oauthPassword}</span>
                 <input
+                  aria-describedby={passwordError ? "consent-password-error" : undefined}
+                  aria-invalid={passwordError ? true : undefined}
                   autoComplete="current-password"
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    setPasswordError("");
+                  }}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter") void allow();
+                    if (event.key === "Enter" && password) void allow();
                   }}
                   type="password"
                   value={password}
                 />
+                {passwordError && <small className="consent-password-error" id="consent-password-error" role="alert">{passwordError}</small>}
               </label>
               <p className="mock-google-notice">{t.mockGoogleNotice}</p>
               <div className="google-consent-actions">

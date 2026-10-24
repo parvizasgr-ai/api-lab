@@ -120,3 +120,28 @@ test('QA-L11: student-in açıq Materials səhifəsi yeni hazır materialı relo
   await expect(page.locator('.mat-card', { hasText: title })).toBeVisible()
   await request.delete(`/api/v1/materials/${id}`, { headers: { Authorization: `Bearer ${access_token}` } })
 })
+
+test('Mock Google: "başqa hesab" yalançı xəta göstərmir; səhv parol consent-də qalır, sonra düzgün parolla giriş', async ({ page }) => {
+  await page.goto('/signin')
+  await page.locator('.google-signin-button').click()
+  const chooser = page.locator('.account-chooser')
+  await expect(chooser).toContainText('Aysel Məmmədova')
+  // Əvvəl bu düymə heç bir sorğu olmadan "Kod yanlışdır və ya vaxtı bitib" göstərirdi
+  await expect(chooser.locator('button.account-unavailable')).toBeDisabled()
+  await expect(page.locator('.oauth-flow-error')).toHaveCount(0)
+
+  await chooser.getByRole('button').filter({ hasText: 'Aysel Məmmədova' }).click()
+  const consent = page.waitForResponse((r) => r.url().endsWith('/oauth/authorize') && r.request().method() === 'POST')
+  await page.locator('.consent-password input').fill('səhv-parol')
+  await page.locator('.google-consent-actions button').last().click()
+  expect((await consent).status()).toBe(401)
+  await expect(page.locator('.oauth-flow-error')).toHaveCount(0) // ümumi "kod yanlışdır" ekranı yox
+  await expect(page.locator('.consent-password-error')).toContainText(/Parol səhvdir|Wrong password/)
+  await expect(page.locator('.consent-password input')).toHaveAttribute('aria-invalid', 'true')
+
+  // Eyni state ilə yenidən — axını yenidən başlatmadan
+  await page.locator('.consent-password input').fill('student123')
+  await expect(page.locator('.consent-password-error')).toHaveCount(0)
+  await page.locator('.google-consent-actions button').last().click()
+  await expect(page.locator('.user-chip')).toBeVisible()
+})

@@ -607,13 +607,13 @@ const translations = {
     benefitSandbox: "Təhlükəsiz təlim sandbox-u",
     benefitTools: "Postman və curl ilə işləyir",
     howItWorks:
-      "Sign-in OAuth 2.0 Authorization Code flow-dan istifadə edir — Lesson 3-də öyrəndiyin eyni flow.",
+      "Giriş JWT access + refresh token verir — Lesson 3-də öyrəndiyin Bearer token axını. OAuth 2.0 demosu Auth Lab-dadır.",
     welcomeBack: "Xoş gəldin",
     continueWithGoogle: "Google ilə davam et",
     orLabel: "və ya",
     demoAccountsHelper: "Təlim sandbox-u üçün demo hesablar",
     privacyNote:
-      "Yalnız adını və e-poçtunu sandbox profili yaratmaq üçün istifadə edirik. Heç bir data təlim mühitindən çıxmır.",
+      "Ad, soyad və qrupun yalnız müəllimin nəticələri görməsi üçündür. Parol hash-lənir, heç bir data təlim mühitindən çıxmır.",
     profile: "Profile",
     tokenInfo: "Token info",
     signOut: "Çıxış et",
@@ -1197,13 +1197,13 @@ const translations = {
     benefitSandbox: "Safe training sandbox",
     benefitTools: "Works with Postman and curl",
     howItWorks:
-      "Sign-in uses OAuth 2.0 Authorization Code flow, the same flow you learn in Lesson 3.",
+      "Sign-in issues a JWT access + refresh token — the Bearer token flow from Lesson 3. The OAuth 2.0 demo lives in Auth Lab.",
     welcomeBack: "Welcome back",
     continueWithGoogle: "Continue with Google",
     orLabel: "or",
     demoAccountsHelper: "Demo accounts for the training sandbox",
     privacyNote:
-      "We only use your name and email to create your sandbox profile. No data leaves the training environment.",
+      "Your name and group are used only so your teacher can see your results. Passwords are hashed; no data leaves the training environment.",
     profile: "Profile",
     tokenInfo: "Token info",
     signOut: "Sign out",

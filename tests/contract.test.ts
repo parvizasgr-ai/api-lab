@@ -119,6 +119,17 @@ const PREPARE: Record<string, (ctx: Ctx) => Promise<Overrides>> = {
   async createBookReview() {
     return { path: { bookId: 1 } };
   },
+  async createHotelReview() {
+    return { path: { hotelId: 3 } }; // student-in bu otelə seed rəyi yoxdur
+  },
+  // Bildiriş Kafka consumer-i ilə yaranır: kartı blokla → notification-service → MongoDB
+  async updateNotification(ctx) {
+    const token = (await ctx.login()).access_token;
+    await ctx.api().post('/api/v1/cards/1/block').set('Authorization', `Bearer ${token}`).send({ reason: 'LOST' });
+    await (ctx.app.locals.infra as { kafka: { idle(): Promise<void> } }).kafka.idle();
+    const list = await ctx.api().get('/api/v1/notifications').set('Authorization', `Bearer ${token}`);
+    return { path: { notificationId: list.body.items[0]._id } };
+  },
   ...Object.fromEntries(
     ['getMaterial', 'deleteMaterial', 'updateMaterial', 'reconvertMaterial', 'listMaterialPages', 'getMaterialPageImage', 'getMaterialPageThumb', 'downloadMaterial', 'getMaterialPdf'].map((id) => [
       id,

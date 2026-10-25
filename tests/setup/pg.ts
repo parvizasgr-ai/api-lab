@@ -26,6 +26,7 @@ const names: string[] = [];
 const open: DB[] = [];
 let next = 0;
 let created: Promise<void> | null = null;
+const readyDbs = new WeakSet<DB>(); // hazırlığı bitmiş bazalar
 let queue: Promise<unknown> = Promise.resolve(); // təmizliklər ardıcıl gedir (eyni DB-yə paralel TRUNCATE olmasın)
 
 // Worker bazaları qaçışlar arasında SAXLANILIR (ad: worker nömrəsi, pid yox). Yalnız migration/seed dəyişəndə
@@ -55,7 +56,10 @@ export function createTestDb(): DB {
   const ready = (queue = queue.then(async () => {
     await ensureDatabases();
     const { flushRequestLog } = await import('../../server/src/middleware/requestLog.js');
-    await flushRequestLog(); // əvvəlki app-in gözləyən log yazıları yeni datanı çirkləndirməsin
+    // Əvvəlki app-lərin gözləyən log yazıları yeni datanı çirkləndirməsin. Yalnız artıq HAZIR olan bazaların yazıları
+    // gözlənilir: hələ hazırlanmayan bazaya (bu və ya sonrakı app — məs. DB-yə toxunmayan 413 cavabı) yazı bu növbəni
+    // gözləyir, onu gözləsək dairəvi gözləmə olar.
+    await flushRequestLog((target) => target === null || readyDbs.has(target));
     const cleaner = new DB(urlFor(names[index]), { max: 1 });
     try {
       // Testlərin müvəqqəti obyektləri (test_* trigger/funksiya) baza qaçışlar arasında qaldığı üçün silinir
@@ -73,6 +77,7 @@ export function createTestDb(): DB {
     }
   })) as Promise<void>;
   const db = new DB(urlFor(dbName(index)), { ready, max: 3, idleTimeoutMillis: 200 });
+  void ready.then(() => readyDbs.add(db), () => undefined);
   open.push(db);
   return db;
 }

@@ -75,7 +75,7 @@ erDiagram
 | Müştərilər | customers | Tam CRUD (auth tələb etmir — Dərs 2 security-dən əvvəldir), ETag (`updated_at`-dan), 409 EMAIL_EXISTS |
 | Kitab | books, book_reviews | Cursor pagination, nested resurs |
 | Musiqi | tracks, playlists, playlist_tracks, play_history | Xarici API (YouTube) inteqrasiyası, kompozit PK |
-| Texniki | idempotency_keys, audit_log, request_log, rate_limit_counters | Idempotency-Key, audit, API History, 429 |
+| Texniki | idempotency_keys, audit_log, request_log, rate_limit_counters | Idempotency-Key, audit, API History, login kilidi (ümumi rate limit Redis-dədir) |
 | Materiallar | materials, material_pages, tasks, task_progress | multipart upload, asinxron emal (202 + polling), pre-signed URL, markdown import |
 
 ## View-lar və trigger-lər

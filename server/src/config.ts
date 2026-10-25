@@ -93,6 +93,14 @@ export const config = {
   // SQL Playground: icra limiti, maks. sətir və nəticə ölçüsü
   sqlPlayground: { timeoutMs: 2000, maxRows: 200, maxBytes: 1_000_000 },
 
+  // Redis / Kafka / MongoDB simulyasiyaları (server/src/infra). Tədris üçün: keş TTL-ləri qısadır ki, tələbə vaxtın keçməsini görsün;
+  // Kafka consumer-i mesajı bir az gec emal edir — portalda "lag" bir anlıq görünür.
+  infra: {
+    cacheTtlSec: { rates: 60, flights: 30 },
+    consumerDelayMs: Number(env.KAFKA_CONSUMER_DELAY_MS ?? 1500),
+    sandbox: { redisKeys: 50, redisValueChars: 512, kafkaRetention: 50, kafkaGroups: 10, kafkaValueBytes: 2048 },
+  },
+
   // BFF-in hər daxili çağırışı üçün limit
   bffCallTimeoutMs: 3000,
 

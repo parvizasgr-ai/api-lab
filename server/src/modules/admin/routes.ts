@@ -16,7 +16,7 @@ const assertSuperadmin = (role?: string) => {
   if (role !== 'SUPERADMIN') throw forbidden('Bu panel yalnız superadmin (müəllim) üçündür');
 };
 
-export function adminHandlers({ db, config, materials }: AppContext): Handlers {
+export function adminHandlers({ db, config, materials, infra }: AppContext): Handlers {
   const users = new AdminUsersService(db);
   return {
     adminListUsers: async (req, res) => {
@@ -64,6 +64,7 @@ export function adminHandlers({ db, config, materials }: AppContext): Handlers {
         }
       }
       materials.queue.reset();
+      await infra.reset(); // Redis keşi/sayğacları və Kafka mesajları da sıfırlanır
       await resetDatabase(db);
       await applyAdminPassword(db, config); // seed admin123-ü qaytarmasın (sinif rejimi)
       await ensureSuperadmin(db, config); // müəllim hesabı sıfırlamadan sonra da qalır

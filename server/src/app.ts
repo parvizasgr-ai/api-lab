@@ -1,5 +1,5 @@
 // Express app-ın yığılması. Middleware sırası (vacibdir!):
-//   request-id → request_log → helmet/CORS → rate limit → X-Simulate
+//   request-id → request_log → helmet/CORS → rate limit (Redis) → X-Simulate
 //   → [hər endpoint: auth → scope → body parse → validation → idempotency → handler]
 //   → 404 → /docs + portal (statik) → vahid error handler
 import express from 'express';
@@ -36,6 +36,9 @@ import { MaterialsService } from './modules/materials/service.js';
 import { materialsHandlers } from './modules/materials/routes.js';
 import { tasksHandlers } from './modules/tasks/routes.js';
 import { uploadParser } from './middleware/upload.js';
+import { Infra } from './infra/index.js';
+import { infraHandlers } from './modules/infra/routes.js';
+import { notificationsHandlers } from './modules/notifications/routes.js';
 
 export interface AppContext {
   db: DB;
@@ -43,6 +46,7 @@ export interface AppContext {
   spec: OpenApiDoc;
   auth: AuthService;
   materials: MaterialsService;
+  infra: Infra; // Redis / Kafka / MongoDB simulyasiyaları
 }
 
 const API_PREFIXES = ['/api', '/oauth', '/bff', '/external'];
@@ -68,6 +72,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     spec,
     auth: new AuthService(options.db, config),
     materials: new MaterialsService({ db: options.db, config }),
+    infra: new Infra(options.db, config),
   };
 
   const handlers: Handlers = {
@@ -87,12 +92,15 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...externalHandlers(ctx),
     ...materialsHandlers(ctx, ctx.materials),
     ...tasksHandlers(ctx),
+    ...infraHandlers(ctx),
+    ...notificationsHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 
   const app = express();
   // Spec-də olub handler-i olmayan endpoint-lər (501 qaytarır) — testlər və başlanğıc log-u üçün
   app.locals.materials = ctx.materials; // testlər üçün: konvertasiya növbəsini gözləmək
+  app.locals.infra = ctx.infra; // testlər üçün: Kafka consumer-lərini gözləmək (infra.kafka.idle())
   app.locals.unimplemented = listOperations(spec)
     .filter((op) => !handlers[op.operationId] && op.method !== 'options')
     .map((op) => op.operationId);
@@ -104,7 +112,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
   app.use(requestId);
   app.use(API_PREFIXES, requestLog(ctx.db, config));
   app.use(security(config));
-  app.use(API_PREFIXES, rateLimit(ctx.db, config, ctx.auth));
+  app.use(API_PREFIXES, rateLimit(ctx.infra.redis, config, ctx.auth));
   app.use(API_PREFIXES, simulate(config));
   app.use('/external', pathGuard()); // SSRF: xam URL-də .., //, @, \, %2e, %2f, CR/LF → 400 (routing-dən əvvəl)
 
@@ -113,7 +121,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     handlers,
     authenticate: (op) => authenticate(op, spec, ctx.auth),
     requireScopes,
-    operationRateLimit: operationRateLimit(ctx.db, config),
+    operationRateLimit: operationRateLimit(ctx.infra.redis, config),
     uploadParser: uploadParser(config),
     idempotency: idempotency(ctx.db, config),
   });

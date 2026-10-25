@@ -54,6 +54,7 @@ import { normalizeRegistration, serverFieldErrors, validateRegistration, type Re
 
 // Müəllim paneli ayrıca chunk-dır — tələbələr onu yükləmir
 const AdminPage = lazy(() => import("./AdminPage"));
+const InfraPage = lazy(() => import("./InfraPage")); // Redis / Kafka / MongoDB
 
 type Language = "az" | "en";
 type Theme = "light" | "dark";
@@ -79,6 +80,7 @@ const translations = {
     materials: "Materials",
     externalApis: "External APIs",
     teacherPanel: "Müəllim paneli",
+    infra: "Infra",
     teacherPanelForbidden: "Bu səhifə yalnız müəllim (superadmin) hesabı üçündür.",
     signInTab: "Daxil ol",
     registerTab: "Qeydiyyat",
@@ -669,6 +671,7 @@ const translations = {
     materials: "Materials",
     externalApis: "External APIs",
     teacherPanel: "Teacher panel",
+    infra: "Infra",
     teacherPanelForbidden: "This page is only for the teacher (superadmin) account.",
     signInTab: "Sign in",
     registerTab: "Register",
@@ -1515,6 +1518,7 @@ function Header({
     { label: t.sql, page: "sql" },
     { label: t.materials, page: "materials" },
     { label: t.externalApis, page: "external" },
+    { label: t.infra, page: "infra" },
     ...(session?.user.role === "superadmin" ? [{ label: t.teacherPanel, page: "admin" as Page }] : []),
   ];
 
@@ -5199,6 +5203,10 @@ function App() {
       ) : (
         currentPage === "external" ? (
           <ExternalApisPage language={language} onNavigate={navigateTo} session={session} t={t} />
+        ) : currentPage === "infra" ? (
+          <Suspense fallback={<main className="infra-page" id="main-content" aria-busy="true" />}>
+            <InfraPage language={language} username={session?.user.username ?? ""} />
+          </Suspense>
         ) : currentPage === "admin" ? (
           session?.user.role === "superadmin" ? (
             <Suspense fallback={<main className="admin-page" id="main-content" aria-busy="true" />}>

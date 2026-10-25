@@ -261,6 +261,8 @@ export async function seed(db: DB): Promise<void> {
   const tables = await userTables(db);
   await db.transaction(async () => {
     if (tables.length) await db.exec(`TRUNCATE ${tables.map((t) => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE`);
+    // MongoDB simulyasiyasının sənədləri (ayrıca sxem — 004_docstore.sql)
+    await db.exec(`DO $$ BEGIN IF to_regclass('docstore.documents') IS NOT NULL THEN TRUNCATE docstore.documents; END IF; END $$`);
     for (const file of sqlFiles(config.seedDir)) await db.exec(fs.readFileSync(path.join(config.seedDir, file), 'utf8'));
     // Seed id-ləri açıq yazır — IDENTITY sequence-ləri max(id)-ə çəkilir ki, sonrakı INSERT-lər toqquşmasın
     await db.exec(`DO $$ DECLARE r record; BEGIN
@@ -274,7 +276,7 @@ export async function seed(db: DB): Promise<void> {
 
 // DB-ni tam sıfırlayır: public sxemi silinir → migration-lar → seed. (Rollar və lab sxemi migration-larda yenidən qurulur.)
 export async function resetDatabase(db: DB): Promise<void> {
-  await db.exec(`DROP SCHEMA IF EXISTS lab CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO CURRENT_USER;`);
+  await db.exec(`DROP SCHEMA IF EXISTS lab CASCADE; DROP SCHEMA IF EXISTS docstore CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO CURRENT_USER;`);
   await migrate(db);
   await seed(db);
 }

@@ -1523,6 +1523,100 @@
           }
         },
         {
+          "name": "GET /api/v1/hotels/{hotelId}/reviews — Otelin rəyləri (MongoDB — sənəd bazası)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/:hotelId/reviews?sort=-rating&minRating=4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                ":hotelId",
+                "reviews"
+              ],
+              "query": [
+                {
+                  "key": "sort",
+                  "value": "-rating",
+                  "disabled": false
+                },
+                {
+                  "key": "minRating",
+                  "value": "4",
+                  "disabled": false
+                }
+              ],
+              "variable": [
+                {
+                  "key": "hotelId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Otel rəyləri **MongoDB**-də (`hotel_reviews` kolleksiyası) JSON sənədləri kimi saxlanılır — kitab rəyləri isə PostgreSQL cədvəlindədir (`book_reviews`).\nMüqayisə edin: sənəddə otel və müəllif məlumatı **iç-içədir** (JOIN lazım deyil), `pros`/`cons` massivdir, sənədlərin forması fərqli ola bilər\n(import edilən rəylərdə `user` yoxdur, `source` və `photos` var). Cavabdakı `query` — server-in icra etdiyi Mongo sorğusu.\n"
+          }
+        },
+        {
+          "name": "POST /api/v1/hotels/{hotelId}/reviews — Otelə rəy yaz (MongoDB sənədi + Kafka hadisəsi)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/hotels/:hotelId/reviews",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "hotels",
+                ":hotelId",
+                "reviews"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "hotelId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Rəy MongoDB-yə sənəd kimi yazılır (`insertOne`) və Kafka-ya `review.created` hadisəsi göndərilir (`hotel.reviews` topic).\nBir istifadəçi bir otelə yalnız 1 rəy yaza bilər → **409 REVIEW_EXISTS**. `stay`, `pros`, `cons` könüllüdür — göndərilməsə sənəddə olmur.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 4,\n  \"title\": \"Rahat və təmiz\",\n  \"text\": \"Personal köməkçidir, səhər yeməyi yaxşıdır.\",\n  \"stay\": {\n    \"month\": \"2026-09\",\n    \"tripType\": \"BUSINESS\"\n  },\n  \"pros\": [\n    \"Wi-Fi\",\n    \"səhər yeməyi\"\n  ],\n  \"cons\": [\n    \"parkinq\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
           "name": "GET /api/v1/hotels/bookings — Mənim otel bronlarım",
           "request": {
             "method": "GET",
@@ -3566,6 +3660,469 @@
             "body": {
               "mode": "raw",
               "raw": "{\n  \"sql\": \"SELECT * FROM card_status_history ORDER BY changed_at DESC\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "GET /api/v1/notifications — Mənim bildirişlərim (Kafka → notification-service → MongoDB)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications?unread=true&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "unread",
+                  "value": "true",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Bildirişləri API birbaşa yazmır: köçürmə, kart bloku və bron **Kafka**-ya hadisə göndərir, `notification-service` consumer-i\nhadisəni oxuyub **MongoDB**-yə (`notifications`) yazır. Consumer bir az gec işləyir (≈1.5 san) — hadisədən dərhal sonra\nsorğu göndərsəniz bildiriş hələ olmaya bilər (**eventual consistency**). Hər bildirişdə mənbə hadisənin topic/partition/offset-i var.\n"
+          }
+        },
+        {
+          "name": "PATCH /api/v1/notifications/{notificationId} — Bildirişi oxunmuş / oxunmamış et",
+          "request": {
+            "method": "PATCH",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/:notificationId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                ":notificationId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "notificationId",
+                  "value": "6713a1c2f1e2d3c4b5a69790"
+                }
+              ]
+            },
+            "description": "Yalnız öz bildirişiniz. Başqasının bildirişi → **404** (mövcudluğu gizlədilir). MongoDB-də `$set` ilə yenilənir.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"read\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Redis",
+      "item": [
+        {
+          "name": "GET /api/v1/_redis/keys — Redis açarları (keş, rate limit, statistika) və hit/miss",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_redis/keys?pattern=cache:*&limit=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_redis",
+                "keys"
+              ],
+              "query": [
+                {
+                  "key": "pattern",
+                  "value": "cache:*",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Redis-də nə var: `cache:rates:*` (məzənnə keşi, 60 san), `cache:flights:search:*` (reys axtarışı, 30 san; bron olanda silinir),\n`ratelimit:<subyekt>:<pəncərə>` (rate limit sayğacları, INCR + EXPIRE), `stats:events:*` (Kafka analytics consumer-i),\n`sandbox:<username>:*` (sizin açarlarınız). `ttl`: -1 vaxtsız, -2 yoxdur. Başqa tələbələrin sandbox açarları görünmür.\n"
+          }
+        },
+        {
+          "name": "POST /api/v1/_redis/command — Redis əmri icra et (redis-cli kimi)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_redis/command",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_redis",
+                "command"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Oxu əmrləri (istənilən açara): `GET, TTL, EXISTS, TYPE, KEYS, DBSIZE, STRLEN, PING`.\nYazma əmrləri **yalnız öz açarlarınıza** (`sandbox:<username>:*`): `SET key value [EX san] [NX], DEL, INCR, INCRBY, DECR, EXPIRE, PERSIST`.\nDigər əmrlər (`FLUSHALL, CONFIG, EVAL` …) və başqa açarlara yazma → **422 REDIS_COMMAND_NOT_ALLOWED**.\nRedis xətası (məs. rəqəm olmayan dəyərə `INCR`) → **422 REDIS_ERROR**. Sandbox-da ən çox 50 açar, dəyər ≤ 512 simvol.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"command\": \"PING\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Kafka",
+      "item": [
+        {
+          "name": "GET /api/v1/_kafka/topics — Topic-lər, partition-lar və consumer group-lar (lag)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_kafka/topics",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_kafka",
+                "topics"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Domen topic-ləri: `bank.transfers`, `bank.cards`, `travel.bookings`, `hotel.reviews` (hər biri 3 partition).\nConsumer group-lar: `notification-service` (→ MongoDB bildirişləri), `analytics-service` (→ Redis sayğacları).\n**lag** = endOffset − committedOffset: consumer-in hələ emal etmədiyi mesaj sayı. Öz sandbox topic-iniz: `sandbox.<username>`.\n"
+          }
+        },
+        {
+          "name": "GET /api/v1/_kafka/topics/{topic}/messages — Topic mesajları (partition, offset, key, headers, value)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_kafka/topics/:topic/messages?partition=1&fromOffset=0&limit=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_kafka",
+                "topics",
+                ":topic",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "partition",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "fromOffset",
+                  "value": "0",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ],
+              "variable": [
+                {
+                  "key": "topic",
+                  "value": "bank.cards"
+                }
+              ]
+            },
+            "description": "`partition` verilsə — həmin partition-dan `fromOffset`-dən başlayaraq (offset sırası ilə); verilməsə — bütün partition-lardan ən yeni mesajlar.\nDomen topic-lərində yalnız **sizə aid** hadisələr görünür (siz göndərən və ya köçürməni alan), qalanları `hiddenCount`-da sayılır.\nBaşqasının sandbox topic-i → 404.\n"
+          }
+        },
+        {
+          "name": "POST /api/v1/_kafka/sandbox/messages — Öz sandbox topic-inizə mesaj göndər (producer)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_kafka/sandbox/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_kafka",
+                "sandbox",
+                "messages"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Mesaj `sandbox.<username>` topic-inə yazılır (2 partition, hər partition-da son 50 mesaj saxlanılır — retention).\n`key` verilsə partition key-dən hesablanır (eyni key → eyni partition), verilməsə növbə ilə. `partition` ilə əl ilə də seçmək olar.\n`value` — istənilən JSON (≤ 2 KB).\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"key\": \"order-1001\",\n  \"value\": {\n    \"type\": \"order.created\",\n    \"orderId\": 1001,\n    \"total\": 25.5\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /api/v1/_kafka/sandbox/consumer-groups/{groupId}/poll — Consumer group ilə sandbox topic-dən oxu (poll + commit)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_kafka/sandbox/consumer-groups/:groupId/poll",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_kafka",
+                "sandbox",
+                "consumer-groups",
+                ":groupId",
+                "poll"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "groupId",
+                  "value": "my-service"
+                }
+              ]
+            },
+            "description": "Consumer group öz **committed offset**-ini saxlayır: `commit: true` olanda növbəti poll oxunmuş mesajlardan sonra başlayır.\n`commit: false` — eyni mesajlar təkrar gələcək (at-least-once, təkrar emal). Yeni group əvvəldən oxuyur (`auto.offset.reset = earliest`).\nİki fərqli group eyni mesajları müstəqil oxuyur (pub/sub). Ən çox 10 group.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"maxRecords\": 5,\n  \"commit\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "MongoDB",
+      "item": [
+        {
+          "name": "GET /api/v1/_mongo/collections — MongoDB kolleksiyaları, sənəd sayı və nümunə sənəd",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_mongo/collections",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_mongo",
+                "collections"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "MongoDB kolleksiyaları, sənəd sayı və nümunə sənəd"
+          }
+        },
+        {
+          "name": "POST /api/v1/_mongo/query — MongoDB sorğusu — find, countDocuments, aggregate (yalnız oxu)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_mongo/query",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_mongo",
+                "query"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Filter operatorları: `$eq $ne $gt $gte $lt $lte $in $nin $exists $regex $size $all $elemMatch $not $and $or $nor`; iç-içə sahə: `\"hotel.city\"`.\nAggregate mərhələləri: `$match $group $sort $limit $skip $project $count $unwind`; akkumulyatorlar: `$sum $avg $min $max $first $last $push $addToSet`.\nServer tərəfində kod icrası (`$where`, `$function`, `$expr`) və yazma/başqa kolleksiya (`$out`, `$merge`, `$lookup`) → **422 MONGO_QUERY_NOT_ALLOWED**.\n`notifications` kolleksiyasında filter avtomatik `{ userId: <siz> }` ilə birləşdirilir (`scoped: true`). Ən çox 100 sənəd.\nCavabdakı `executedQuery` — mongosh-da eyni sorğu.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"collection\": \"hotel_reviews\",\n  \"operation\": \"find\",\n  \"filter\": {\n    \"hotel.city\": \"Bakı\",\n    \"rating\": {\n      \"$gte\": 4\n    }\n  },\n  \"projection\": {\n    \"hotel.name\": 1,\n    \"rating\": 1,\n    \"text\": 1\n  },\n  \"sort\": {\n    \"rating\": -1\n  },\n  \"limit\": 10\n}",
               "options": {
                 "raw": {
                   "language": "json"

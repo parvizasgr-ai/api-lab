@@ -152,8 +152,10 @@ describe('rate limit (60/dəq)', () => {
     const token = await t.auth.issueAccessToken({ id: 1, username: 'student', role: 'USER' }, []);
     expect((await t.api().get('/api/v1/auth/me').set(bearer(token))).status).toBe(200);
 
-    const counter = await t.db.prepare(`SELECT count FROM rate_limit_counters WHERE subject LIKE 'ip:%'`).pluck().get();
-    expect(counter).toBe(61);
+    // Sayğac Redis-dədir: ratelimit:ip:<ip>:<pəncərə>, TTL = pəncərənin sonuna qədər
+    const [key] = t.infra.redis.keys('ratelimit:ip:*');
+    expect(t.infra.redis.get(key)).toBe('61');
+    expect(t.infra.redis.ttl(key)).toBe(60);
 
     t.clock.advance(60);
     expect((await t.api().get('/api/v1/health')).status).toBe(200);

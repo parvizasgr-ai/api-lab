@@ -6,16 +6,22 @@ import type { DB } from '../db.js';
 import { isoNow } from '../lib/crypto.js';
 import type { Config } from '../config.js';
 
-const pending = new Set<Promise<unknown>>();
+// Gözləyən yazı → hansı DB-yə yazır (testlər: yeni bazanın hazırlığı onun öz yazılarını gözləməsin — dairəvi gözləmə olar)
+const pending = new Map<Promise<unknown>, DB | null>();
 
 // Cavabdan SONRA gedən digər yazılar da (məs. idempotency açarının buraxılması) eyni flush-a daxildir
 export function trackAfterResponse(write: Promise<unknown>): void {
   const tracked = write.catch(() => undefined).finally(() => pending.delete(tracked));
-  pending.add(tracked);
+  pending.set(tracked, null);
 }
 
-export async function flushRequestLog(): Promise<void> {
-  while (pending.size) await Promise.allSettled([...pending]);
+// include: hansı DB-lərin yazıları gözlənilsin (default — hamısı)
+export async function flushRequestLog(include: (db: DB | null) => boolean = () => true): Promise<void> {
+  for (;;) {
+    const waiting = [...pending].filter(([, db]) => include(db)).map(([p]) => p);
+    if (!waiting.length) return;
+    await Promise.allSettled(waiting);
+  }
 }
 
 export function requestLog(db: DB, config: Config): RequestHandler {
@@ -40,7 +46,7 @@ export function requestLog(db: DB, config: Config): RequestHandler {
         )
         .catch((err: Error) => console.error('[request_log] yazıla bilmədi:', err.message))
         .finally(() => pending.delete(write));
-      pending.add(write);
+      pending.set(write, db);
     });
     next();
   };

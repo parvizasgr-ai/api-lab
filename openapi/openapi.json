@@ -77,6 +77,22 @@
       "description": "Tələbələrin DB-ni yalnız SELECT ilə yoxlaması"
     },
     {
+      "name": "Notifications",
+      "description": "Bildirişlər — Kafka hadisələrindən consumer yaradır, MongoDB-də saxlanılır (eventual consistency)"
+    },
+    {
+      "name": "Redis",
+      "description": "Redis (simulyasiya) — keş (cache-aside, TTL, X-Cache), rate limit sayğacları, redis-cli konsolu və sandbox açarları"
+    },
+    {
+      "name": "Kafka",
+      "description": "Kafka (simulyasiya) — domen hadisələri, topic/partition/offset, consumer group və lag; öz sandbox topic-iniz (producer/consumer)"
+    },
+    {
+      "name": "MongoDB",
+      "description": "MongoDB (simulyasiya) — sənəd bazası; find / countDocuments / aggregate (yalnız oxu); relational vs document müqayisəsi"
+    },
+    {
       "name": "Materials",
       "description": "Dərs materialları — yükləmə (PDF/PPTX/DOCX/MD), asinxron konvertasiya, səhifə viewer-i, pre-signed URL-lər"
     },
@@ -2338,7 +2354,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Məzənnələr",
+            "description": "Məzənnələr (Redis keşi, 60 san — X-Cache başlığına baxın)",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-Cache-Key": {
+                "$ref": "#/components/headers/X-Cache-Key"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -2701,7 +2725,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Reyslər",
+            "description": "Reyslər (Redis keşi, 30 san; bron olanda keş silinir)",
+            "headers": {
+              "X-Cache": {
+                "$ref": "#/components/headers/X-Cache"
+              },
+              "X-Cache-Key": {
+                "$ref": "#/components/headers/X-Cache-Key"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -3529,6 +3561,285 @@
           },
           "404": {
             "$ref": "#/components/responses/HotelNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/hotels/{hotelId}/reviews": {
+      "get": {
+        "tags": [
+          "Hotels"
+        ],
+        "operationId": "listHotelReviews",
+        "summary": "Otelin rəyləri (MongoDB — sənəd bazası)",
+        "description": "Otel rəyləri **MongoDB**-də (`hotel_reviews` kolleksiyası) JSON sənədləri kimi saxlanılır — kitab rəyləri isə PostgreSQL cədvəlindədir (`book_reviews`).\nMüqayisə edin: sənəddə otel və müəllif məlumatı **iç-içədir** (JOIN lazım deyil), `pros`/`cons` massivdir, sənədlərin forması fərqli ola bilər\n(import edilən rəylərdə `user` yoxdur, `source` və `photos` var). Cavabdakı `query` — server-in icra etdiyi Mongo sorğusu.\n",
+        "x-db-impact": {
+          "reads": [
+            "hotels",
+            "mongodb: hotel_reviews"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/HotelId"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "-createdAt",
+                "createdAt",
+                "-rating",
+                "rating",
+                "-helpfulVotes"
+              ],
+              "default": "-createdAt"
+            },
+            "example": "-rating"
+          },
+          {
+            "name": "minRating",
+            "in": "query",
+            "description": "Minimum reytinq",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "example": 4
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rəylər və statistika",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotelReviewList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "_id": "665a00000000000000000001",
+                      "hotel": {
+                        "id": 1,
+                        "name": "Xəzər Sahil Hotel",
+                        "city": "Bakı"
+                      },
+                      "user": {
+                        "id": 1,
+                        "username": "student",
+                        "name": "Aysel Məmmədova"
+                      },
+                      "userId": 1,
+                      "rating": 5,
+                      "title": "Dəniz mənzərəsi möhtəşəmdir",
+                      "text": "Otaqdan Xəzər görünür, səhər yeməyi zəngindir.",
+                      "stay": {
+                        "month": "2026-08",
+                        "tripType": "COUPLE"
+                      },
+                      "pros": [
+                        "mənzərə",
+                        "səhər yeməyi"
+                      ],
+                      "cons": [
+                        "baha parkinq"
+                      ],
+                      "helpfulVotes": 12,
+                      "createdAt": "2026-09-05T00:00:00Z"
+                    },
+                    {
+                      "_id": "665a00000000000000000003",
+                      "hotel": {
+                        "id": 1,
+                        "name": "Xəzər Sahil Hotel",
+                        "city": "Bakı"
+                      },
+                      "source": "booking-partner",
+                      "reviewer": "Leyla K.",
+                      "rating": 5,
+                      "text": "Personal çox mehribandır, spa əla idi.",
+                      "photos": [
+                        "https://img.example/xs-1.jpg"
+                      ],
+                      "helpfulVotes": 7,
+                      "createdAt": "2026-08-06T00:00:00Z"
+                    }
+                  ],
+                  "total": 2,
+                  "averageRating": 5,
+                  "ratingDistribution": {
+                    "1": 0,
+                    "2": 0,
+                    "3": 0,
+                    "4": 0,
+                    "5": 2
+                  },
+                  "storage": "mongodb",
+                  "query": "db.hotel_reviews.find({\"hotel.id\": 1}).sort({createdAt: -1})"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/HotelNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Hotels"
+        ],
+        "operationId": "createHotelReview",
+        "summary": "Otelə rəy yaz (MongoDB sənədi + Kafka hadisəsi)",
+        "description": "Rəy MongoDB-yə sənəd kimi yazılır (`insertOne`) və Kafka-ya `review.created` hadisəsi göndərilir (`hotel.reviews` topic).\nBir istifadəçi bir otelə yalnız 1 rəy yaza bilər → **409 REVIEW_EXISTS**. `stay`, `pros`, `cons` könüllüdür — göndərilməsə sənəddə olmur.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "hotels",
+            "users",
+            "mongodb: hotel_reviews"
+          ],
+          "writes": [
+            "mongodb: INSERT hotel_reviews",
+            "kafka: hotel.reviews"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/HotelId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HotelReviewCreate"
+              },
+              "example": {
+                "rating": 4,
+                "title": "Rahat və təmiz",
+                "text": "Personal köməkçidir, səhər yeməyi yaxşıdır.",
+                "stay": {
+                  "month": "2026-09",
+                  "tripType": "BUSINESS"
+                },
+                "pros": [
+                  "Wi-Fi",
+                  "səhər yeməyi"
+                ],
+                "cons": [
+                  "parkinq"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rəy yaradıldı",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HotelReview"
+                },
+                "example": {
+                  "_id": "6713a1c2f1e2d3c4b5a69788",
+                  "hotel": {
+                    "id": 1,
+                    "name": "Xəzər Sahil Hotel",
+                    "city": "Bakı"
+                  },
+                  "user": {
+                    "id": 1,
+                    "username": "student",
+                    "name": "Aysel Məmmədova"
+                  },
+                  "userId": 1,
+                  "rating": 4,
+                  "title": "Rahat və təmiz",
+                  "text": "Personal köməkçidir, səhər yeməyi yaxşıdır.",
+                  "stay": {
+                    "month": "2026-09",
+                    "tripType": "BUSINESS"
+                  },
+                  "pros": [
+                    "Wi-Fi",
+                    "səhər yeməyi"
+                  ],
+                  "cons": [
+                    "parkinq"
+                  ],
+                  "helpfulVotes": 0,
+                  "createdAt": "2026-10-25T09:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/HotelNotFound"
+          },
+          "409": {
+            "description": "Bu otelə artıq rəy yazmısınız",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 409,
+                  "code": "REVIEW_EXISTS",
+                  "message": "Bu otelə artıq rəy yazmısınız",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
           },
           "422": {
             "$ref": "#/components/responses/ValidationError"
@@ -8018,6 +8329,1173 @@
         }
       }
     },
+    "/api/v1/notifications": {
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "listNotifications",
+        "summary": "Mənim bildirişlərim (Kafka → notification-service → MongoDB)",
+        "description": "Bildirişləri API birbaşa yazmır: köçürmə, kart bloku və bron **Kafka**-ya hadisə göndərir, `notification-service` consumer-i\nhadisəni oxuyub **MongoDB**-yə (`notifications`) yazır. Consumer bir az gec işləyir (≈1.5 san) — hadisədən dərhal sonra\nsorğu göndərsəniz bildiriş hələ olmaya bilər (**eventual consistency**). Hər bildirişdə mənbə hadisənin topic/partition/offset-i var.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "mongodb: notifications"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "unread",
+            "in": "query",
+            "description": "Yalnız oxunmamışlar",
+            "schema": {
+              "type": "boolean"
+            },
+            "example": true
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bildirişlər (ən yenisi birinci)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationList"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "_id": "6713a1c2f1e2d3c4b5a69790",
+                      "userId": 1,
+                      "type": "CARD_BLOCKED",
+                      "title": "Kart bloklandı",
+                      "message": "Kart **** **** **** 4169 — səbəb: LOST",
+                      "read": false,
+                      "event": {
+                        "eventId": "0f8e2c7a-5d1b-4a3e-9c6f-2b7d8e1a4c55",
+                        "topic": "bank.cards",
+                        "partition": 1,
+                        "offset": 0
+                      },
+                      "createdAt": "2026-10-25T09:00:02Z"
+                    }
+                  ],
+                  "unreadCount": 1
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{notificationId}": {
+      "patch": {
+        "tags": [
+          "Notifications"
+        ],
+        "operationId": "updateNotification",
+        "summary": "Bildirişi oxunmuş / oxunmamış et",
+        "description": "Yalnız öz bildirişiniz. Başqasının bildirişi → **404** (mövcudluğu gizlədilir). MongoDB-də `$set` ilə yenilənir.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "mongodb: notifications"
+          ],
+          "writes": [
+            "mongodb: UPDATE notifications ($set read)"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "notificationId",
+            "in": "path",
+            "required": true,
+            "description": "MongoDB ObjectId (24 hex simvol)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$"
+            },
+            "example": "6713a1c2f1e2d3c4b5a69790"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationUpdate"
+              },
+              "example": {
+                "read": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Yenilənmiş bildiriş",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Notification"
+                },
+                "example": {
+                  "_id": "6713a1c2f1e2d3c4b5a69790",
+                  "userId": 1,
+                  "type": "CARD_BLOCKED",
+                  "title": "Kart bloklandı",
+                  "message": "Kart **** **** **** 4169 — səbəb: LOST",
+                  "read": true,
+                  "event": {
+                    "eventId": "0f8e2c7a-5d1b-4a3e-9c6f-2b7d8e1a4c55",
+                    "topic": "bank.cards",
+                    "partition": 1,
+                    "offset": 0
+                  },
+                  "createdAt": "2026-10-25T09:00:02Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Bildiriş tapılmadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 404,
+                  "code": "NOTIFICATION_NOT_FOUND",
+                  "message": "Bildiriş tapılmadı",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/_redis/keys": {
+      "get": {
+        "tags": [
+          "Redis"
+        ],
+        "operationId": "redisKeys",
+        "summary": "Redis açarları (keş, rate limit, statistika) və hit/miss",
+        "description": "Redis-də nə var: `cache:rates:*` (məzənnə keşi, 60 san), `cache:flights:search:*` (reys axtarışı, 30 san; bron olanda silinir),\n`ratelimit:<subyekt>:<pəncərə>` (rate limit sayğacları, INCR + EXPIRE), `stats:events:*` (Kafka analytics consumer-i),\n`sandbox:<username>:*` (sizin açarlarınız). `ttl`: -1 vaxtsız, -2 yoxdur. Başqa tələbələrin sandbox açarları görünmür.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "redis: KEYS, GET, TTL"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "pattern",
+            "in": "query",
+            "description": "Redis glob: *, ?, [abc]",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "default": "*"
+            },
+            "example": "cache:*"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 200
+            },
+            "example": 50
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Açarlar və statistika",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedisKeys"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "key": "cache:rates:AZN:latest",
+                      "type": "string",
+                      "ttl": 47,
+                      "size": 118,
+                      "value": "{\"base\":\"AZN\",\"date\":\"2026-10-25\",\"rates\":{\"USD\":0.588235}}"
+                    },
+                    {
+                      "key": "ratelimit:user:1:1792141200",
+                      "type": "string",
+                      "ttl": 31,
+                      "size": 1,
+                      "value": "7"
+                    }
+                  ],
+                  "total": 2,
+                  "stats": {
+                    "keys": 2,
+                    "hits": 5,
+                    "misses": 2,
+                    "hitRate": 71,
+                    "commands": 40,
+                    "expired": 3
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/_redis/command": {
+      "post": {
+        "tags": [
+          "Redis"
+        ],
+        "operationId": "redisCommand",
+        "summary": "Redis əmri icra et (redis-cli kimi)",
+        "description": "Oxu əmrləri (istənilən açara): `GET, TTL, EXISTS, TYPE, KEYS, DBSIZE, STRLEN, PING`.\nYazma əmrləri **yalnız öz açarlarınıza** (`sandbox:<username>:*`): `SET key value [EX san] [NX], DEL, INCR, INCRBY, DECR, EXPIRE, PERSIST`.\nDigər əmrlər (`FLUSHALL, CONFIG, EVAL` …) və başqa açarlara yazma → **422 REDIS_COMMAND_NOT_ALLOWED**.\nRedis xətası (məs. rəqəm olmayan dəyərə `INCR`) → **422 REDIS_ERROR**. Sandbox-da ən çox 50 açar, dəyər ≤ 512 simvol.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit": 60,
+        "x-db-impact": {
+          "reads": [
+            "redis: GET, TTL, KEYS, EXISTS"
+          ],
+          "writes": [
+            "redis: SET, DEL, INCR, EXPIRE (yalnız sandbox:<username>:*)"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedisCommandRequest"
+              },
+              "examples": {
+                "ping": {
+                  "summary": "Əlaqə yoxlaması",
+                  "value": {
+                    "command": "PING"
+                  }
+                },
+                "ttl": {
+                  "summary": "Keşin qalan ömrü",
+                  "value": {
+                    "command": "TTL cache:rates:AZN:latest"
+                  }
+                },
+                "flush": {
+                  "summary": "Bloklanır → 422",
+                  "value": {
+                    "command": "FLUSHALL"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nəticə (`display` — redis-cli görünüşü)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedisCommandResult"
+                },
+                "examples": {
+                  "ping": {
+                    "summary": "PING",
+                    "value": {
+                      "command": "PING",
+                      "result": "PONG",
+                      "display": "PONG",
+                      "durationMs": 0.02
+                    }
+                  },
+                  "incr": {
+                    "summary": "INCR",
+                    "value": {
+                      "command": "INCR sandbox:student:counter",
+                      "result": 3,
+                      "display": "(integer) 3",
+                      "durationMs": 0.03
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "İcazəsiz əmr və ya Redis xətası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "notAllowed": {
+                    "summary": "İcazəsiz əmr",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 422,
+                      "code": "REDIS_COMMAND_NOT_ALLOWED",
+                      "message": "FLUSHALL icazəli deyil — bütün datanı silər",
+                      "details": [
+                        {
+                          "field": "/command",
+                          "message": "FLUSHALL"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "redisError": {
+                    "summary": "Redis xətası",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 422,
+                      "code": "REDIS_ERROR",
+                      "message": "ERR value is not an integer or out of range",
+                      "details": [
+                        {
+                          "field": "/command",
+                          "message": "INCR sandbox:student:name"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/_kafka/topics": {
+      "get": {
+        "tags": [
+          "Kafka"
+        ],
+        "operationId": "kafkaTopics",
+        "summary": "Topic-lər, partition-lar və consumer group-lar (lag)",
+        "description": "Domen topic-ləri: `bank.transfers`, `bank.cards`, `travel.bookings`, `hotel.reviews` (hər biri 3 partition).\nConsumer group-lar: `notification-service` (→ MongoDB bildirişləri), `analytics-service` (→ Redis sayğacları).\n**lag** = endOffset − committedOffset: consumer-in hələ emal etmədiyi mesaj sayı. Öz sandbox topic-iniz: `sandbox.<username>`.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "kafka: metadata, offsets"
+          ],
+          "writes": []
+        },
+        "responses": {
+          "200": {
+            "description": "Topic və consumer group-lar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KafkaOverview"
+                },
+                "example": {
+                  "topics": [
+                    {
+                      "name": "bank.cards",
+                      "sandbox": false,
+                      "retention": 500,
+                      "partitions": [
+                        {
+                          "partition": 0,
+                          "startOffset": 0,
+                          "endOffset": 0
+                        },
+                        {
+                          "partition": 1,
+                          "startOffset": 0,
+                          "endOffset": 2
+                        },
+                        {
+                          "partition": 2,
+                          "startOffset": 0,
+                          "endOffset": 0
+                        }
+                      ],
+                      "messages": 2
+                    }
+                  ],
+                  "consumerGroups": [
+                    {
+                      "groupId": "notification-service",
+                      "topic": "bank.cards",
+                      "service": true,
+                      "partitions": [
+                        {
+                          "partition": 0,
+                          "committedOffset": 0,
+                          "endOffset": 0,
+                          "lag": 0
+                        },
+                        {
+                          "partition": 1,
+                          "committedOffset": 1,
+                          "endOffset": 2,
+                          "lag": 1
+                        },
+                        {
+                          "partition": 2,
+                          "committedOffset": 0,
+                          "endOffset": 0,
+                          "lag": 0
+                        }
+                      ],
+                      "lag": 1
+                    }
+                  ],
+                  "sandboxTopic": "sandbox.student"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/_kafka/topics/{topic}/messages": {
+      "get": {
+        "tags": [
+          "Kafka"
+        ],
+        "operationId": "kafkaMessages",
+        "summary": "Topic mesajları (partition, offset, key, headers, value)",
+        "description": "`partition` verilsə — həmin partition-dan `fromOffset`-dən başlayaraq (offset sırası ilə); verilməsə — bütün partition-lardan ən yeni mesajlar.\nDomen topic-lərində yalnız **sizə aid** hadisələr görünür (siz göndərən və ya köçürməni alan), qalanları `hiddenCount`-da sayılır.\nBaşqasının sandbox topic-i → 404.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "kafka: topic log"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "topic",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9._-]{1,80}$"
+            },
+            "example": "bank.cards"
+          },
+          {
+            "name": "partition",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9
+            },
+            "example": 1
+          },
+          {
+            "name": "fromOffset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "example": 0
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mesajlar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KafkaMessages"
+                },
+                "example": {
+                  "topic": "bank.cards",
+                  "partitions": [
+                    {
+                      "partition": 0,
+                      "startOffset": 0,
+                      "endOffset": 0
+                    },
+                    {
+                      "partition": 1,
+                      "startOffset": 0,
+                      "endOffset": 1
+                    },
+                    {
+                      "partition": 2,
+                      "startOffset": 0,
+                      "endOffset": 0
+                    }
+                  ],
+                  "items": [
+                    {
+                      "topic": "bank.cards",
+                      "partition": 1,
+                      "offset": 0,
+                      "key": "1",
+                      "headers": {
+                        "event-type": "card.blocked",
+                        "content-type": "application/json",
+                        "producer": "card-service"
+                      },
+                      "timestamp": "2026-10-25T09:00:00.120Z",
+                      "value": {
+                        "eventId": "0f8e2c7a-5d1b-4a3e-9c6f-2b7d8e1a4c55",
+                        "type": "card.blocked",
+                        "occurredAt": "2026-10-25T09:00:00.118Z",
+                        "userId": 1,
+                        "data": {
+                          "cardId": 1,
+                          "maskedNumber": "**** **** **** 4169",
+                          "reason": "LOST",
+                          "status": "BLOCKED"
+                        }
+                      }
+                    }
+                  ],
+                  "hiddenCount": 0
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Topic tapılmadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 404,
+                  "code": "KAFKA_TOPIC_NOT_FOUND",
+                  "message": "Topic tapılmadı: bank.loans",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/_kafka/sandbox/messages": {
+      "post": {
+        "tags": [
+          "Kafka"
+        ],
+        "operationId": "kafkaProduce",
+        "summary": "Öz sandbox topic-inizə mesaj göndər (producer)",
+        "description": "Mesaj `sandbox.<username>` topic-inə yazılır (2 partition, hər partition-da son 50 mesaj saxlanılır — retention).\n`key` verilsə partition key-dən hesablanır (eyni key → eyni partition), verilməsə növbə ilə. `partition` ilə əl ilə də seçmək olar.\n`value` — istənilən JSON (≤ 2 KB).\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit": 30,
+        "x-db-impact": {
+          "reads": [],
+          "writes": [
+            "kafka: sandbox.<username>"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KafkaProduceRequest"
+              },
+              "example": {
+                "key": "order-1001",
+                "value": {
+                  "type": "order.created",
+                  "orderId": 1001,
+                  "total": 25.5
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Mesaj yazıldı — partition və offset",
+            "headers": {
+              "Location": {
+                "$ref": "#/components/headers/Location"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KafkaRecord"
+                },
+                "example": {
+                  "topic": "sandbox.student",
+                  "partition": 0,
+                  "offset": 3,
+                  "key": "order-1001",
+                  "value": {
+                    "type": "order.created",
+                    "orderId": 1001,
+                    "total": 25.5
+                  },
+                  "headers": {
+                    "producer": "student"
+                  },
+                  "timestamp": "2026-10-25T09:00:00.120Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/_kafka/sandbox/consumer-groups/{groupId}/poll": {
+      "post": {
+        "tags": [
+          "Kafka"
+        ],
+        "operationId": "kafkaPoll",
+        "summary": "Consumer group ilə sandbox topic-dən oxu (poll + commit)",
+        "description": "Consumer group öz **committed offset**-ini saxlayır: `commit: true` olanda növbəti poll oxunmuş mesajlardan sonra başlayır.\n`commit: false` — eyni mesajlar təkrar gələcək (at-least-once, təkrar emal). Yeni group əvvəldən oxuyur (`auto.offset.reset = earliest`).\nİki fərqli group eyni mesajları müstəqil oxuyur (pub/sub). Ən çox 10 group.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit": 60,
+        "x-db-impact": {
+          "reads": [
+            "kafka: sandbox.<username>"
+          ],
+          "writes": [
+            "kafka: consumer offsets"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,39}$"
+            },
+            "example": "my-service"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KafkaPollRequest"
+              },
+              "example": {
+                "maxRecords": 5,
+                "commit": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Oxunan mesajlar və offset-lər",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KafkaPollResult"
+                },
+                "example": {
+                  "groupId": "my-service",
+                  "topic": "sandbox.student",
+                  "records": [
+                    {
+                      "topic": "sandbox.student",
+                      "partition": 0,
+                      "offset": 0,
+                      "key": "order-1001",
+                      "value": {
+                        "type": "order.created",
+                        "orderId": 1001
+                      },
+                      "headers": {
+                        "producer": "student"
+                      },
+                      "timestamp": "2026-10-25T09:00:00.120Z"
+                    }
+                  ],
+                  "committed": true,
+                  "partitions": [
+                    {
+                      "partition": 0,
+                      "committedOffset": 1,
+                      "endOffset": 1,
+                      "lag": 0
+                    },
+                    {
+                      "partition": 1,
+                      "committedOffset": 0,
+                      "endOffset": 0,
+                      "lag": 0
+                    }
+                  ],
+                  "lag": 0
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/_mongo/collections": {
+      "get": {
+        "tags": [
+          "MongoDB"
+        ],
+        "operationId": "mongoCollections",
+        "summary": "MongoDB kolleksiyaları, sənəd sayı və nümunə sənəd",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-db-impact": {
+          "reads": [
+            "mongodb: hotel_reviews, notifications"
+          ],
+          "writes": []
+        },
+        "responses": {
+          "200": {
+            "description": "Kolleksiyalar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MongoCollections"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "name": "hotel_reviews",
+                      "description": "Otel rəyləri",
+                      "count": 16,
+                      "scoped": false,
+                      "sampleDocument": {
+                        "_id": "665a00000000000000000016",
+                        "hotel": {
+                          "id": 15,
+                          "name": "Old Tbilisi House",
+                          "city": "Tbilisi"
+                        },
+                        "rating": 4,
+                        "text": "Ev kimi rahat.",
+                        "createdAt": "2026-10-10T00:00:00Z"
+                      }
+                    },
+                    {
+                      "name": "notifications",
+                      "description": "Bildirişlər (yalnız sizinkilər)",
+                      "count": 0,
+                      "scoped": true,
+                      "sampleDocument": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/_mongo/query": {
+      "post": {
+        "tags": [
+          "MongoDB"
+        ],
+        "operationId": "mongoQuery",
+        "summary": "MongoDB sorğusu — find, countDocuments, aggregate (yalnız oxu)",
+        "description": "Filter operatorları: `$eq $ne $gt $gte $lt $lte $in $nin $exists $regex $size $all $elemMatch $not $and $or $nor`; iç-içə sahə: `\"hotel.city\"`.\nAggregate mərhələləri: `$match $group $sort $limit $skip $project $count $unwind`; akkumulyatorlar: `$sum $avg $min $max $first $last $push $addToSet`.\nServer tərəfində kod icrası (`$where`, `$function`, `$expr`) və yazma/başqa kolleksiya (`$out`, `$merge`, `$lookup`) → **422 MONGO_QUERY_NOT_ALLOWED**.\n`notifications` kolleksiyasında filter avtomatik `{ userId: <siz> }` ilə birləşdirilir (`scoped: true`). Ən çox 100 sənəd.\nCavabdakı `executedQuery` — mongosh-da eyni sorğu.\n",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit": 60,
+        "x-db-impact": {
+          "reads": [
+            "mongodb: hotel_reviews, notifications"
+          ],
+          "writes": []
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MongoQueryRequest"
+              },
+              "examples": {
+                "find": {
+                  "summary": "Bakı otelləri, reytinq ≥ 4",
+                  "value": {
+                    "collection": "hotel_reviews",
+                    "operation": "find",
+                    "filter": {
+                      "hotel.city": "Bakı",
+                      "rating": {
+                        "$gte": 4
+                      }
+                    },
+                    "projection": {
+                      "hotel.name": 1,
+                      "rating": 1,
+                      "text": 1
+                    },
+                    "sort": {
+                      "rating": -1
+                    },
+                    "limit": 10
+                  }
+                },
+                "aggregate": {
+                  "summary": "Hər şəhər üzrə orta reytinq",
+                  "value": {
+                    "collection": "hotel_reviews",
+                    "operation": "aggregate",
+                    "pipeline": [
+                      {
+                        "$group": {
+                          "_id": "$hotel.city",
+                          "avgRating": {
+                            "$avg": "$rating"
+                          },
+                          "reviews": {
+                            "$sum": 1
+                          }
+                        }
+                      },
+                      {
+                        "$sort": {
+                          "avgRating": -1
+                        }
+                      }
+                    ]
+                  }
+                },
+                "where": {
+                  "summary": "Bloklanır → 422",
+                  "value": {
+                    "collection": "hotel_reviews",
+                    "operation": "find",
+                    "filter": {
+                      "$where": "this.rating > 3"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nəticə",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MongoQueryResult"
+                },
+                "example": {
+                  "collection": "hotel_reviews",
+                  "operation": "find",
+                  "documents": [
+                    {
+                      "_id": "665a00000000000000000001",
+                      "hotel": {
+                        "name": "Xəzər Sahil Hotel"
+                      },
+                      "rating": 5,
+                      "text": "Otaqdan Xəzər görünür."
+                    }
+                  ],
+                  "count": 1,
+                  "scoped": false,
+                  "executedQuery": "db.hotel_reviews.find({\"hotel.city\": \"Bakı\", rating: {$gte: 4}}, {\"hotel.name\": 1, rating: 1, text: 1}).sort({rating: -1}).limit(10)",
+                  "durationMs": 1.2
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Yanlış və ya icazəsiz sorğu",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "notAllowed": {
+                    "summary": "$where",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 422,
+                      "code": "MONGO_QUERY_NOT_ALLOWED",
+                      "message": "$where icazəli deyil",
+                      "details": [
+                        {
+                          "field": "/filter",
+                          "message": "$where icazəli deyil"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "invalid": {
+                    "summary": "Naməlum operator",
+                    "value": {
+                      "timestamp": "2026-10-13T09:00:00Z",
+                      "status": 422,
+                      "code": "MONGO_QUERY_ERROR",
+                      "message": "naməlum operator: $great",
+                      "details": [
+                        {
+                          "field": "/filter",
+                          "message": "naməlum operator: $great"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/materials": {
       "get": {
         "tags": [
@@ -10676,7 +12154,7 @@
         "example": 1792141260
       },
       "X-Cache": {
-        "description": "External proxy cache-i: HIT (60 san ərzində eyni sorğu) və ya MISS",
+        "description": "Keş: HIT — cavab keşdən (Redis / external proxy), MISS — mənbədən (DB / upstream) gəldi və keşə yazıldı",
         "schema": {
           "type": "string",
           "enum": [
@@ -10685,6 +12163,13 @@
           ]
         },
         "example": "MISS"
+      },
+      "X-Cache-Key": {
+        "description": "Redis-dəki keş açarı — `GET`/`TTL` ilə Redis konsolunda baxmaq olar",
+        "schema": {
+          "type": "string"
+        },
+        "example": "cache:rates:AZN:latest"
       },
       "X-External-Key-Source": {
         "description": "Hansı açar istifadə olundu: student (sizin X-RapidAPI-Key) və ya server (admin açıbsa, yalnız Hard Limit API)",
@@ -11968,6 +13453,8 @@
           "NO_PDF_VERSION",
           "TASK_NOT_FOUND",
           "EXTERNAL_API_NOT_FOUND",
+          "NOTIFICATION_NOT_FOUND",
+          "KAFKA_TOPIC_NOT_FOUND",
           "METHOD_NOT_ALLOWED",
           "NOT_ACCEPTABLE",
           "UNSUPPORTED_MEDIA_TYPE",
@@ -12002,6 +13489,10 @@
           "SQL_NOT_ALLOWED",
           "SQL_TIMEOUT",
           "INVALID_TASK_FILE",
+          "REDIS_COMMAND_NOT_ALLOWED",
+          "REDIS_ERROR",
+          "MONGO_QUERY_NOT_ALLOWED",
+          "MONGO_QUERY_ERROR",
           "TOO_MANY_REQUESTS",
           "INTERNAL_ERROR",
           "SIMULATED_ERROR",
@@ -12089,6 +13580,900 @@
         "type": "string",
         "maxLength": 300,
         "pattern": "^[a-z:_]+( [a-z:_]+)*$"
+      },
+      "ObjectId": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{24}$",
+        "description": "MongoDB ObjectId — 4 bayt vaxt + 5 bayt təsadüfi + 3 bayt sayğac (24 hex)",
+        "example": "665a00000000000000000001"
+      },
+      "HotelReview": {
+        "type": "object",
+        "description": "MongoDB sənədi — sxem sərt deyil, sahələrin bir hissəsi könüllüdür (import edilən rəylərdə user yoxdur, source var)",
+        "required": [
+          "_id",
+          "hotel",
+          "rating",
+          "text",
+          "createdAt"
+        ],
+        "properties": {
+          "_id": {
+            "$ref": "#/components/schemas/ObjectId"
+          },
+          "hotel": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "city"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              }
+            }
+          },
+          "user": {
+            "type": "object",
+            "required": [
+              "id",
+              "username",
+              "name"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "username": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "source": {
+            "type": "string",
+            "description": "Import mənbəyi (booking-partner, tripadvisor-import)"
+          },
+          "reviewer": {
+            "type": "string"
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "title": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "stay": {
+            "type": "object",
+            "required": [
+              "month",
+              "tripType"
+            ],
+            "properties": {
+              "month": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}$"
+              },
+              "tripType": {
+                "type": "string",
+                "enum": [
+                  "BUSINESS",
+                  "FAMILY",
+                  "COUPLE",
+                  "SOLO",
+                  "FRIENDS"
+                ]
+              }
+            }
+          },
+          "pros": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "photos": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "helpfulVotes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "HotelReviewList": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "averageRating",
+          "ratingDistribution",
+          "storage",
+          "query"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HotelReview"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "averageRating": {
+            "type": "number",
+            "nullable": true
+          },
+          "ratingDistribution": {
+            "type": "object",
+            "description": "Hər reytinq üzrə rəy sayı",
+            "required": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5"
+            ],
+            "properties": {
+              "1": {
+                "type": "integer"
+              },
+              "2": {
+                "type": "integer"
+              },
+              "3": {
+                "type": "integer"
+              },
+              "4": {
+                "type": "integer"
+              },
+              "5": {
+                "type": "integer"
+              }
+            }
+          },
+          "storage": {
+            "type": "string",
+            "enum": [
+              "mongodb"
+            ]
+          },
+          "query": {
+            "type": "string",
+            "description": "Server-in icra etdiyi Mongo sorğusu (mongosh görünüşü)"
+          }
+        }
+      },
+      "HotelReviewCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rating",
+          "text"
+        ],
+        "properties": {
+          "rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "title": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 80
+          },
+          "text": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 1000
+          },
+          "stay": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "month",
+              "tripType"
+            ],
+            "properties": {
+              "month": {
+                "type": "string",
+                "pattern": "^20[0-9]{2}-(0[1-9]|1[0-2])$",
+                "example": "2026-09"
+              },
+              "tripType": {
+                "type": "string",
+                "enum": [
+                  "BUSINESS",
+                  "FAMILY",
+                  "COUPLE",
+                  "SOLO",
+                  "FRIENDS"
+                ]
+              }
+            }
+          },
+          "pros": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          },
+          "cons": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            }
+          }
+        }
+      },
+      "Notification": {
+        "type": "object",
+        "required": [
+          "_id",
+          "userId",
+          "type",
+          "title",
+          "message",
+          "read",
+          "event",
+          "createdAt"
+        ],
+        "properties": {
+          "_id": {
+            "$ref": "#/components/schemas/ObjectId"
+          },
+          "userId": {
+            "type": "integer"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "TRANSFER_SENT",
+              "TRANSFER_RECEIVED",
+              "CARD_BLOCKED",
+              "CARD_UNBLOCKED",
+              "BOOKING_CREATED",
+              "BOOKING_UPDATED",
+              "BOOKING_CANCELLED"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "event": {
+            "type": "object",
+            "description": "Bildirişi yaradan Kafka mesajı",
+            "required": [
+              "eventId",
+              "topic",
+              "partition",
+              "offset"
+            ],
+            "properties": {
+              "eventId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "topic": {
+                "type": "string"
+              },
+              "partition": {
+                "type": "integer"
+              },
+              "offset": {
+                "type": "integer"
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "NotificationList": {
+        "type": "object",
+        "required": [
+          "items",
+          "unreadCount"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            }
+          },
+          "unreadCount": {
+            "type": "integer"
+          }
+        }
+      },
+      "NotificationUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "read"
+        ],
+        "properties": {
+          "read": {
+            "type": "boolean"
+          }
+        }
+      },
+      "MongoCollections": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "description",
+                "count",
+                "scoped",
+                "sampleDocument"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "enum": [
+                    "hotel_reviews",
+                    "notifications"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "scoped": {
+                  "type": "boolean",
+                  "description": "true — yalnız sizin sənədləriniz sayılır"
+                },
+                "sampleDocument": {
+                  "type": "object",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "MongoQueryRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "collection",
+          "operation"
+        ],
+        "properties": {
+          "collection": {
+            "type": "string",
+            "enum": [
+              "hotel_reviews",
+              "notifications"
+            ]
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "find",
+              "countDocuments",
+              "aggregate"
+            ]
+          },
+          "filter": {
+            "type": "object",
+            "description": "find / countDocuments filteri, məs. { \"rating\": { \"$gte\": 4 } }"
+          },
+          "projection": {
+            "type": "object",
+            "description": "Sahələr: { \"text\": 1 } (daxil et) və ya { \"photos\": 0 } (çıxar)"
+          },
+          "sort": {
+            "type": "object",
+            "description": "{ \"rating\": -1, \"createdAt\": 1 }"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          },
+          "pipeline": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object"
+            },
+            "description": "aggregate mərhələləri"
+          }
+        }
+      },
+      "MongoQueryResult": {
+        "type": "object",
+        "required": [
+          "collection",
+          "operation",
+          "documents",
+          "count",
+          "scoped",
+          "executedQuery",
+          "durationMs"
+        ],
+        "properties": {
+          "collection": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "find",
+              "countDocuments",
+              "aggregate"
+            ]
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "count": {
+            "type": "integer"
+          },
+          "scoped": {
+            "type": "boolean"
+          },
+          "executedQuery": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "number"
+          }
+        }
+      },
+      "RedisKeys": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "stats"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "type",
+                "ttl",
+                "size",
+                "value"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "string"
+                  ]
+                },
+                "ttl": {
+                  "type": "integer",
+                  "description": "Qalan saniyə; -1 — vaxtsız"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "string",
+                  "description": "İlk 200 simvol"
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "stats": {
+            "type": "object",
+            "required": [
+              "keys",
+              "hits",
+              "misses",
+              "hitRate",
+              "commands",
+              "expired"
+            ],
+            "properties": {
+              "keys": {
+                "type": "integer"
+              },
+              "hits": {
+                "type": "integer",
+                "description": "Keşdən tapılan oxumalar"
+              },
+              "misses": {
+                "type": "integer",
+                "description": "Keşdə olmayan oxumalar (DB-yə getdi)"
+              },
+              "hitRate": {
+                "type": "integer",
+                "description": "Faiz: hits / (hits + misses)"
+              },
+              "commands": {
+                "type": "integer"
+              },
+              "expired": {
+                "type": "integer",
+                "description": "TTL bitib silinən açarlar"
+              }
+            }
+          }
+        }
+      },
+      "RedisCommandRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "example": "GET cache:rates:AZN:latest"
+          }
+        }
+      },
+      "RedisCommandResult": {
+        "type": "object",
+        "required": [
+          "command",
+          "result",
+          "display",
+          "durationMs"
+        ],
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "result": {
+            "description": "Əmrin nəticəsi: string, integer, string massivi və ya null"
+          },
+          "display": {
+            "type": "string",
+            "description": "redis-cli görünüşü"
+          },
+          "durationMs": {
+            "type": "number"
+          }
+        }
+      },
+      "KafkaPartitionOffsets": {
+        "type": "object",
+        "required": [
+          "partition",
+          "startOffset",
+          "endOffset"
+        ],
+        "properties": {
+          "partition": {
+            "type": "integer"
+          },
+          "startOffset": {
+            "type": "integer",
+            "description": "Retention-dan sonra qalan ilk offset"
+          },
+          "endOffset": {
+            "type": "integer",
+            "description": "Növbəti yazılacaq mesajın offset-i"
+          }
+        }
+      },
+      "KafkaRecord": {
+        "type": "object",
+        "required": [
+          "topic",
+          "partition",
+          "offset",
+          "key",
+          "value",
+          "headers",
+          "timestamp"
+        ],
+        "properties": {
+          "topic": {
+            "type": "string"
+          },
+          "partition": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "key": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "description": "JSON dəyər (domen hadisəsi və ya sandbox mesajı)"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "KafkaGroupLag": {
+        "type": "object",
+        "required": [
+          "partition",
+          "committedOffset",
+          "endOffset",
+          "lag"
+        ],
+        "properties": {
+          "partition": {
+            "type": "integer"
+          },
+          "committedOffset": {
+            "type": "integer"
+          },
+          "endOffset": {
+            "type": "integer"
+          },
+          "lag": {
+            "type": "integer"
+          }
+        }
+      },
+      "KafkaOverview": {
+        "type": "object",
+        "required": [
+          "topics",
+          "consumerGroups",
+          "sandboxTopic"
+        ],
+        "properties": {
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "sandbox",
+                "retention",
+                "partitions",
+                "messages"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "sandbox": {
+                  "type": "boolean"
+                },
+                "retention": {
+                  "type": "integer",
+                  "description": "Partition başına saxlanılan maks. mesaj"
+                },
+                "partitions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KafkaPartitionOffsets"
+                  }
+                },
+                "messages": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "consumerGroups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "groupId",
+                "topic",
+                "service",
+                "partitions",
+                "lag"
+              ],
+              "properties": {
+                "groupId": {
+                  "type": "string"
+                },
+                "topic": {
+                  "type": "string"
+                },
+                "service": {
+                  "type": "boolean",
+                  "description": "true — server-in öz consumer-i"
+                },
+                "partitions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KafkaGroupLag"
+                  }
+                },
+                "lag": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "sandboxTopic": {
+            "type": "string"
+          }
+        }
+      },
+      "KafkaMessages": {
+        "type": "object",
+        "required": [
+          "topic",
+          "partitions",
+          "items",
+          "hiddenCount"
+        ],
+        "properties": {
+          "topic": {
+            "type": "string"
+          },
+          "partitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KafkaPartitionOffsets"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KafkaRecord"
+            }
+          },
+          "hiddenCount": {
+            "type": "integer",
+            "description": "Başqa istifadəçilərə aid olduğu üçün göstərilməyən mesajlar"
+          }
+        }
+      },
+      "KafkaProduceRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "value": {
+            "description": "İstənilən JSON (≤ 2 KB)"
+          },
+          "partition": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "KafkaPollRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "maxRecords": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 5
+          },
+          "commit": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "KafkaPollResult": {
+        "type": "object",
+        "required": [
+          "groupId",
+          "topic",
+          "records",
+          "committed",
+          "partitions",
+          "lag"
+        ],
+        "properties": {
+          "groupId": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KafkaRecord"
+            }
+          },
+          "committed": {
+            "type": "boolean"
+          },
+          "partitions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KafkaGroupLag"
+            }
+          },
+          "lag": {
+            "type": "integer"
+          }
+        }
       },
       "PageMeta": {
         "type": "object",

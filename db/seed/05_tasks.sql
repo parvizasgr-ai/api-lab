@@ -65,9 +65,9 @@ FROM (
          'POST', '/api/v1/cards/1/block', 200,
          'SELECT h.card_id, h.old_status, h.new_status, h.reason, h.changed_at, (SELECT COUNT(*) FROM idempotency_keys) AS idempotency_rows FROM card_status_history h WHERE h.card_id = 1', 4
   UNION ALL SELECT 14, 3, 'Rate limit: 429 yaradın',
-         'Postman Runner ilə eyni sorğunu 61 dəfə göndərin. `Retry-After` və `X-RateLimit-Remaining` başlıqlarına baxın.',
+         'Postman Runner ilə eyni sorğunu 61 dəfə göndərin. `Retry-After` və `X-RateLimit-Remaining` başlıqlarına baxın. Sayğac **Redis**-dədir: Infra → Redis-də `ratelimit:*` açarının artmasını və TTL-in azalmasını izləyin (`GET`, `TTL`).',
          'GET', '/api/v1/airports', 429,
-         'SELECT subject, window_start, count FROM rate_limit_counters ORDER BY window_start DESC, count DESC LIMIT 10', 5
+         'SELECT status, COUNT(*) AS sorgu, MAX(created_at) AS son FROM request_log WHERE path = ''/api/v1/airports'' GROUP BY status ORDER BY status', 5
   UNION ALL SELECT 15, 3, 'OAuth2 Authorization Code flow',
          'Brauzerdə `/oauth/authorize?response_type=code&client_id=apilab-portal&redirect_uri=https://oauth.pstmn.io/v1/callback&state=dars3-oauth` açın, code-u `/oauth/token`-də dəyişin. Eyni code ilə ikinci cəhd nə qaytarır?',
          'GET', '/oauth/authorize', 200,

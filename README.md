@@ -207,7 +207,7 @@ erDiagram
 
 ---
 
-## Endpoint-lər (107)
+## Endpoint-lər (119)
 
 Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/docs**.
 
@@ -253,6 +253,8 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 | **Hotels** | | | | |
 | `GET` | `/api/v1/hotels/search` | Otel axtarışı (availability SQL ilə) | — |  |
 | `GET` | `/api/v1/hotels/{hotelId}` | Otel detalları | — |  |
+| `GET` | `/api/v1/hotels/{hotelId}/reviews` | Otel rəyləri — MongoDB sənədləri (`query` — icra olunan Mongo sorğusu) | — |  |
+| `POST` | `/api/v1/hotels/{hotelId}/reviews` | Otelə rəy yaz (MongoDB `insertOne` + Kafka `review.created`) | Bearer |  |
 | `GET` | `/api/v1/hotels/{hotelId}/rooms` | Otelin otaqları (tarix verilərsə — boş/dolu) | — |  |
 | `GET` | `/api/v1/hotels/bookings` | Mənim otel bronlarım | Bearer | bookings:read |
 | `POST` | `/api/v1/hotels/bookings` | Otel bron et | Bearer | bookings:write |
@@ -327,6 +329,20 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 | `GET` | `/api/v1/tasks/progress/me` | Mənim irəliləyişim (dərslər üzrə xülasə) | Bearer |  |
 | `POST` | `/api/v1/tasks/import` | Markdown faylından tapşırıqları import et (ADMIN, upsert — dərs + başlıq üzrə) | Bearer | admin |
 | **Admin** | | | | |
+| **Notifications** | | | | |
+| `GET` | `/api/v1/notifications` | Mənim bildirişlərim (Kafka → notification-service → MongoDB) | Bearer |  |
+| `PATCH` | `/api/v1/notifications/{notificationId}` | Bildirişi oxunmuş / oxunmamış et | Bearer |  |
+| **Redis** | | | | |
+| `GET` | `/api/v1/_redis/keys` | Açarlar, TTL, hit/miss statistikası | Bearer |  |
+| `POST` | `/api/v1/_redis/command` | redis-cli əmri (oxu — hər açar, yazma — yalnız `sandbox:<username>:*`) | Bearer |  |
+| **Kafka** | | | | |
+| `GET` | `/api/v1/_kafka/topics` | Topic-lər, partition offset-ləri, consumer group lag | Bearer |  |
+| `GET` | `/api/v1/_kafka/topics/{topic}/messages` | Topic mesajları (yalnız sizə aid hadisələr) | Bearer |  |
+| `POST` | `/api/v1/_kafka/sandbox/messages` | Öz sandbox topic-inizə mesaj (producer) | Bearer |  |
+| `POST` | `/api/v1/_kafka/sandbox/consumer-groups/{groupId}/poll` | Consumer group ilə oxu + commit | Bearer |  |
+| **MongoDB** | | | | |
+| `GET` | `/api/v1/_mongo/collections` | Kolleksiyalar, sənəd sayı, nümunə sənəd | Bearer |  |
+| `POST` | `/api/v1/_mongo/query` | find / countDocuments / aggregate (yalnız oxu) | Bearer |  |
 | `POST` | `/api/v1/_reset` | DB-ni seed vəziyyətinə qaytar (ADMIN; qeydiyyatlı tələbələr varsa yalnız SUPERADMIN + `?confirm=all-users`) | Bearer | admin |
 | `GET` | `/api/v1/admin/users` | Bütün istifadəçilər: qrup, irəliləyiş, aktivlik (filter, axtarış, sort, pagination) | Bearer | superadmin |
 | `GET` | `/api/v1/admin/groups` | Qruplar üzrə xülasə (tələbə sayı, orta nəticə, aktivlik) | Bearer | superadmin |
@@ -555,6 +571,36 @@ Bunlardan başqa ümumi qaydalar da işləyir: ümumi rate limit (60/dəq), tran
 
 ---
 
+## Redis, Kafka, MongoDB (Infra)
+
+Portalda **Infra** səhifəsi (`/infra`) — API-nin arxasında işləyən üç texnologiyanı tələbə canlı görür. Hər üçü **tədris simulyasiyasıdır**: real Redis/Kafka/MongoDB-nin əsas davranışı server daxilində təkrarlanır (Docker və ya ayrıca quraşdırma lazım deyil). Kod: `server/src/infra/`.
+
+```
+API (köçürmə, kart, bron, rəy) ──produce──▶ Kafka topic-ləri
+     │                                        ├─▶ notification-service ──insert──▶ MongoDB notifications
+     │                                        └─▶ analytics-service   ──INCR────▶ Redis stats:events:<tip>
+     └─ keş (məzənnə, reys axtarışı) ◀──────── Redis cache:* (TTL)
+```
+
+| | Nə göstərir | Tələbə nə edə bilər |
+|---|---|---|
+| **Redis** | `cache:rates:*` (60 san), `cache:flights:search:*` (30 san, bron olanda silinir — cache invalidation), `ratelimit:*` (INCR + EXPIRE), `stats:events:*`; hit/miss, TTL geri sayımı; cavabda `X-Cache: HIT/MISS` və `X-Cache-Key` | redis-cli konsolu: `GET, TTL, EXISTS, KEYS, TYPE, DBSIZE`; öz açarlarına (`sandbox:<username>:*`) `SET … EX, INCR, DEL, EXPIRE`. `FLUSHALL, CONFIG, EVAL` → 422 |
+| **Kafka** | Topic-lər `bank.transfers`, `bank.cards`, `travel.bookings`, `hotel.reviews` (3 partition, key = istifadəçi id-si); hadisə zərfi (`eventId, type, userId, data`), header-lər; consumer group lag (consumer ≈1.5 san gec işləyir — lag görünür) | Öz `sandbox.<username>` topic-inə mesaj göndərmək (key → partition), consumer group ilə oxumaq (`commit: false` → təkrar oxuma, yeni group → əvvəldən) |
+| **MongoDB** | `hotel_reviews` (otel rəyləri — sənədlərin forması fərqlidir), `notifications` (Kafka-dan); kitab rəyləri isə PostgreSQL-dədir → relational vs document müqayisəsi | `find` (filter, projection, sort), `countDocuments`, `aggregate` (`$match $group $sort $unwind $project $count`); cavabda mongosh sorğusu. `$where, $function, $out, $merge, $lookup` → 422 |
+
+**Təcrid:** tələbə başqasının datasını görmür — Kafka-da yalnız özünə aid hadisələr (qalanları `hiddenCount`), `notifications` sorğusu avtomatik `{ userId: <siz> }` ilə məhdudlaşır, başqasının sandbox açarı/topic-i görünmür. ADMIN və SUPERADMIN hamısını görür.
+
+**Saxlama:** Redis və Kafka yaddaşdadır — server yenidən başlayanda boşalır (real Redis-in persistence-siz rejimi kimi). MongoDB sənədləri PostgreSQL-də `docstore.documents` (JSONB) cədvəlində saxlanılır; SQL Playground rolu bu sxemə giriş almır. `POST /_reset` keşi, sayğacları və mesajları da silir.
+
+**Dərsdə sınaq (5 dəqiqə):**
+1. Infra → Redis → "2 dəfə göndər": `MISS` → `HIT`. `TTL cache:rates:AZN:latest` — geri sayım.
+2. Infra → Kafka → "Hadisə yarat": `bank.cards`-da yeni mesaj, `notification-service` lag 1 → 0.
+3. Infra → MongoDB → "Bildirişlərim": hadisədən yaranan bildiriş (topic/partition/offset ilə). `$group: şəhər → orta` nümunəsini icra edin.
+
+`KAFKA_CONSUMER_DELAY_MS` (default 1500) — consumer gecikməsi.
+
+---
+
 ## SQL ilə yoxlama nümunələri
 
 SQL Playground (`POST /api/v1/_db/query`) — **yalnız SELECT**, read-only, maks. 200 sətir, 2 san, hash sütunları gizli. Hazır sorğular: [`db/queries/`](db/queries) (18 fayl).
@@ -581,8 +627,8 @@ WHERE room_id = 1 AND status = 'CONFIRMED' AND date('now', '+6 days') < check_ou
 -- Idempotency: eyni açarla 2 sorğu → burada 1 sətir
 SELECT key, endpoint, response_status, created_at FROM idempotency_keys;
 
--- Rate limit sayğacı (61-ci sorğudan sonra count = 61)
-SELECT subject, window_start, count FROM rate_limit_counters ORDER BY window_start DESC;
+-- 429-lar (rate limit sayğacının özü Redis-dədir: Infra → Redis → GET ratelimit:...)
+SELECT path, status, COUNT(*) FROM request_log WHERE status = 429 GROUP BY path, status;
 
 -- Hansı endpoint nə qədər çağırılıb, nə qədər xəta verib?
 SELECT * FROM v_api_usage_by_endpoint ORDER BY calls DESC;
@@ -645,7 +691,7 @@ DataGrip: **New → Data Source → PostgreSQL**, yuxarıdakı dəyərlər, **Sc
 | Otel tarixləri | Yarı-açıq aralıq: check-out günü yeni qonaq check-in edə bilər; `minPrice/maxPrice` və sort AZN ekvivalentinə görə |
 | Məzənnə | DB-də yalnız `base=AZN`; digər cütlər çarpaz kursla. `rates:refresh` ECB məlumatı (AZN və AED — USD-yə bağlı, GEL — əvvəlki dəyər) |
 | SQL Playground | Sorğu ayrıca prosesdə, DB-nin hash-ləri `[hidden#…]` ilə əvəz edilmiş read-only surətində icra olunur; 2 san sonra proses öldürülür |
-| Rate limit | Fixed window (dəqiqə), sayğac DB-də (`rate_limit_counters`) |
+| Rate limit | Fixed window (dəqiqə), sayğac Redis-də (`ratelimit:<subyekt>:<pəncərə>`, INCR + EXPIRE); login kilidi DB-də (`rate_limit_counters`) |
 | Materiallar | Fayllar DB-də yox, diskdə; konvertasiya in-process növbədə (1 iş); MD faylı çevrilmir (birbaşa oxunur); şəkillər PNG |
 
 ## Hələ edilməyənlər

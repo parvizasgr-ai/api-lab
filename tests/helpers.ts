@@ -39,6 +39,7 @@ export function createTestApp(options: { config?: Partial<Config>; handlers?: Ha
   const config: Config = {
     ...baseConfig,
     simulate: { enabled: true, slowMs: 20, timeoutMs: 20 },
+    infra: { ...baseConfig.infra, consumerDelayMs: 0 }, // Kafka consumer-i dərhal işləsin (gözləmə: infra.kafka.idle())
     ...options.config,
     now: () => clock.now,
   };
@@ -57,6 +58,7 @@ export function createTestApp(options: { config?: Partial<Config>; handlers?: Ha
   config.superadmin = { username: 'muellim1', password: SUPERADMIN_PASSWORD, name: 'Test Müəllim' };
   let superadminReady: Promise<unknown> | undefined;
   const app = createApp({ db, config, handlers: options.handlers });
+  const infra = app.locals.infra as import('../server/src/infra/index.js').Infra;
   const auth = new AuthService(db, config);
   const view = testView(db); // testlər DB-ni bu görünüşlə oxuyur (log yazıları tamamlanmış olur)
   const api = () => request(app);
@@ -68,7 +70,7 @@ export function createTestApp(options: { config?: Partial<Config>; handlers?: Ha
     return res.body as { access_token: string; refresh_token: string; scope: string };
   }
 
-  return { app, db: view, clock, config, auth, api, login };
+  return { app, db: view, clock, config, auth, api, login, infra };
 }
 
 // Contract test: real cavab OpenAPI sxeminə uyğun olmalıdır.

@@ -9557,14 +9557,452 @@
         }
       }
     },
+    "/api/v1/admin/users": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "adminListUsers",
+        "summary": "Bütün istifadəçilər — qrup, tapşırıq nəticəsi, aktivlik (yalnız SUPERADMIN)",
+        "description": "Müəllim paneli. Hər istifadəçi üçün tamamlanmış tapşırıqlar (`task_progress`), API sorğuları (`request_log`) və SQL Playground sorğuları (`audit_log`).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "superadmin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "users",
+            "tasks",
+            "task_progress",
+            "request_log",
+            "audit_log"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "description": "Qrup adı (dəqiq)",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 30
+            },
+            "example": "BA-2026-A"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Ad, soyad və ya username üzrə axtarış",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            },
+            "example": "nərmin"
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "USER",
+                "ADMIN",
+                "SUPERADMIN"
+              ]
+            },
+            "example": "USER"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "name",
+                "-name",
+                "group",
+                "-group",
+                "progress",
+                "-progress",
+                "lastLogin",
+                "-lastLogin",
+                "createdAt",
+                "-createdAt",
+                "requests",
+                "-requests"
+              ],
+              "default": "name"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "İstifadəçilər (səhifələnmiş)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserPage"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "id": 4,
+                      "username": "nermin.q",
+                      "fullName": "Nərmin Quliyeva",
+                      "firstName": "Nərmin",
+                      "lastName": "Quliyeva",
+                      "groupName": "BA-2026-A",
+                      "role": "USER",
+                      "createdAt": "2026-10-13T09:00:00Z",
+                      "lastLoginAt": "2026-10-14T08:55:00Z",
+                      "progress": {
+                        "done": 7,
+                        "total": 16,
+                        "percent": 44
+                      },
+                      "activity": {
+                        "requests": 128,
+                        "lastRequestAt": "2026-10-14T09:12:00Z",
+                        "sqlQueries": 9
+                      }
+                    }
+                  ],
+                  "page": 1,
+                  "size": 20,
+                  "total": 1,
+                  "totalPages": 1
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/groups": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "adminListGroups",
+        "summary": "Qruplar üzrə xülasə — tələbə sayı, orta nəticə (yalnız SUPERADMIN)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "superadmin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "users",
+            "tasks",
+            "task_progress",
+            "request_log"
+          ],
+          "writes": []
+        },
+        "responses": {
+          "200": {
+            "description": "Qruplar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGroups"
+                },
+                "example": {
+                  "items": [
+                    {
+                      "groupName": "BA-2026-A",
+                      "students": 18,
+                      "avgPercent": 41,
+                      "completedAll": 2,
+                      "activeLast7Days": 15
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/users/{userId}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "adminGetUser",
+        "summary": "Tələbənin detalları — dərslər üzrə nəticə, tapşırıqlar, son sorğular, SQL sorğuları (yalnız SUPERADMIN)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "superadmin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "users",
+            "tasks",
+            "task_progress",
+            "request_log",
+            "audit_log"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tələbə",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserDetail"
+                },
+                "example": {
+                  "user": {
+                    "id": 1,
+                    "username": "student",
+                    "fullName": "Aysel Məmmədova",
+                    "firstName": "Aysel",
+                    "lastName": "Məmmədova",
+                    "groupName": "Demo",
+                    "role": "USER",
+                    "createdAt": "2025-09-08T09:00:00Z",
+                    "lastLoginAt": "2026-10-14T08:00:00Z",
+                    "progress": {
+                      "done": 1,
+                      "total": 16,
+                      "percent": 6
+                    },
+                    "activity": {
+                      "requests": 12,
+                      "lastRequestAt": "2026-10-14T08:05:00Z",
+                      "sqlQueries": 1
+                    }
+                  },
+                  "lessons": [
+                    {
+                      "lesson": 1,
+                      "done": 1,
+                      "total": 4,
+                      "percent": 25
+                    },
+                    {
+                      "lesson": 2,
+                      "done": 0,
+                      "total": 5,
+                      "percent": 0
+                    },
+                    {
+                      "lesson": 3,
+                      "done": 0,
+                      "total": 7,
+                      "percent": 0
+                    }
+                  ],
+                  "tasks": [
+                    {
+                      "id": 1,
+                      "lesson": 1,
+                      "title": "Valyuta məzənnələrini al",
+                      "method": "GET",
+                      "path": "/api/v1/currencies/rates?base=AZN",
+                      "expectedStatus": 200,
+                      "done": true,
+                      "doneAt": "2026-10-14T08:03:00Z"
+                    }
+                  ],
+                  "recentRequests": [
+                    {
+                      "method": "GET",
+                      "path": "/api/v1/currencies/rates",
+                      "status": 200,
+                      "durationMs": 4,
+                      "createdAt": "2026-10-14T08:02:00Z"
+                    }
+                  ],
+                  "sqlQueries": [
+                    {
+                      "sql": "SELECT * FROM cards",
+                      "result": "OK",
+                      "rowCount": 7,
+                      "createdAt": "2026-10-14T08:04:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "İstifadəçi tapılmadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 404,
+                  "code": "USER_NOT_FOUND",
+                  "message": "İstifadəçi tapılmadı",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/results.csv": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "operationId": "adminResultsCsv",
+        "summary": "Nəticələr cədvəli — CSV (Excel / Google Sheets), qrup filteri ilə (yalnız SUPERADMIN)",
+        "description": "UTF-8 BOM ilə (Azərbaycan hərfləri Excel-də düzgün açılır). Formula ilə başlayan dəyərlər (=, +, -, @) zərərsizləşdirilir (CSV injection).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "superadmin"
+        ],
+        "x-db-impact": {
+          "reads": [
+            "users",
+            "tasks",
+            "task_progress",
+            "request_log",
+            "audit_log"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "description": "Yalnız bu qrup",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 30
+            },
+            "example": "BA-2026-A"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV faylı (Content-Disposition attachment)",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "username,ad,soyad,qrup,qeydiyyat,son_giris,ders1_(4),ders2_(5),ders3_(7),tamamlanib,cemi,faiz,api_sorgulari,sql_sorgulari"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/_reset": {
       "post": {
         "tags": [
           "Admin"
         ],
         "operationId": "adminReset",
-        "summary": "DB-ni seed vəziyyətinə qaytar (yalnız ADMIN)",
-        "description": "Bütün cədvəllər silinir, migration-lar və seed yenidən icra olunur. Dərsi dayandırmadan \"hər şeyi sıfırla\".",
+        "summary": "DB-ni seed vəziyyətinə qaytar (ADMIN; qeydiyyatlı tələbələr varsa — yalnız SUPERADMIN + təsdiq)",
+        "description": "Bütün cədvəllər silinir, migration-lar və seed yenidən icra olunur. Dərsi dayandırmadan \"hər şeyi sıfırla\".\n**Qeydiyyatdan keçmiş tələbələr varsa** onların hesabları və nəticələri də silinəcək — ona görə yalnız SUPERADMIN\nvə `?confirm=all-users` ilə; əks halda 403 / 409 `RESET_WOULD_DELETE_USERS`. Superadmin hesabı sıfırlamadan sonra da qalır.\n",
         "security": [
           {
             "bearerAuth": []
@@ -9572,6 +10010,20 @@
         ],
         "x-required-scopes": [
           "admin"
+        ],
+        "parameters": [
+          {
+            "name": "confirm",
+            "in": "query",
+            "required": false,
+            "description": "Qeydiyyatlı tələbələr varsa məcburi təsdiq",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all-users"
+              ]
+            }
+          }
         ],
         "x-db-impact": {
           "reads": [],
@@ -9605,6 +10057,32 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Qeydiyyatlı tələbələr silinəcək — təsdiq tələb olunur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-13T09:00:00Z",
+                  "status": 409,
+                  "code": "RESET_WOULD_DELETE_USERS",
+                  "message": "12 qeydiyyatlı tələbə və onların bütün nəticələri silinəcək. Təsdiq üçün ?confirm=all-users göndərin",
+                  "details": [
+                    {
+                      "field": "query confirm",
+                      "message": "all-users"
+                    }
+                  ],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
@@ -11495,6 +11973,7 @@
           "UNSUPPORTED_MEDIA_TYPE",
           "CONFLICT",
           "USERNAME_TAKEN",
+          "RESET_WOULD_DELETE_USERS",
           "CARD_ALREADY_BLOCKED",
           "CARD_NOT_BLOCKED",
           "CARD_EXPIRED",
@@ -11762,6 +12241,326 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "AdminUserSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "username",
+          "fullName",
+          "firstName",
+          "lastName",
+          "groupName",
+          "role",
+          "createdAt",
+          "lastLoginAt",
+          "progress",
+          "activity"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "username": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "groupName": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "ADMIN",
+              "SUPERADMIN"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastLoginAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "progress": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "done",
+              "total",
+              "percent"
+            ],
+            "properties": {
+              "done": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "percent": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            }
+          },
+          "activity": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "requests",
+              "lastRequestAt",
+              "sqlQueries"
+            ],
+            "properties": {
+              "requests": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "lastRequestAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "sqlQueries": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "AdminUserPage": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PageMeta"
+          },
+          {
+            "type": "object",
+            "required": [
+              "items"
+            ],
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/AdminUserSummary"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AdminGroups": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "groupName",
+                "students",
+                "avgPercent",
+                "completedAll",
+                "activeLast7Days"
+              ],
+              "properties": {
+                "groupName": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "students": {
+                  "type": "integer"
+                },
+                "avgPercent": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "completedAll": {
+                  "type": "integer",
+                  "description": "Bütün tapşırıqları bitirənlər"
+                },
+                "activeLast7Days": {
+                  "type": "integer",
+                  "description": "Son 7 gündə API sorğusu göndərənlər"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AdminUserDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user",
+          "lessons",
+          "tasks",
+          "recentRequests",
+          "sqlQueries"
+        ],
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/AdminUserSummary"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "lesson",
+                "done",
+                "total",
+                "percent"
+              ],
+              "properties": {
+                "lesson": {
+                  "type": "integer"
+                },
+                "done": {
+                  "type": "integer"
+                },
+                "total": {
+                  "type": "integer"
+                },
+                "percent": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "lesson",
+                "title",
+                "method",
+                "path",
+                "expectedStatus",
+                "done",
+                "doneAt"
+              ],
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "lesson": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "expectedStatus": {
+                  "type": "integer"
+                },
+                "done": {
+                  "type": "boolean"
+                },
+                "doneAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "nullable": true
+                }
+              }
+            }
+          },
+          "recentRequests": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "method",
+                "path",
+                "status",
+                "durationMs",
+                "createdAt"
+              ],
+              "properties": {
+                "method": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "integer"
+                },
+                "durationMs": {
+                  "type": "integer"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "sqlQueries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sql",
+                "result",
+                "rowCount",
+                "createdAt"
+              ],
+              "properties": {
+                "sql": {
+                  "type": "string"
+                },
+                "result": {
+                  "type": "string"
+                },
+                "rowCount": {
+                  "type": "integer",
+                  "nullable": true
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
             }
           }
         }

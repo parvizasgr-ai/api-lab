@@ -31,7 +31,8 @@ function authOf(op: OperationInfo): Auth {
   if (flat.includes('basicAuth')) return 'basic';
   return 'none';
 }
-const needsAdmin = (op: OperationInfo) => (op.operation['x-required-scopes'] ?? []).includes('admin');
+const needsSuperadmin = (op: OperationInfo) => (op.operation['x-required-scopes'] ?? []).includes('superadmin');
+const needsAdmin = (op: OperationInfo) => needsSuperadmin(op) || (op.operation['x-required-scopes'] ?? []).includes('admin');
 
 function exampleOf(node: any): unknown {
   if (!node) return undefined;
@@ -82,7 +83,7 @@ async function send(ctx: Ctx, op: OperationInfo, auth: Auth | 'student-bearer', 
   let req = (ctx.api() as any)[op.method](r.url).query({ ...r.query, ...overrides.query }) as request.Test;
   for (const [k, v] of Object.entries({ ...r.headers, ...externalHeaders(op), ...overrides.headers })) req = req.set(k, v);
   if (auth === 'bearer' || auth === 'student-bearer') {
-    const user = auth === 'bearer' && needsAdmin(op) ? 'admin' : 'student';
+    const user = auth === 'bearer' && needsSuperadmin(op) ? 'muellim1' : auth === 'bearer' && needsAdmin(op) ? 'admin' : 'student';
     req = req.set('Authorization', `Bearer ${(await ctx.login(user)).access_token}`);
   }
   if (auth === 'apiKey') req = req.set('X-API-Key', API_KEY);

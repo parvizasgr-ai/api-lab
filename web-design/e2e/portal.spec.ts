@@ -199,7 +199,9 @@ test('smoke: bütün Apps və səhifələr real datanı JS xətası olmadan gös
   await nav(page, 'SQL')
   await expect(page.locator('.schema-panel')).toContainText('card_status_history')
   await page.locator('.quick-query-row button').first().click()
-  await expect(page.locator('.sql-results tbody tr')).toHaveCount(3)
+  // users: 3 seed + e2e müəllimi + digər testlərin qeydiyyatları — say qaçış sırasından asılıdır
+  await expect(page.locator('.sql-results tbody')).toContainText('student')
+  expect(await page.locator('.sql-results tbody tr').count()).toBeGreaterThanOrEqual(3)
   await page.locator('.sql-code-editor textarea').fill('DROP TABLE cards')
   await page.locator('.sql-panel-head button').last().click()
   await expect(page.locator('.sql-error')).toContainText('SQL_NOT_ALLOWED')

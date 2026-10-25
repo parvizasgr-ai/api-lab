@@ -1,13 +1,14 @@
 // npm run db:reset — public sxemi silinir → migration-lar → seed; materiallar yenidən import olunur.
 import { config } from '../server/src/config.js';
 import { openDb, resetDatabase, tableCounts } from '../server/src/db.js';
-import { applyAdminPassword } from '../server/src/lib/exposure.js';
+import { applyAdminPassword, ensureSuperadmin } from '../server/src/lib/exposure.js';
 import { MaterialsService } from '../server/src/modules/materials/service.js';
 import { importSlides } from '../server/src/modules/materials/slides.js';
 
 const db = openDb();
 await resetDatabase(db);
 await applyAdminPassword(db, config);
+await ensureSuperadmin(db, config);
 // Material faylları DB ilə birlikdə sıfırlanır, materials/slides/ yenidən import olunur
 const materials = new MaterialsService({ db, config });
 materials.storage.clear();

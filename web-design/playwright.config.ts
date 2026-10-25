@@ -35,6 +35,10 @@ export default defineConfig({
       MATERIALS_DIR: path.join(runDir, 'materials'),
       RATE_LIMIT_PER_MIN: '1000', // ümumi limit testləri bloklamasın; 429 testi SQL Playground-un öz limiti (20/dəq) ilə
       MAX_UPLOAD_MB: '1', // 413 testi üçün kiçik limit (default 50 MB)
+      // Müəllim paneli testləri (e2e/admin.spec.ts) üçün superadmin hesabı
+      SUPERADMIN_USERNAME: 'muellim.e2e',
+      SUPERADMIN_PASSWORD: 'E2e-Muellim-Parol-9',
+      SUPERADMIN_NAME: 'E2E Müəllim',
     },
   },
 })

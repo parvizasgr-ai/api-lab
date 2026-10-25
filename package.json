@@ -23,6 +23,7 @@
     "db:seed": "tsx scripts/db-seed.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:setup": "tsx scripts/db-setup.ts",
+    "superadmin:init": "tsx scripts/superadmin-init.ts",
     "db:shell": "psql \"${DATABASE_URL:-postgres://apilab:apilab@localhost:5432/apilab}\"",
     "materials:seed": "tsx scripts/materials-seed.ts",
     "openapi:lint": "spectral lint openapi/openapi.yaml --fail-severity=warn",

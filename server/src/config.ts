@@ -26,6 +26,13 @@ export const config = {
   host: env.HOST ?? 'localhost',
   // Verilibsə admin parolu hər başlanğıcda və /_reset-dən sonra bununla əvəz olunur (LAN rejimində məcburidir)
   adminPassword: env.ADMIN_PASSWORD ?? '',
+  // Superadmin (müəllim): bütün istifadəçilər, qruplar və nəticələr. Hər başlanğıcda və DB sıfırlananda yaradılır/yenilənir.
+  // npm run superadmin:init — güclü parol yaradıb .env-ə yazır.
+  superadmin: {
+    username: env.SUPERADMIN_USERNAME ?? '',
+    password: env.SUPERADMIN_PASSWORD ?? '',
+    name: env.SUPERADMIN_NAME ?? 'Müəllim',
+  },
   publicUrl: env.PUBLIC_URL ?? `http://localhost:${env.PORT ?? 3000}`,
   // PostgreSQL: tətbiq (sahib) rolu. SQL Playground ayrıca read-only rol ilə qoşulur (apilab_playground).
   databaseUrl: env.DATABASE_URL ?? 'postgres://apilab:apilab@localhost:5432/apilab',

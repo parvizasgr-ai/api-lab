@@ -7,6 +7,7 @@ import os from 'node:os';
 import pg from 'pg';
 import { config } from '../server/src/config.js';
 import { DB, migrate, resetDatabase, userTables } from '../server/src/db.js';
+import { ensureSuperadmin } from '../server/src/lib/exposure.js';
 
 const superUrl = process.env.PG_SUPERUSER_URL ?? `postgres://${os.userInfo().username}@localhost:5432/postgres`;
 const app = new URL(config.databaseUrl);
@@ -54,5 +55,7 @@ if ((await userTables(db)).length === 0) {
   const applied = await migrate(db);
   console.log(`  ✓ ${mainDb}: ${applied.length ? `yeni migration-lar: ${applied.join(', ')}` : 'aktualdır'}`);
 }
+if (await ensureSuperadmin(db, config)) console.log(`  ✓ superadmin: ${config.superadmin.username}`);
+else console.log('  ℹ superadmin yoxdur — npm run superadmin:init');
 await db.close();
 console.log('\nHazırdır: npm start');

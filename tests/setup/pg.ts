@@ -1,11 +1,13 @@
 // Testlər üçün PostgreSQL izolyasiyası.
 //   * global.ts qaçışın əvvəlində şablonu (apilab_test_template) qurur: migration + seed
-//   * Hər test worker-i ilk ehtiyacda POOL_SIZE DB alır (CREATE DATABASE … TEMPLATE) — bütün qaçış üçün cəmi onlarla DB
+//   * Hər test worker-i POOL_SIZE DB istifadə edir (apilab_test_w<worker>_<i>); bazalar qaçışlar arasında qalır,
+//     yalnız migration/seed dəyişəndə şablondan yenidən yaradılır
 //   * createTestDb() növbəti DB-ni növbə ilə götürür və onu təmizləyir: TRUNCATE + seed (npm run db:reset ilə eyni seed kodu)
 //     → eyni anda POOL_SIZE-a qədər canlı app təhlükəsizdir (testlərdə 1–3 olur)
 //   * DB obyekti dərhal qaytarılır, ilk sorğu təmizliyin bitməsini gözləyir (createTestApp sinxron qalır)
 import pg from 'pg';
 import { DB, migrate, seed } from '../../server/src/db.js';
+import { schemaFingerprint } from './fingerprint.js';
 
 export const TEMPLATE_DB = 'apilab_test_template';
 const POOL_SIZE = 4;
@@ -26,14 +28,22 @@ let next = 0;
 let created: Promise<void> | null = null;
 let queue: Promise<unknown> = Promise.resolve(); // təmizliklər ardıcıl gedir (eyni DB-yə paralel TRUNCATE olmasın)
 
+// Worker bazaları qaçışlar arasında SAXLANILIR (ad: worker nömrəsi, pid yox). Yalnız migration/seed dəyişəndə
+// (COMMENT ON DATABASE = fingerprint) yenidən yaradılır — adi qaçışda heç bir CREATE/DROP DATABASE olmur.
+const WORKER = process.env.VITEST_POOL_ID ?? '0';
+const dbName = (i: number) => `apilab_test_w${WORKER}_${i}`;
+
 function ensureDatabases(): Promise<void> {
   created ??= (async () => {
+    const fingerprint = schemaFingerprint();
     for (let i = 0; i < POOL_SIZE; i++) {
-      const name = `apilab_test_${process.pid}_${i}`;
-      // Vitest hər test faylını təcrid olunmuş modulda işlədir — bu worker-in DB-ləri əvvəlki fayldan qalıbsa, təkrar istifadə
-      // (hər app onsuz da TRUNCATE + seed ilə təmizlənir). DROP/CREATE bahalıdır və paralel worker-lərdə bir-birini gözləyir.
-      const exists = (await adminPool().query('SELECT 1 FROM pg_database WHERE datname = $1', [name])).rowCount;
-      if (!exists) await adminPool().query(`CREATE DATABASE "${name}" TEMPLATE ${TEMPLATE_DB}`);
+      const name = dbName(i);
+      const row = (await adminPool().query(`SELECT shobj_description(oid, 'pg_database') AS fp FROM pg_database WHERE datname = $1`, [name])).rows[0] as { fp: string | null } | undefined;
+      if (row && row.fp !== fingerprint) await adminPool().query(`DROP DATABASE "${name}" WITH (FORCE)`);
+      if (!row || row.fp !== fingerprint) {
+        await adminPool().query(`CREATE DATABASE "${name}" TEMPLATE ${TEMPLATE_DB}`);
+        await adminPool().query(`COMMENT ON DATABASE "${name}" IS '${fingerprint}'`);
+      }
       names.push(name);
     }
   })();
@@ -48,13 +58,21 @@ export function createTestDb(): DB {
     await flushRequestLog(); // əvvəlki app-in gözləyən log yazıları yeni datanı çirkləndirməsin
     const cleaner = new DB(urlFor(names[index]), { max: 1 });
     try {
+      // Testlərin müvəqqəti obyektləri (test_* trigger/funksiya) baza qaçışlar arasında qaldığı üçün silinir
+      await cleaner.exec(`DO $$ DECLARE r record; BEGIN
+        FOR r IN SELECT tgname, tgrelid::regclass AS tbl FROM pg_trigger WHERE NOT tgisinternal AND tgname LIKE 'test\\_%' LOOP
+          EXECUTE format('DROP TRIGGER %I ON %s', r.tgname, r.tbl); END LOOP;
+        FOR r IN SELECT p.oid::regprocedure AS fn FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+                 WHERE n.nspname = 'public' AND p.proname LIKE 'test\\_%' LOOP
+          EXECUTE format('DROP FUNCTION %s', r.fn); END LOOP;
+      END $$`);
       await migrate(cleaner); // şablon artıq migrate olunub — yeni migration yoxdursa no-op
       await seed(cleaner);
     } finally {
       await cleaner.close();
     }
   })) as Promise<void>;
-  const db = new DB(urlFor(`apilab_test_${process.pid}_${index}`), { ready, max: 3, idleTimeoutMillis: 200 });
+  const db = new DB(urlFor(dbName(index)), { ready, max: 3, idleTimeoutMillis: 200 });
   open.push(db);
   return db;
 }
@@ -85,20 +103,4 @@ export async function closeTestDbs(): Promise<void> {
 export async function closeAdmin(): Promise<void> {
   await admin?.end();
   admin = null;
-}
-
-// globalTeardown/globalSetup: bu qaçışın (və köhnə qaçışların) test DB-lərini silir
-export async function dropAllTestDatabases(client: pg.Client): Promise<void> {
-  const rows = (await client.query(`SELECT datname FROM pg_database WHERE datname LIKE 'apilab\\_test\\_%'`)).rows as { datname: string }[];
-  for (const { datname } of rows) {
-    // Bağlantılar bağlanarkən (məs. autovacuum) FORCE icazə xətası verə bilər — qısa gözləyib təkrar; alınmasa növbəti qaçış silir
-    for (let attempt = 0; attempt < 5; attempt++) {
-      try {
-        await client.query(`DROP DATABASE IF EXISTS "${datname}" WITH (FORCE)`);
-        break;
-      } catch {
-        await new Promise((r) => setTimeout(r, 300));
-      }
-    }
-  }
 }

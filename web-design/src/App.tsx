@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import {
   authClient,
   AuthClientError,
@@ -52,6 +52,9 @@ import { exampleUrl, external, externalKey, type ExternalApi, type ExternalCatal
 import { parseRoute, pathOf, PROTECTED_PAGES, type AppId, type Page } from "./lib/routes";
 import { normalizeRegistration, serverFieldErrors, validateRegistration, type RegisterField, type RegisterForm as RegisterFormState } from "./lib/registration";
 
+// Müəllim paneli ayrıca chunk-dır — tələbələr onu yükləmir
+const AdminPage = lazy(() => import("./AdminPage"));
+
 type Language = "az" | "en";
 type Theme = "light" | "dark";
 
@@ -75,6 +78,8 @@ const translations = {
     sql: "SQL",
     materials: "Materials",
     externalApis: "External APIs",
+    teacherPanel: "Müəllim paneli",
+    teacherPanelForbidden: "Bu səhifə yalnız müəllim (superadmin) hesabı üçündür.",
     signInTab: "Daxil ol",
     registerTab: "Qeydiyyat",
     superadminRole: "Superadmin (müəllim)",
@@ -663,6 +668,8 @@ const translations = {
     sql: "SQL",
     materials: "Materials",
     externalApis: "External APIs",
+    teacherPanel: "Teacher panel",
+    teacherPanelForbidden: "This page is only for the teacher (superadmin) account.",
     signInTab: "Sign in",
     registerTab: "Register",
     superadminRole: "Superadmin (teacher)",
@@ -1508,6 +1515,7 @@ function Header({
     { label: t.sql, page: "sql" },
     { label: t.materials, page: "materials" },
     { label: t.externalApis, page: "external" },
+    ...(session?.user.role === "superadmin" ? [{ label: t.teacherPanel, page: "admin" as Page }] : []),
   ];
 
   useEffect(() => {
@@ -5191,6 +5199,14 @@ function App() {
       ) : (
         currentPage === "external" ? (
           <ExternalApisPage language={language} onNavigate={navigateTo} session={session} t={t} />
+        ) : currentPage === "admin" ? (
+          session?.user.role === "superadmin" ? (
+            <Suspense fallback={<main className="admin-page" id="main-content" aria-busy="true" />}>
+              <AdminPage language={language} />
+            </Suspense>
+          ) : (
+            <main className="admin-page" id="main-content"><div className="admin-error" role="alert"><strong>403</strong><span>{t.teacherPanelForbidden}</span></div></main>
+          )
         ) : (
           <MaterialsPage onNavigate={navigateTo} session={session} t={t} />
         )

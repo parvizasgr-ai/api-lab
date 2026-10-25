@@ -23,6 +23,30 @@ export function exposureProblems(config: Pick<Config, 'host' | 'jwtSecret' | 'ad
   return problems;
 }
 
+// Superadmin (müəllim) — .env-dən; yoxdursa yaradılır, varsa parol/ad/rol yenilənir. DB sıfırlananda da itmir.
+export async function ensureSuperadmin(db: DB, config: Pick<Config, 'superadmin'>): Promise<boolean> {
+  const { username, password, name } = config.superadmin;
+  if (!username || !password) return false;
+  const [firstName, ...rest] = name.trim().split(/\s+/);
+  const lastName = rest.join(' ') || null;
+  const id = (await db
+    .prepare(
+      `INSERT INTO users (username, password_hash, full_name, first_name, last_name, group_name, email, role)
+       VALUES (?, ?, ?, ?, ?, NULL, NULL, 'SUPERADMIN')
+       ON CONFLICT (username) DO UPDATE SET password_hash = excluded.password_hash, full_name = excluded.full_name,
+         first_name = excluded.first_name, last_name = excluded.last_name, role = 'SUPERADMIN', updated_at = iso_now()
+       RETURNING id`,
+    )
+    .pluck()
+    .get(username, hashPassword(password), name.trim(), firstName, lastName)) as number;
+  for (const scope of [...SUPERADMIN_SCOPES]) {
+    await db.prepare(`INSERT INTO user_scopes (user_id, scope) VALUES (?, ?) ON CONFLICT DO NOTHING`).run(id, scope);
+  }
+  return true;
+}
+
+export const SUPERADMIN_SCOPES = ['accounts:read', 'cards:read', 'cards:write', 'transfers:write', 'bookings:read', 'bookings:write', 'books:write', 'music:read', 'music:write', 'admin', 'superadmin'];
+
 // ADMIN_PASSWORD verilibsə admin istifadəçisinin parolunu onunla əvəz edir (seed-dən sonra da)
 export async function applyAdminPassword(db: DB, config: Pick<Config, 'adminPassword'>): Promise<boolean> {
   if (!config.adminPassword) return false;

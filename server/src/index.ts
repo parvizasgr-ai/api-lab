@@ -1,6 +1,6 @@
 // Serverin başlanğıc nöqtəsi: npm run dev
 import { config } from './config.js';
-import { applyAdminPassword, exposureProblems, isLoopbackHost } from './lib/exposure.js';
+import { applyAdminPassword, ensureSuperadmin, exposureProblems, isLoopbackHost } from './lib/exposure.js';
 import { openDb, migrate, resetDatabase, userTables } from './db.js';
 import { createApp } from './app.js';
 import { detectTools } from './modules/materials/tools.js';
@@ -38,6 +38,8 @@ if (process.env.RESET_DB_ON_START === 'true') {
 }
 
 if (await applyAdminPassword(db, config)) console.log('ADMIN_PASSWORD tətbiq olundu (admin istifadəçisi)');
+if (await ensureSuperadmin(db, config)) console.log(`Superadmin: ${config.superadmin.username}`);
+else console.log('Superadmin yoxdur — npm run superadmin:init (müəllim paneli: /admin)');
 
 const app = createApp({ db });
 const materials = app.locals.materials as MaterialsService;

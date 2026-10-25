@@ -73,13 +73,14 @@ və ya terminalda: `npm run db:shell` → `SELECT * FROM v_card_overview;`
 | İstifadəçi | `student` / `student123` | Aysel Məmmədova, bütün scope-lar |
 | İstifadəçi | `rauf` / `rauf123` | `cards:write` scope-u **yoxdur** → kart bloku 403 (Authorization dərsi); kartları 5, 6 — BOLA nümunəsi |
 | İstifadəçi | `admin` / `admin123` | ADMIN, `/_reset` və `/_history?all=true` |
+| Müəllim | `.env` → `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` | SUPERADMIN — `/admin` paneli; `npm run superadmin:init` yaradır (seed-də yoxdur) |
 | API Key | `apilab-demo-key-2026` | Valyuta və kitab endpoint-ləri (`X-API-Key` başlığı) |
 | API Key | `apilab-revoked-key-2025` | Deaktiv → 401 `INVALID_API_KEY` |
 | OAuth client | `apilab-portal` / `apilab-portal-secret` | Mock "Google" Authorization Code flow |
 | Hesablar | student: `AZ21NABZ0001` (AZN), `…0002` (USD), `…0003` (EUR); rauf: `…0004` (AZN), `…0005` (USD) | |
 | Kartlar | 1, 2 — ACTIVE; 3 — BLOCKED (LOST, açıla bilər); 4 — EXPIRED | student-in kartları |
 
-Scope-lar: `accounts:read`, `cards:read`, `cards:write`, `transfers:write`, `bookings:read`, `bookings:write`, `books:write`, `music:read`, `music:write`, `admin`.
+Scope-lar: `accounts:read`, `cards:read`, `cards:write`, `transfers:write`, `bookings:read`, `bookings:write`, `books:write`, `music:read`, `music:write`, `admin`, `superadmin`.
 
 Seed **deterministikdir** (eyni gündə hər reset eyni datanı verir), tarixlər isə bu günə nisbətən hesablanır — reyslər həmişə "sabahdan 30 gün", otel bronları gələcəkdədir.
 
@@ -102,13 +103,13 @@ Seed **deterministikdir** (eyni gündə hər reset eyni datanı verir), tarixlə
 | `npm run db:reset` | DB-ni sıfırlayır (public sxemi silinir → migrate → seed), cədvəl saylarını göstərir |
 | `npm run db:migrate` / `db:seed` | Yalnız yeni migration-lar / yalnız data |
 | `npm run db:shell` | `psql` (`\\dt`, `\\d cards`) |
+| `npm run superadmin:init` | Müəllim (SUPERADMIN) hesabı: güclü parol yaradır, `.env`-ə yazır, DB-də yaradır. `-- --username parviz --name "Ad Soyad"` |
 | `npm run materials:seed` | `materials/slides/` qovluğundakı yeni faylları import edir və konvertasiyanı gözləyir |
 | `npm run openapi:lint` / `openapi:bundle` | Spec lint / YAML → JSON |
 | `npm run postman:export` | Postman fayllarını `postman/` qovluğuna yazır |
 | `npm run rates:refresh` | Bu günün məzənnələrini ECB-dən (Frankfurter) yeniləyir; şəbəkə yoxdursa seed qalır |
 | `npm run external:verify` | `RAPIDAPI_KEY` ilə hər external API-yə 1 sorğu → status cədvəli və `verified` təklifi (`catalog.ts`-i dəyişmir) |
 | `npm run classroom:check` | Sinif hazırlığı: cari konfiqurasiya; `-- --lan` — LAN rejimi üçün yoxlama + hazır `.env` bloku (təsadüfi sirlərlə, faylı dəyişmir) |
-| `npm run pg:up` / `pg:down` | Opsional PostgreSQL (Docker) |
 
 ## Testlər və QA (CI)
 
@@ -206,13 +207,14 @@ erDiagram
 
 ---
 
-## Endpoint-lər (103)
+## Endpoint-lər (107)
 
 Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/docs**.
 
 | Metod | Path | Təsvir | Auth | Scope |
 |---|---|---|---|---|
 | **Auth** | | | | |
+| `POST` | `/api/v1/auth/register` | Qeydiyyat — ad, soyad, qrup, username, parol → 201 + token-lər | — |  |
 | `POST` | `/api/v1/auth/login` | Login — access və refresh token al | — |  |
 | `POST` | `/api/v1/auth/refresh` | Refresh token ilə yeni access token al (rotation) | — |  |
 | `POST` | `/api/v1/auth/logout` | Logout — refresh token-i və cari access token-i ləğv et | Bearer |  |
@@ -325,7 +327,11 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 | `GET` | `/api/v1/tasks/progress/me` | Mənim irəliləyişim (dərslər üzrə xülasə) | Bearer |  |
 | `POST` | `/api/v1/tasks/import` | Markdown faylından tapşırıqları import et (ADMIN, upsert — dərs + başlıq üzrə) | Bearer | admin |
 | **Admin** | | | | |
-| `POST` | `/api/v1/_reset` | DB-ni seed vəziyyətinə qaytar (yalnız ADMIN) | Bearer | admin |
+| `POST` | `/api/v1/_reset` | DB-ni seed vəziyyətinə qaytar (ADMIN; qeydiyyatlı tələbələr varsa yalnız SUPERADMIN + `?confirm=all-users`) | Bearer | admin |
+| `GET` | `/api/v1/admin/users` | Bütün istifadəçilər: qrup, irəliləyiş, aktivlik (filter, axtarış, sort, pagination) | Bearer | superadmin |
+| `GET` | `/api/v1/admin/groups` | Qruplar üzrə xülasə (tələbə sayı, orta nəticə, aktivlik) | Bearer | superadmin |
+| `GET` | `/api/v1/admin/users/{userId}` | İstifadəçi detalları: dərslər, tapşırıqlar, son API və SQL sorğuları | Bearer | superadmin |
+| `GET` | `/api/v1/admin/results.csv` | Nəticələr cədvəli — CSV (Excel üçün UTF-8 BOM, `?group=`) | Bearer | superadmin |
 | `GET` | `/api/v1/_history` | Sorğu tarixçəsi (API Explorer "History") | Bearer (opsional) |  |
 | **Meta** | | | | |
 | `GET` | `/api/v1/health` | Server və DB vəziyyəti | — |  |
@@ -459,6 +465,29 @@ Faylda bir xəta olsa belə heç nə yazılmır (transaction) → **422** `INVAL
 
 ---
 
+## Qeydiyyat və müəllim paneli
+
+**Tələbə qeydiyyatı** — portalda **/register** (və ya `POST /api/v1/auth/register`):
+
+| Sahə | Qayda |
+|---|---|
+| Ad, soyad | 2–50 simvol, hərflər (Azərbaycan hərfləri daxil); boşluq, `-` və `'` yalnız hərflərin arasında |
+| Qrup | 2–30 simvol, məs. `BA-2026-A`, `IT BA 2` (hərf, rəqəm; boşluq, `.`, `_`, `-` ortada) |
+| Username | 3–30 simvol, kiçik latın hərfləri, rəqəmlər, `.` və `_` (əvvəli və sonu hərf/rəqəm); unikal → təkrar olsa 409 `USERNAME_TAKEN` |
+| Parol | ən azı 8 simvol, ən çoxu 64; çox yayılmış parollar (`12345678`, `password` …), username ilə eyni, adı/soyadı daxilində olan və bir simvolun təkrarı olan parollar → 422 `WEAK_PASSWORD` |
+
+Qeydiyyatdan sonra tələbə avtomatik daxil olur və **öz sandbox datasını** alır: AZN cari hesab (1 000.00) + USD yığım hesabı (500.00), hər birinə kart. Parollar `scrypt` ilə hash olunur, DB-də açıq saxlanmır. Google ilə giriş saytdan çıxarılıb; OAuth yalnız Auth Lab və Apps → Google demosunda tədris üçün qalır.
+
+**Müəllim paneli** — **/admin** (yalnız SUPERADMIN, naviqasiyada "Müəllim paneli"):
+
+1. `npm run superadmin:init -- --username parviz --name "Ad Soyad"` → parol bir dəfə ekranda göstərilir və `.env`-ə yazılır (`.env` gitignore-dadır).
+2. Serveri yenidən başladın, həmin username/parolla daxil olun.
+3. Panel: qruplar üzrə kartlar (tələbə sayı, orta nəticə, hamısını bitirənlər, son 7 gündə aktiv olanlar); istifadəçi cədvəli (axtarış, qrup/rol filteri, sıralama); hər tələbənin detalı (dərslər üzrə irəliləyiş, hər tapşırıq, son 20 API sorğusu, son 10 SQL sorğusu); **CSV** (Excel/Google Sheets — seçilmiş qrup üzrə).
+
+`POST /_reset` qeydiyyatlı tələbələrin hesablarını da silər — buna görə tələbə qeydiyyatı olandan sonra yalnız SUPERADMIN `?confirm=all-users` ilə sıfırlaya bilər (ADMIN → 403, təsdiqsiz → 409 `RESET_WOULD_DELETE_USERS`). Müəllim hesabı reset-dən sonra `.env`-dən avtomatik bərpa olunur.
+
+---
+
 ## External APIs (RapidAPI)
 
 Portalın **External APIs** səhifəsi (`/external-apis`) və `/external/*` endpoint-ləri RapidAPI Hub-dakı 7 real API-ni API Lab proxy-si ilə çağırır:
@@ -585,7 +614,19 @@ Sonra `npm run db:setup`. Skript superuser kimi (`PG_SUPERUSER_URL`, default —
 
 Sxem `db/migrations/*.sql`-dadır (`001_init.sql` — 37 cədvəl, 2 trigger, 6 view; `002_playground.sql` — playground rolu və maskalar). Seed tarixləri bu günə nisbidir (`db/seed/00_helpers.sql`: `seed_ts`, `seed_date`). Bütün sessiyalar UTC-dədir.
 
-Testlər (`npm test`) eyni PostgreSQL-dən istifadə edir: qaçışın əvvəlində şablon baza qurulur, hər test app-i öz təmiz bazasını alır.
+Testlər (`npm test`) eyni PostgreSQL-dən istifadə edir: şablon baza (`apilab_test_template`) və worker bazaları (`apilab_test_w<N>_<i>`) qaçışlar arasında saxlanılır, yalnız `db/migrations` və ya `db/seed` dəyişəndə yenidən yaradılır; hər test app-i öz bazasını təmizlənmiş seed vəziyyətində alır.
+
+### DataGrip / pgAdmin ilə tam giriş
+
+| Sahə | Dəyər |
+|---|---|
+| Host / Port | `localhost` / `5432` |
+| Database | `apilab` (əsas), `apilab_e2e` (e2e testləri) |
+| Tam giriş (superuser) | macOS istifadəçiniz (məs. `parvizasgarov`) — parol `~/.pgpass`-dadır; lokal qoşulmalar Homebrew-da `trust`-dır |
+| Tətbiq rolu | `apilab` / `apilab` — bazaların sahibi (oxu + yazı) |
+| Tələbə rolu | `apilab_playground` / `apilab_playground` — yalnız oxu, sirr sütunları maskalı (`lab` sxemi) |
+
+DataGrip: **New → Data Source → PostgreSQL**, yuxarıdakı dəyərlər, **Schemas** tabında `public` və `lab`. Bütün cədvəllər `public` sxemindədir; qeydiyyatlı tələbələr `users` cədvəlindədir (`first_name`, `last_name`, `group_name`, `last_login_at`), nəticələr `task_progress`-də. Faydalı view-lar və sorğular — [`db/README.md`](db/README.md), `db/queries/*.sql`.
 
 ---
 

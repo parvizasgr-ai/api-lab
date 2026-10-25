@@ -4385,7 +4385,174 @@
       "name": "Admin",
       "item": [
         {
-          "name": "POST /api/v1/_reset — DB-ni seed vəziyyətinə qaytar (yalnız ADMIN)",
+          "name": "GET /api/v1/admin/users — Bütün istifadəçilər — qrup, tapşırıq nəticəsi, aktivlik (yalnız SUPERADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users?group=BA-2026-A&q=nərmin&role=USER",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "group",
+                  "value": "BA-2026-A",
+                  "disabled": false
+                },
+                {
+                  "key": "q",
+                  "value": "nərmin",
+                  "disabled": false
+                },
+                {
+                  "key": "role",
+                  "value": "USER",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Müəllim paneli. Hər istifadəçi üçün tamamlanmış tapşırıqlar (`task_progress`), API sorğuları (`request_log`) və SQL Playground sorğuları (`audit_log`)."
+          }
+        },
+        {
+          "name": "GET /api/v1/admin/groups — Qruplar üzrə xülasə — tələbə sayı, orta nəticə (yalnız SUPERADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "groups"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Qruplar üzrə xülasə — tələbə sayı, orta nəticə (yalnız SUPERADMIN)"
+          }
+        },
+        {
+          "name": "GET /api/v1/admin/users/{userId} — Tələbənin detalları — dərslər üzrə nəticə, tapşırıqlar, son sorğular, SQL sorğuları (yalnız SUPERADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ":userId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Tələbənin detalları — dərslər üzrə nəticə, tapşırıqlar, son sorğular, SQL sorğuları (yalnız SUPERADMIN)"
+          }
+        },
+        {
+          "name": "GET /api/v1/admin/results.csv — Nəticələr cədvəli — CSV (Excel / Google Sheets), qrup filteri ilə (yalnız SUPERADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/results.csv?group=BA-2026-A",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "results.csv"
+              ],
+              "query": [
+                {
+                  "key": "group",
+                  "value": "BA-2026-A",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "UTF-8 BOM ilə (Azərbaycan hərfləri Excel-də düzgün açılır). Formula ilə başlayan dəyərlər (=, +, -, @) zərərsizləşdirilir (CSV injection)."
+          }
+        },
+        {
+          "name": "POST /api/v1/_reset — DB-ni seed vəziyyətinə qaytar (ADMIN; qeydiyyatlı tələbələr varsa — yalnız SUPERADMIN + təsdiq)",
           "request": {
             "method": "POST",
             "auth": {
@@ -4408,10 +4575,16 @@
                 "v1",
                 "_reset"
               ],
-              "query": [],
+              "query": [
+                {
+                  "key": "confirm",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
               "variable": []
             },
-            "description": "Bütün cədvəllər silinir, migration-lar və seed yenidən icra olunur. Dərsi dayandırmadan \"hər şeyi sıfırla\"."
+            "description": "Bütün cədvəllər silinir, migration-lar və seed yenidən icra olunur. Dərsi dayandırmadan \"hər şeyi sıfırla\".\n**Qeydiyyatdan keçmiş tələbələr varsa** onların hesabları və nəticələri də silinəcək — ona görə yalnız SUPERADMIN\nvə `?confirm=all-users` ilə; əks halda 403 / 409 `RESET_WOULD_DELETE_USERS`. Superadmin hesabı sıfırlamadan sonra da qalır.\n"
           }
         },
         {

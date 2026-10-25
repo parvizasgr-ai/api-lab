@@ -8,6 +8,9 @@ import { createApp } from '../server/src/app.js';
 import { config as baseConfig, type Config } from '../server/src/config.js';
 import type { DB } from '../server/src/db.js';
 import { createTestDb, testView } from './setup/pg.js';
+import { ensureSuperadmin } from '../server/src/lib/exposure.js';
+
+export const SUPERADMIN_PASSWORD = 'Muellim-Parol-1';
 import type { Handlers } from '../server/src/openapi/router.js';
 import { listOperations, loadOpenApi } from '../server/src/openapi/spec.js';
 import { ResponseValidator } from '../server/src/openapi/validator.js';
@@ -50,12 +53,16 @@ export function createTestApp(options: { config?: Partial<Config>; handlers?: Ha
   for (const dir of [config.materials.dir, config.materials.slidesDir]) {
     if (!path.resolve(dir).startsWith(path.resolve(os.tmpdir()))) throw new Error(`Test material qovluğu tmp-də deyil: ${dir}`);
   }
+  // Müəllim (SUPERADMIN) hesabı ilk login('muellim1') zamanı yaradılır — digər testlərin datasına təsir etmir
+  config.superadmin = { username: 'muellim1', password: SUPERADMIN_PASSWORD, name: 'Test Müəllim' };
+  let superadminReady: Promise<unknown> | undefined;
   const app = createApp({ db, config, handlers: options.handlers });
   const auth = new AuthService(db, config);
   const view = testView(db); // testlər DB-ni bu görünüşlə oxuyur (log yazıları tamamlanmış olur)
   const api = () => request(app);
 
-  async function login(username = 'student', password = `${username}123`) {
+  async function login(username = 'student', password = username === 'muellim1' ? SUPERADMIN_PASSWORD : `${username}123`) {
+    if (username === 'muellim1') await (superadminReady ??= ensureSuperadmin(db, config));
     const res = await api().post('/api/v1/auth/login').send({ username, password });
     expect(res.status).toBe(200);
     return res.body as { access_token: string; refresh_token: string; scope: string };

@@ -192,6 +192,22 @@ describe('MongoDB: otel rəyləri və sorğu playground-u', () => {
     expect((await t.api().post('/api/v1/hotels/3/reviews').send(body)).status).toBe(401);
   });
 
+  it('paralel eyni rəy: tam olaraq biri 201, digəri 409 (DB unikal indeksi — yoxlama + insert yarışı)', async () => {
+    const t = await ctx();
+    const body = { rating: 5, text: 'Paralel rəy testi.' };
+    const results = await Promise.all([1, 2, 3].map(() => t.api().post('/api/v1/hotels/3/reviews').set(bearer(t.student)).send(body)));
+    expect(results.map((r) => r.status).sort()).toEqual([201, 409, 409]);
+    expect(results.filter((r) => r.status === 409).every((r) => r.body.code === 'REVIEW_EXISTS')).toBe(true);
+    expect(await t.infra.mongo.countDocuments('hotel_reviews', { 'hotel.id': 3, userId: 1 })).toBe(1);
+  });
+
+  it('updateOne paralel yeniləmələri itirmir (FOR UPDATE)', async () => {
+    const t = await ctx();
+    const doc = await t.infra.mongo.insertOne('notifications', { userId: 1, read: false, a: 0, b: 0, createdAt: '2026-10-25T00:00:00Z' });
+    await Promise.all([t.infra.mongo.updateOne('notifications', doc._id, { a: 1 }), t.infra.mongo.updateOne('notifications', doc._id, { b: 1 })]);
+    expect(await t.infra.mongo.findOne('notifications', { _id: doc._id })).toMatchObject({ a: 1, b: 1 });
+  });
+
   it('find/aggregate/countDocuments; executedQuery; $where 422; notifications avtomatik öz istifadəçisinə məhdud', async () => {
     const t = await ctx();
     const q = (body: object, token = t.student) => t.api().post('/api/v1/_mongo/query').set(bearer(token)).send(body);

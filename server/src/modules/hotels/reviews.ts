@@ -72,6 +72,10 @@ export function hotelReviewsHandlers({ db, infra, config }: AppContext): Handler
         ...(body.cons?.length ? { cons: body.cons } : {}),
         helpfulVotes: 0,
         createdAt: config.now().toISOString(),
+      }).catch((err: { code?: string }) => {
+        // Paralel ikinci sorğu yuxarıdakı yoxlamadan keçibsə — unikal indeks (005) rədd edir
+        if (err.code === '23505') throw conflict('REVIEW_EXISTS', 'Bu otelə artıq rəy yazmısınız');
+        throw err;
       });
       infra.publish(TOPICS.reviews, 'review.created', auth.userId, { reviewId: doc._id, hotelId, rating: body.rating });
       res.status(201).location(`/api/v1/hotels/${hotelId}/reviews`).json(doc);

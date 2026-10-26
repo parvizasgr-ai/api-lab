@@ -86,8 +86,42 @@ const isOperatorObject = (v: unknown): v is Record<string, unknown> =>
 
 const BLOCKED = new Set(['$where', '$function', '$accumulator', '$expr', '$jsonSchema', '$text', '$near', '$geoWithin']);
 
+// ReDoS qoruması: Node regex-i backtracking edir və event loop-u bloklayır — bir tələbənin `(a+)+$` sorğusu bütün
+// serveri dondurar. Eksponensial backtracking-in tipik mənbələri rədd olunur: kvantorlu qrupun içində kvantor və ya
+// alternativ ((a+)+, (a|aa)*, (\w*)+), və backreference (\1).
+export function assertSafeRegex(pattern: string) {
+  if (/\\[1-9]|\\k</.test(pattern)) throw new MongoQueryError('$regex: backreference icazəli deyil', true);
+  const stack: { quantified: boolean; alternation: boolean }[] = [];
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === '\\') {
+      i++;
+      continue;
+    }
+    if (c === '[') {
+      // simvol sinfi: içindəki * + | adi simvoldur
+      while (i < pattern.length && pattern[i] !== ']') i += pattern[i] === '\\' ? 2 : 1;
+      continue;
+    }
+    const top = stack[stack.length - 1];
+    if (c === '(') stack.push({ quantified: false, alternation: false });
+    else if (c === '|' && top) top.alternation = true;
+    else if ((c === '*' || c === '+' || c === '{') && top) top.quantified = true;
+    else if (c === ')') {
+      const group = stack.pop();
+      const next = pattern[i + 1];
+      if (group && (next === '*' || next === '+' || next === '{') && (group.quantified || group.alternation)) {
+        throw new MongoQueryError('$regex: iç-içə kvantor (məs. (a+)+) icazəli deyil — eksponensial backtracking serveri bloklayır', true);
+      }
+      const parent = stack[stack.length - 1];
+      if (parent && group && (group.quantified || next === '*' || next === '+' || next === '{')) parent.quantified = true;
+    }
+  }
+}
+
 function regexOf(pattern: unknown, options: unknown): RegExp {
   if (typeof pattern !== 'string' || pattern.length > 100) throw new MongoQueryError('$regex — ən çox 100 simvolluq string olmalıdır');
+  assertSafeRegex(pattern);
   const flags = typeof options === 'string' ? options.replace(/[^imsx]/g, '').replace('x', '') : '';
   try {
     return new RegExp(pattern, flags);
@@ -309,6 +343,21 @@ export function shellJson(v: unknown): string {
   return JSON.stringify(v);
 }
 
+// Filter-də (yuxarı səviyyədə və ya $and içində) userId / hotel.id üçün sadə bərabərlik varsa — onu qaytarır
+function indexedEqualities(filter: Filter): { userId?: unknown; hotelId?: unknown } {
+  const out: { userId?: unknown; hotelId?: unknown } = {};
+  const scalar = (v: unknown) => typeof v === 'number' || typeof v === 'string';
+  const visit = (f: unknown) => {
+    if (!f || typeof f !== 'object' || Array.isArray(f)) return;
+    const obj = f as Filter;
+    if (scalar(obj.userId)) out.userId ??= obj.userId;
+    if (scalar(obj['hotel.id'])) out.hotelId ??= obj['hotel.id'];
+    if (Array.isArray(obj.$and)) obj.$and.forEach(visit);
+  };
+  visit(filter);
+  return out;
+}
+
 // ---------------------------------------------------------------- saxlama (PostgreSQL JSONB)
 export class MongoSim {
   constructor(
@@ -316,13 +365,25 @@ export class MongoSim {
     private now: () => Date,
   ) {}
 
-  async all(collection: string): Promise<Doc[]> {
-    const rows = (await this.db.prepare(`SELECT doc FROM docstore.documents WHERE collection = ? ORDER BY id`).pluck().all(collection)) as Doc[];
-    return rows;
+  // Bütün kolleksiyanı yaddaşa yükləməmək üçün indeksli sahələrdə (userId, hotel.id) dəqiq bərabərlik SQL-ə ötürülür
+  // (idx_docstore_user, idx_docstore_hotel). Tam filter sonra JS-də yenə tətbiq olunur — nəticə dəyişmir, yalnız sürət.
+  async all(collection: string, filter: Filter = {}): Promise<Doc[]> {
+    const conditions = ['collection = ?'];
+    const values: unknown[] = [collection];
+    const pushdown = indexedEqualities(filter);
+    if (pushdown.userId !== undefined) {
+      conditions.push(`doc->>'userId' = ?`);
+      values.push(String(pushdown.userId));
+    }
+    if (pushdown.hotelId !== undefined) {
+      conditions.push(`doc->'hotel'->>'id' = ?`);
+      values.push(String(pushdown.hotelId));
+    }
+    return (await this.db.prepare(`SELECT doc FROM docstore.documents WHERE ${conditions.join(' AND ')} ORDER BY id`).pluck().all(...values)) as Doc[];
   }
 
   async find(collection: string, filter: Filter = {}, options: { projection?: Record<string, unknown>; sort?: Record<string, unknown>; limit?: number; skip?: number } = {}) {
-    const docs = sortDocs((await this.all(collection)).filter((d) => matches(d, filter)), options.sort);
+    const docs = sortDocs((await this.all(collection, filter)).filter((d) => matches(d, filter)), options.sort);
     const sliced = docs.slice(options.skip ?? 0, options.limit ? (options.skip ?? 0) + options.limit : undefined);
     return sliced.map((d) => project(d, options.projection));
   }
@@ -332,11 +393,12 @@ export class MongoSim {
   }
 
   async countDocuments(collection: string, filter: Filter = {}) {
-    return (await this.all(collection)).filter((d) => matches(d, filter)).length;
+    return (await this.all(collection, filter)).filter((d) => matches(d, filter)).length;
   }
 
   async aggregate(collection: string, pipeline: unknown[]) {
-    return aggregate(await this.all(collection), pipeline);
+    const first = (pipeline[0] as { $match?: Filter } | undefined)?.$match; // ilk $match indeksə ötürülə bilər
+    return aggregate(await this.all(collection, first ?? {}), pipeline);
   }
 
   async insertOne(collection: string, doc: Record<string, unknown>): Promise<Doc> {
@@ -346,12 +408,15 @@ export class MongoSim {
   }
 
   // $set ilə yeniləmə (yalnız server kodu istifadə edir)
+  // Oxu-dəyiş-yaz bir tranzaksiyada, sətir kilidi ilə (FOR UPDATE) — paralel yeniləmələr bir-birini silməsin (lost update)
   async updateOne(collection: string, id: string, set: Record<string, unknown>): Promise<Doc | null> {
-    const doc = (await this.db.prepare(`SELECT doc FROM docstore.documents WHERE collection = ? AND id = ?`).pluck().get(collection, id)) as Doc | undefined;
-    if (!doc) return null;
-    for (const [k, v] of Object.entries(set)) setPath(doc, k, v);
-    await this.db.prepare(`UPDATE docstore.documents SET doc = ?::jsonb WHERE collection = ? AND id = ?`).run(JSON.stringify(doc), collection, id);
-    return doc;
+    return this.db.transaction(async () => {
+      const doc = (await this.db.prepare(`SELECT doc FROM docstore.documents WHERE collection = ? AND id = ? FOR UPDATE`).pluck().get(collection, id)) as Doc | undefined;
+      if (!doc) return null;
+      for (const [k, v] of Object.entries(set)) setPath(doc, k, v);
+      await this.db.prepare(`UPDATE docstore.documents SET doc = ?::jsonb WHERE collection = ? AND id = ?`).run(JSON.stringify(doc), collection, id);
+      return doc;
+    })();
   }
 
   async collections(): Promise<{ name: string; count: number }[]> {

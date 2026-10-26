@@ -200,3 +200,24 @@ describe('Mongo sorğu dili', () => {
     expect(() => aggregate(docs, [{ $group: { n: { $sum: 1 } } }])).toThrow(/_id/);
   });
 });
+
+describe('review düzəlişləri (senior backend review)', () => {
+  it('ReDoS: iç-içə kvantor, alternativli kvantor, backreference rədd olunur və tez qayıdır; adi regex işləyir', async () => {
+    const { assertSafeRegex } = await import('../server/src/infra/mongo.js');
+    for (const bad of ['^(a+)+$', '(a|aa)*$', '(\\w*)+', '((ab)+)+', '(.*a){20}', '(a)\\1']) {
+      const started = performance.now();
+      expect(() => matches({ _id: 'x', text: 'a'.repeat(40) + '!' } as Doc, { text: { $regex: bad } }), bad).toThrow(expect.objectContaining({ notAllowed: true }));
+      expect(performance.now() - started).toBeLessThan(50);
+    }
+    for (const ok of ['^Bak', '(abc)+', '[a+]+x', 'a+b*', '(?:ab)?c', '\\(a+\\)+']) expect(() => assertSafeRegex(ok), ok).not.toThrow();
+  });
+
+  it('Redis aktiv expiration: oxunmayan vaxtı keçmiş açarlar da yaddaşdan silinir', () => {
+    const c = clock();
+    const r = new RedisSim(c.now);
+    for (let i = 0; i < 100; i++) r.set(`ratelimit:ip:${i}:0`, '1', { ex: 60 });
+    c.advance(61);
+    r.incr('ratelimit:ip:new:60'); // yalnız yazma — köhnələri heç kim oxumur
+    expect((r as unknown as { data: Map<string, unknown> }).data.size).toBe(1);
+  });
+});

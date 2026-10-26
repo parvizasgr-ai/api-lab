@@ -63,6 +63,15 @@ export class RedisSim {
     for (const key of [...this.data.keys()]) this.entry(key);
   }
 
+  // Aktiv expiration (real Redis kimi): yalnız oxunanda silmək kifayət deyil — rate limit açarları pəncərə bitəndən
+  // sonra heç vaxt oxunmur və yaddaşda yığılardı. Yazma əmrlərində ən çox 5 saniyədə bir dəfə vaxtı keçmişlər silinir.
+  private lastSweep = 0;
+  private maybeSweep() {
+    if (this.ms() - this.lastSweep < 5000) return;
+    this.lastSweep = this.ms();
+    this.sweep();
+  }
+
   get(key: string): RedisValue | null {
     this.stats.commands++;
     return this.entry(key)?.value ?? null;
@@ -78,6 +87,7 @@ export class RedisSim {
 
   set(key: string, value: RedisValue, options: { ex?: number; nx?: boolean } = {}): boolean {
     this.stats.commands++;
+    this.maybeSweep();
     if (options.nx && this.entry(key)) return false;
     this.data.set(key, { value, expiresAt: options.ex ? this.ms() + options.ex * 1000 : null });
     return true;
@@ -98,6 +108,7 @@ export class RedisSim {
   // INCR: yoxdursa 0-dan başlayır; rəqəm deyilsə xəta (Redis kimi)
   incr(key: string, by = 1): number {
     this.stats.commands++;
+    this.maybeSweep();
     const e = this.entry(key);
     const current = e ? Number(e.value) : 0;
     if (!Number.isInteger(current)) throw new RedisError('ERR value is not an integer or out of range');

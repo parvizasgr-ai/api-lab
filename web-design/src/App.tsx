@@ -341,7 +341,8 @@ const translations = {
     internalCalls: "Daxili call-lar",
     overview: "Ümumi baxış",
     totalBalance: "Ümumi balans",
-    acrossAccounts: "3 hesab üzrə",
+    acrossAccounts: (n: number) => `${n} hesab üzrə`,
+    noAccounts: "Bu istifadəçinin bank hesabı yoxdur.",
     accountsLabel: "Hesablar",
     cardsLabel: "Kartlar",
     recentActivity: "Son fəaliyyət",
@@ -932,7 +933,8 @@ const translations = {
     internalCalls: "Internal calls",
     overview: "Overview",
     totalBalance: "Total balance",
-    acrossAccounts: "Across 3 accounts",
+    acrossAccounts: (n: number) => `Across ${n} account${n === 1 ? "" : "s"}`,
+    noAccounts: "This user has no bank accounts.",
     accountsLabel: "Accounts",
     cardsLabel: "Cards",
     recentActivity: "Recent activity",
@@ -2512,7 +2514,7 @@ function BankApp({ t }: { t: Translation }) {
   if (!data) {
     return (
       <div className="bank-app">
-        <div className="bank-summary"><div><span>{t.totalBalance}</span><strong>{loadError ? "—" : t.loading}</strong><small>{loadError || t.acrossAccounts}</small></div></div>
+        <div className="bank-summary"><div><span>{t.totalBalance}</span><strong>{loadError ? "—" : t.loading}</strong><small>{loadError}</small></div></div>
       </div>
     );
   }
@@ -2523,7 +2525,7 @@ function BankApp({ t }: { t: Translation }) {
         <div>
           <span>{t.totalBalance}</span>
           <strong>{money(totalAzn, "AZN")}</strong>
-          <small>{t.acrossAccounts}</small>
+          <small>{data.accounts.length ? t.acrossAccounts(data.accounts.length) : t.noAccounts}</small>
         </div>
         <div className="balance-spark" aria-label={primaryAccount ? `${primaryAccount.id} · ${history.length}` : undefined}>
           <svg viewBox="0 0 180 55">

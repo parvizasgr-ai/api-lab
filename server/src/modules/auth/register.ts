@@ -71,25 +71,33 @@ export async function registerUser(db: DB, config: Config, raw: RegisterInput) {
       .get(input.username, hashPassword(input.password), `${input.firstName} ${input.lastName}`, input.firstName, input.lastName, input.groupName, at, at)) as number;
     for (const scope of STUDENT_SCOPES) await db.prepare(`INSERT INTO user_scopes (user_id, scope) VALUES (?, ?)`).run(userId, scope);
 
-    // Sandbox: AZN cari hesab (1 000.00) + USD yığım hesabı (500.00), hər birinə kart
-    const last = ((await db.prepare(`SELECT COALESCE(MAX(substr(id, 9)::int), 0) FROM accounts WHERE id ~ '^AZ21NABZ[0-9]{4}$'`).pluck().get()) as number) ?? 0;
-    if (last + 2 > 9999) throw new ApiError(503, 'SERVICE_UNAVAILABLE', 'Sandbox hesab nömrələri bitib — müəllimə müraciət edin');
-    const sandbox = [
-      { id: `AZ21NABZ${pad(last + 1)}`, currency: 'AZN', type: 'CURRENT', amount: 100_000, brand: 'VISA', limit: 200_000, years: 3 },
-      { id: `AZ21NABZ${pad(last + 2)}`, currency: 'USD', type: 'SAVINGS', amount: 50_000, brand: 'MASTERCARD', limit: 100_000, years: 2 },
-    ];
-    for (const a of sandbox) {
-      await db.prepare(`INSERT INTO accounts (id, owner_id, currency, balance_minor, type, opened_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)`).run(a.id, userId, a.currency, a.type, at, at);
-      await db.prepare(`INSERT INTO transactions (account_id, type, amount_minor, currency, description, created_at) VALUES (?, 'CREDIT', ?, ?, 'Başlanğıc balans (sandbox)', ?)`).run(a.id, a.amount, a.currency, at);
-      await db.prepare(`UPDATE accounts SET balance_minor = balance_minor + ?, updated_at = ? WHERE id = ?`).run(a.amount, at, a.id);
-      const last4 = pad(Math.floor(Math.random() * 10_000));
-      await db
-        .prepare(`INSERT INTO cards (owner_id, account_id, last4, brand, status, daily_limit_minor, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?)`)
-        .run(userId, a.id, last4, a.brand, a.limit, monthEnd(now, a.years), at, at);
-    }
+    const sandbox = await createSandbox(db, userId, now);
     await db
       .prepare(`INSERT INTO audit_log (user_id, action, entity, entity_id, details, created_at) VALUES (?, 'REGISTER', 'users', ?, ?, ?)`)
-      .run(userId, String(userId), JSON.stringify({ groupName: input.groupName, accounts: sandbox.map((a) => a.id) }), at);
+      .run(userId, String(userId), JSON.stringify({ groupName: input.groupName, accounts: sandbox }), at);
     return userId;
   }).immediate();
+}
+
+// Sandbox bank datası: AZN cari hesab (1 000.00) + USD yığım hesabı (500.00), hər birinə kart.
+// Çağıran tranzaksiyanı .immediate() ilə açmalıdır — hesab nömrəsi (max + 1) ardıcıl ayrılsın, paralel çağırışlar toqquşmasın.
+// Qeydiyyatda və müəllim (superadmin) hesabı üçün istifadə olunur. Yaradılan hesab nömrələrini qaytarır.
+export async function createSandbox(db: DB, userId: number, now: Date): Promise<string[]> {
+  const at = isoNow(now);
+  const last = ((await db.prepare(`SELECT COALESCE(MAX(substr(id, 9)::int), 0) FROM accounts WHERE id ~ '^AZ21NABZ[0-9]{4}$'`).pluck().get()) as number) ?? 0;
+  if (last + 2 > 9999) throw new ApiError(503, 'SERVICE_UNAVAILABLE', 'Sandbox hesab nömrələri bitib — müəllimə müraciət edin');
+  const sandbox = [
+    { id: `AZ21NABZ${pad(last + 1)}`, currency: 'AZN', type: 'CURRENT', amount: 100_000, brand: 'VISA', limit: 200_000, years: 3 },
+    { id: `AZ21NABZ${pad(last + 2)}`, currency: 'USD', type: 'SAVINGS', amount: 50_000, brand: 'MASTERCARD', limit: 100_000, years: 2 },
+  ];
+  for (const a of sandbox) {
+    await db.prepare(`INSERT INTO accounts (id, owner_id, currency, balance_minor, type, opened_at, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)`).run(a.id, userId, a.currency, a.type, at, at);
+    await db.prepare(`INSERT INTO transactions (account_id, type, amount_minor, currency, description, created_at) VALUES (?, 'CREDIT', ?, ?, 'Başlanğıc balans (sandbox)', ?)`).run(a.id, a.amount, a.currency, at);
+    await db.prepare(`UPDATE accounts SET balance_minor = balance_minor + ?, updated_at = ? WHERE id = ?`).run(a.amount, at, a.id);
+    const last4 = pad(Math.floor(Math.random() * 10_000));
+    await db
+      .prepare(`INSERT INTO cards (owner_id, account_id, last4, brand, status, daily_limit_minor, expires_at, created_at, updated_at) VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?, ?, ?)`)
+      .run(userId, a.id, last4, a.brand, a.limit, monthEnd(now, a.years), at, at);
+  }
+  return sandbox.map((a) => a.id);
 }

@@ -6,6 +6,7 @@
 import type { DB } from '../db.js';
 import type { Config } from '../config.js';
 import { hashPassword } from './crypto.js';
+import { createSandbox } from '../modules/auth/register.js';
 
 export const DEFAULT_JWT_SECRET = 'apilab-dev-secret-change-me-0123456789abcdef';
 const DEMO_PASSWORDS = new Set(['admin123', 'student123', 'rauf123', 'admin', 'password']);
@@ -24,7 +25,7 @@ export function exposureProblems(config: Pick<Config, 'host' | 'jwtSecret' | 'ad
 }
 
 // Superadmin (müəllim) — .env-dən; yoxdursa yaradılır, varsa parol/ad/rol yenilənir. DB sıfırlananda da itmir.
-export async function ensureSuperadmin(db: DB, config: Pick<Config, 'superadmin'>): Promise<boolean> {
+export async function ensureSuperadmin(db: DB, config: Pick<Config, 'superadmin'> & Partial<Pick<Config, 'now'>>): Promise<boolean> {
   const { username, password, name } = config.superadmin;
   if (!username || !password) return false;
   const [firstName, ...rest] = name.trim().split(/\s+/);
@@ -42,6 +43,11 @@ export async function ensureSuperadmin(db: DB, config: Pick<Config, 'superadmin'
   for (const scope of [...SUPERADMIN_SCOPES]) {
     await db.prepare(`INSERT INTO user_scopes (user_id, scope) VALUES (?, ?) ON CONFLICT DO NOTHING`).run(id, scope);
   }
+  // Müəllim də Bank, köçürmə, kart dərslərini göstərə bilsin — tələbə kimi sandbox hesabları (yalnız bir dəfə)
+  await db.transaction(async () => {
+    const hasAccounts = await db.prepare(`SELECT 1 FROM accounts WHERE owner_id = ? LIMIT 1`).get(id);
+    if (!hasAccounts) await createSandbox(db, id, config.now?.() ?? new Date());
+  }).immediate();
   return true;
 }
 

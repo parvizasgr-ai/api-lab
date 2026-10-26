@@ -68,7 +68,7 @@ describe('/_reset', () => {
     const res = await t.api().post('/api/v1/_reset').set(bearer(admin));
     expect(res.status).toBe(200);
     expectMatchesSpec(res, 'adminReset');
-    expect(res.body.tables).toMatchObject({ customers: 25, cards: 7, card_status_history: 2 });
+    expect(res.body.tables).toMatchObject({ customers: 25, cards: 9 /* seed 7 + müəllimin sandbox-u 2 */, card_status_history: 2 });
     expect(await t.db.prepare(`SELECT status FROM cards WHERE id = 1`).pluck().get()).toBe('ACTIVE');
 
     // Sxem yenidən yaradılıb — rate limit, request_log, auth yenə işləyir; köhnə JWT etibarlıdır (stateless)

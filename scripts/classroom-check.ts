@@ -21,7 +21,7 @@ const checks = classroomChecks({
 });
 
 const icon = { ok: '✓', warn: '⚠', fail: '✗' } as const;
-console.log(`\nAPI Lab — sinif hazırlığı (${lan ? 'LAN rejimi üçün' : 'cari konfiqurasiya'})\n`);
+console.log(`\nCallbox — sinif hazırlığı (${lan ? 'LAN rejimi üçün' : 'cari konfiqurasiya'})\n`);
 for (const c of checks) console.log(`  ${icon[c.level]} ${c.item.padEnd(20)} ${c.detail}`);
 const fails = checks.filter((c) => c.level === 'fail').length;
 console.log(`\n${fails ? `${fails} problem — düzəldin.` : 'Hazırdır.'}${lanIps.length ? `  Bu kompüterin IP-ləri: ${lanIps.join(', ')}` : ''}`);

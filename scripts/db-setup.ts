@@ -1,4 +1,4 @@
-// npm run db:setup — PostgreSQL-i API Lab üçün hazırlayır (təkrar işlətmək təhlükəsizdir):
+// npm run db:setup — PostgreSQL-i Callbox üçün hazırlayır (təkrar işlətmək təhlükəsizdir):
 //   * rollar: apilab (tətbiq, DB sahibi, CREATEDB — testlər üçün), apilab_playground (SQL Playground, yalnız oxu)
 //   * bazalar: DATABASE_URL-dəki (default apilab) və apilab_e2e (Playwright testləri)
 //   * əsas baza boşdursa: migration + seed

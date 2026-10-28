@@ -64,7 +64,7 @@ for (const host of hosts.slice(1)) {
   });
 }
 app.listen(config.port, hosts[0], () => {
-  console.log(`API Lab: ${config.publicUrl}  (dinləyir: ${hosts.join(', ')} :${config.port}${isLoopbackHost(config.host) ? ' — yalnız bu kompüter' : ' — şəbəkəyə açıq'})`);
+  console.log(`Callbox: ${config.publicUrl}  (dinləyir: ${hosts.join(', ')} :${config.port}${isLoopbackHost(config.host) ? ' — yalnız bu kompüter' : ' — şəbəkəyə açıq'})`);
   console.log(`  Health:  ${config.publicUrl}/api/v1/health`);
   console.log(`  OpenAPI: ${config.publicUrl}/api/openapi.json`);
   console.log(`  Docs:    ${config.publicUrl}/docs`);

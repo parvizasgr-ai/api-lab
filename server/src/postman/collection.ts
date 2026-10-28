@@ -105,7 +105,7 @@ export function buildCollection(spec: OpenApiDoc) {
 
 export function buildEnvironment(baseUrl: string) {
   return {
-    name: 'API Lab — Local',
+    name: 'Callbox — Local',
     values: [
       { key: 'baseUrl', value: baseUrl, type: 'default', enabled: true },
       { key: 'token', value: '', type: 'secret', enabled: true },

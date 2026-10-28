@@ -1,4 +1,4 @@
-// E2E: real API Lab server (təzə müvəqqəti DB) + build olunmuş portal (web/dist), quraşdırılmış Google Chrome.
+// E2E: real Callbox server (təzə müvəqqəti DB) + build olunmuş portal (web/dist), quraşdırılmış Google Chrome.
 // Port 3000 — OAuth redirect_uri (http://localhost:3000/oauth/callback) seed-də bu porta qeydiyyatlıdır.
 import { defineConfig } from '@playwright/test'
 import os from 'node:os'

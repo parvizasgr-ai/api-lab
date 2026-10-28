@@ -6,7 +6,7 @@ export function makePdf(pages = 2): Buffer {
   objects.push('<< /Type /Catalog /Pages 2 0 R >>');
   objects.push(`<< /Type /Pages /Kids [${kids}] /Count ${pages} >>`);
   for (let i = 0; i < pages; i++) {
-    const content = `BT /F1 48 Tf 72 400 Td (API Lab - sehife ${i + 1}) Tj ET`;
+    const content = `BT /F1 48 Tf 72 400 Td (Callbox - sehife ${i + 1}) Tj ET`;
     objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Contents ${4 + i * 2} 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>`);
     objects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
   }

@@ -137,7 +137,7 @@ describe('statik səhifələr', () => {
     const home = await t.api().get('/').set('Accept', 'text/html');
     expect(home.status).toBe(200);
     expect(home.text).toContain('web/dist');
-    expect((await t.api().get('/bank/dashboard').set('Accept', 'text/html')).text).toContain('API Lab'); // SPA fallback
+    expect((await t.api().get('/bank/dashboard').set('Accept', 'text/html')).text).toContain('Callbox'); // SPA fallback
 
     const api404 = await t.api().get('/api/v1/nope').set('Accept', 'text/html');
     expect(api404.status).toBe(404);

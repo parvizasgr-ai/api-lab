@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "API Lab 1.0.0",
+    "name": "Callbox 1.0.0",
     "description": "OpenAPI-dən avtomatik yaradılıb. Əvvəlcə \"Auth → login\" sorğusunu göndərin — token environment-ə yazılacaq.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },

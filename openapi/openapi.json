@@ -1,17 +1,17 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "API Lab",
+    "title": "Callbox",
     "version": "1.0.0",
     "contact": {
-      "name": "API Lab — Div Academy / UNEC",
+      "name": "Callbox — Div Academy / UNEC",
       "email": "parviz.asgr@gmail.com"
     },
     "license": {
       "name": "MIT (yalnız tədris məqsədli)",
       "url": "https://opensource.org/licenses/MIT"
     },
-    "description": "**API Lab** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.\nBu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.\n\n## Konvensiyalar\n| Mövzu | Qayda |\n|---|---|\n| **Pul** | API-də **JSON number**, maksimum 2 onluq rəqəm (`multipleOf: 0.01`), məs. `125.50`. DB-də `*_minor INTEGER` (qəpik): `12550`. Çevirmə yalnız serverdə olur. |\n| **Vaxt** | ISO-8601 UTC: `2026-10-13T09:30:00Z`. Tarix: `2026-10-13`. |\n| **Sahə adları** | JSON-da `camelCase`. İstisna: OAuth2 token cavabları (`access_token`) — RFC 6749 standartına görə `snake_case`. |\n| **Validation** | Hər request body/query/path/header bu sxemə qarşı yoxlanılır (ajv). Bilinməyən sahə, səhv tip, enum xaricində dəyər → **422 VALIDATION_ERROR**. JSON parse olunmursa → **400 MALFORMED_JSON**. |\n| **Xəta formatı** | Bütün xətalar `Error` sxemindədir: `{timestamp, status, code, message, details[], traceId}`. Stack trace heç vaxt qaytarılmır. İstisna: `POST /oauth/token` RFC 6749 formatı (`{error, error_description}`). |\n| **Pagination** | `page` (1-dən) və `size` (1–100, default 20). Cavab: `{items, page, size, total, totalPages}`. Kitablar üçün əlavə **cursor** nümunəsi: `GET /api/v1/books`. |\n| **Rate limit** | Subyekt (token / API key / IP) başına **60 sorğu/dəqiqə**. Hər cavabda `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; limit keçiləndə **429** + `Retry-After`. |\n| **Request ID** | Hər cavabda `X-Request-Id`. Xətada `traceId` ilə eynidir. Sorğuda `X-Request-Id` göndərsəniz, server onu istifadə edir. |\n| **Versioning** | `/api/v1`. `/api/v2/customers` — breaking change nümunəsi (`firstName`+`lastName` → `fullName`). v1 customers cavablarında `Deprecation`, `Sunset`, `Link` başlıqları. |\n\n## Tədris simulyatorları\nİstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):\n`500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.\nBFF-də simulyatoru bir bölməyə yönəltmək olar: `X-Simulate: hotels:503` → yalnız otel bölməsi xəta verir (207 Multi-Status).\n\n## Extension-lar\n* `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).\n* `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.\n* `x-rate-limit` — endpoint-ə xas, ümumidən sərt limit (sorğu/dəqiqə), məs. SQL Playground: 20.\n* `x-error-format: oauth2` — həmin endpoint-in xətaları RFC 6749 formatındadır (`{error, error_description}`), validation xətası → 400 `invalid_request`.\n* `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).\n\n## Demo istifadəçilər\n`student/student123` (bütün scope-lar), `rauf/rauf123` (`cards:write` yoxdur), `admin/admin123` (ADMIN). API Key: `apilab-demo-key-2026`.\n"
+    "description": "**Callbox** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.\nBu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.\n\n## Konvensiyalar\n| Mövzu | Qayda |\n|---|---|\n| **Pul** | API-də **JSON number**, maksimum 2 onluq rəqəm (`multipleOf: 0.01`), məs. `125.50`. DB-də `*_minor INTEGER` (qəpik): `12550`. Çevirmə yalnız serverdə olur. |\n| **Vaxt** | ISO-8601 UTC: `2026-10-13T09:30:00Z`. Tarix: `2026-10-13`. |\n| **Sahə adları** | JSON-da `camelCase`. İstisna: OAuth2 token cavabları (`access_token`) — RFC 6749 standartına görə `snake_case`. |\n| **Validation** | Hər request body/query/path/header bu sxemə qarşı yoxlanılır (ajv). Bilinməyən sahə, səhv tip, enum xaricində dəyər → **422 VALIDATION_ERROR**. JSON parse olunmursa → **400 MALFORMED_JSON**. |\n| **Xəta formatı** | Bütün xətalar `Error` sxemindədir: `{timestamp, status, code, message, details[], traceId}`. Stack trace heç vaxt qaytarılmır. İstisna: `POST /oauth/token` RFC 6749 formatı (`{error, error_description}`). |\n| **Pagination** | `page` (1-dən) və `size` (1–100, default 20). Cavab: `{items, page, size, total, totalPages}`. Kitablar üçün əlavə **cursor** nümunəsi: `GET /api/v1/books`. |\n| **Rate limit** | Subyekt (token / API key / IP) başına **60 sorğu/dəqiqə**. Hər cavabda `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; limit keçiləndə **429** + `Retry-After`. |\n| **Request ID** | Hər cavabda `X-Request-Id`. Xətada `traceId` ilə eynidir. Sorğuda `X-Request-Id` göndərsəniz, server onu istifadə edir. |\n| **Versioning** | `/api/v1`. `/api/v2/customers` — breaking change nümunəsi (`firstName`+`lastName` → `fullName`). v1 customers cavablarında `Deprecation`, `Sunset`, `Link` başlıqları. |\n\n## Tədris simulyatorları\nİstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):\n`500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.\nBFF-də simulyatoru bir bölməyə yönəltmək olar: `X-Simulate: hotels:503` → yalnız otel bölməsi xəta verir (207 Multi-Status).\n\n## Extension-lar\n* `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).\n* `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.\n* `x-rate-limit` — endpoint-ə xas, ümumidən sərt limit (sorğu/dəqiqə), məs. SQL Playground: 20.\n* `x-error-format: oauth2` — həmin endpoint-in xətaları RFC 6749 formatındadır (`{error, error_description}`), validation xətası → 400 `invalid_request`.\n* `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).\n\n## Demo istifadəçilər\n`student/student123` (bütün scope-lar), `rauf/rauf123` (`cards:write` yoxdur), `admin/admin123` (ADMIN). API Key: `apilab-demo-key-2026`.\n"
   },
   "servers": [
     {
@@ -607,7 +607,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "example": "Basic realm=\"API Lab\""
+                "example": "Basic realm=\"Callbox\""
               }
             },
             "content": {
@@ -687,7 +687,7 @@
                 "example": {
                   "client": {
                     "clientId": "apilab-portal",
-                    "name": "API Lab Portal"
+                    "name": "Callbox Portal"
                   },
                   "redirectUri": "http://localhost:5173/oauth/callback",
                   "scope": "openid profile email",
@@ -11731,7 +11731,7 @@
                 "example": {
                   "openapi": "3.0.3",
                   "info": {
-                    "title": "API Lab",
+                    "title": "Callbox",
                     "version": "1.0.0"
                   }
                 }
@@ -11769,7 +11769,7 @@
                 },
                 "example": {
                   "info": {
-                    "name": "API Lab",
+                    "name": "Callbox",
                     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
                   },
                   "item": []
@@ -11806,7 +11806,7 @@
                   "type": "object"
                 },
                 "example": {
-                  "name": "API Lab — Local",
+                  "name": "Callbox — Local",
                   "values": [
                     {
                       "key": "baseUrl",
@@ -12272,7 +12272,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "Bearer realm=\"API Lab\""
+            "example": "Bearer realm=\"Callbox\""
           }
         },
         "content": {

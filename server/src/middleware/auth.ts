@@ -8,7 +8,7 @@ import type { AuthService } from '../modules/auth/service.js';
 
 const BEARER_SCHEMES = new Set(['bearerAuth', 'googleOAuth']);
 // RFC 9110 §15.5.2: 401 cavabında WWW-Authenticate məcburidir (API key üçün standart sxem yoxdur — adət olunmuş forma)
-const API_KEY_CHALLENGE = 'ApiKey realm="API Lab", header="X-API-Key"';
+const API_KEY_CHALLENGE = 'ApiKey realm="Callbox", header="X-API-Key"';
 
 function unauthorized(code: string, message: string, challenge: string): ApiError {
   return new ApiError(401, code, message, [], { 'WWW-Authenticate': challenge });
@@ -32,7 +32,7 @@ export function authenticate(op: OperationInfo, spec: OpenApiDoc, auth: AuthServ
         throw unauthorized(
           expired ? 'TOKEN_EXPIRED' : 'INVALID_TOKEN',
           expired ? 'Access token-in vaxtı keçib — /api/v1/auth/refresh istifadə edin' : 'Token etibarsızdır',
-          `Bearer realm="API Lab", error="invalid_token"`,
+          `Bearer realm="Callbox", error="invalid_token"`,
         );
       }
     }
@@ -49,18 +49,18 @@ export function authenticate(op: OperationInfo, spec: OpenApiDoc, auth: AuthServ
       const decoded = Buffer.from(authorization.slice(6).trim(), 'base64').toString('utf8');
       const sep = decoded.indexOf(':');
       const user = sep > 0 ? await auth.verifyCredentials(decoded.slice(0, sep), decoded.slice(sep + 1)) : undefined;
-      if (!user) throw unauthorized('INVALID_CREDENTIALS', 'Basic credential səhvdir', 'Basic realm="API Lab"');
+      if (!user) throw unauthorized('INVALID_CREDENTIALS', 'Basic credential səhvdir', 'Basic realm="Callbox"');
       req.auth = { userId: user.id, username: user.username, role: user.role, scopes: [], via: 'basic' };
       return next();
     }
 
     if (anonymousAllowed) return next();
 
-    if (schemes.has('basicAuth')) throw unauthorized('UNAUTHORIZED', 'Authorization: Basic başlığı yoxdur', 'Basic realm="API Lab"');
+    if (schemes.has('basicAuth')) throw unauthorized('UNAUTHORIZED', 'Authorization: Basic başlığı yoxdur', 'Basic realm="Callbox"');
     if (schemes.has('apiKeyAuth') && ![...schemes].some((s) => BEARER_SCHEMES.has(s))) {
       throw unauthorized('UNAUTHORIZED', 'X-API-Key başlığı yoxdur', API_KEY_CHALLENGE);
     }
-    throw unauthorized('UNAUTHORIZED', 'Authorization: Bearer <token> başlığı yoxdur', 'Bearer realm="API Lab"');
+    throw unauthorized('UNAUTHORIZED', 'Authorization: Bearer <token> başlığı yoxdur', 'Bearer realm="Callbox"');
   };
 }
 

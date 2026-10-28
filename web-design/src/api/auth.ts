@@ -1,4 +1,4 @@
-// Real autentifikasiya — API Lab backend (/api/openapi.json):
+// Real autentifikasiya — Callbox backend (/api/openapi.json):
 //   POST /api/v1/auth/login | refresh | logout, GET /api/v1/auth/me
 //   GET/POST /oauth/authorize (JSON rejimi), POST /oauth/token, GET /oauth/userinfo — mock "Google" provider
 import { AuthClientError, BASE_URL, SERVER_URL, api, request, setAuthProvider, type NetworkCall } from "../lib/http";

@@ -1,6 +1,6 @@
 // External APIs (RapidAPI) — portal tərəfi.
 //   * Tələbənin RapidAPI açarı YALNIZ bu modulun yaddaşındadır: localStorage/sessionStorage/cookie yoxdur, reload-da silinir.
-//   * Sorğular API Lab proxy-sinə gedir (/external/...), açar X-RapidAPI-Key başlığında — server onu yalnız ötürür.
+//   * Sorğular Callbox proxy-sinə gedir (/external/...), açar X-RapidAPI-Key başlığında — server onu yalnız ötürür.
 import { api, SERVER_URL } from "./http";
 
 export type Localized = { az: string; en: string };

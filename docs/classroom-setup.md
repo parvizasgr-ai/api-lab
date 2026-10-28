@@ -1,6 +1,6 @@
 # Sinif üçün quraşdırma
 
-API Lab-ı dərsdə iki yolla istifadə etmək olar:
+Callbox-ı dərsdə iki yolla istifadə etmək olar:
 
 - **A. Hər tələbə öz kompüterində.** Ən sadə və ən təhlükəsiz yoldur. Hər kəsin öz DB-si var, `_reset` başqasına təsir etmir.
 - **B. Müəllimin kompüteri bütün sinfə xidmət edir (LAN).** Quraşdırma bir dəfə olur, tələbələr yalnız brauzer, Postman və ya curl istifadə edir. Bütün sinif bir DB-ni paylaşır.

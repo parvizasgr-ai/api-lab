@@ -1,8 +1,8 @@
 {
-  "name": "api-lab",
+  "name": "callbox",
   "version": "0.1.0",
   "private": true,
-  "description": "API Lab — tələbələr üçün API təlim platforması (Div Academy, UNEC)",
+  "description": "Callbox — tələbələr üçün API təlim platforması (Div Academy, UNEC)",
   "type": "module",
   "engines": {
     "node": ">=20"

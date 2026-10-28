@@ -1,15 +1,15 @@
 openapi: 3.0.3
 info:
-  title: API Lab
+  title: Callbox
   version: 1.0.0
   contact:
-    name: API Lab — Div Academy / UNEC
+    name: Callbox — Div Academy / UNEC
     email: parviz.asgr@gmail.com
   license:
     name: MIT (yalnız tədris məqsədli)
     url: https://opensource.org/licenses/MIT
   description: |
-    **API Lab** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.
+    **Callbox** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.
     Bu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.
 
     ## Konvensiyalar
@@ -309,7 +309,7 @@ paths:
           headers:
             WWW-Authenticate:
               schema: { type: string }
-              example: Basic realm="API Lab"
+              example: Basic realm="Callbox"
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -348,7 +348,7 @@ paths:
               example: '<!doctype html><html><body><h1>Google ilə daxil ol</h1>...</body></html>'
             application/json:
               schema: { $ref: '#/components/schemas/OAuthConsentInfo' }
-              example: { client: { clientId: apilab-portal, name: API Lab Portal }, redirectUri: 'http://localhost:5173/oauth/callback', scope: openid profile email, state: xyz-12345678, accounts: [{ username: student, fullName: Aysel Məmmədova, email: student@apilab.az }] }
+              example: { client: { clientId: apilab-portal, name: Callbox Portal }, redirectUri: 'http://localhost:5173/oauth/callback', scope: openid profile email, state: xyz-12345678, accounts: [{ username: student, fullName: Aysel Məmmədova, email: student@apilab.az }] }
         '400':
           description: client_id və ya redirect_uri qeydiyyatda yoxdur (redirect edilmir — açıq redirect hücumunun qarşısı alınır)
           content:
@@ -4516,7 +4516,7 @@ paths:
           content:
             application/json:
               schema: { type: object }
-              example: { openapi: 3.0.3, info: { title: API Lab, version: 1.0.0 } }
+              example: { openapi: 3.0.3, info: { title: Callbox, version: 1.0.0 } }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
@@ -4535,7 +4535,7 @@ paths:
           content:
             application/json:
               schema: { type: object }
-              example: { info: { name: API Lab, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' }, item: [] }
+              example: { info: { name: Callbox, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' }, item: [] }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
@@ -4553,7 +4553,7 @@ paths:
           content:
             application/json:
               schema: { type: object }
-              example: { name: API Lab — Local, values: [{ key: baseUrl, value: 'http://localhost:3000', enabled: true }] }
+              example: { name: Callbox — Local, values: [{ key: baseUrl, value: 'http://localhost:3000', enabled: true }] }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
@@ -4818,7 +4818,7 @@ components:
       headers:
         WWW-Authenticate:
           schema: { type: string }
-          example: Bearer realm="API Lab"
+          example: Bearer realm="Callbox"
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }

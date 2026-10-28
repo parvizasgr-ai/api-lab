@@ -26,7 +26,7 @@ const PLACEHOLDER = `<!doctype html>
 <html lang="az">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>API Lab</title>
+<title>Callbox</title>
 <style>
   body { font-family: system-ui, sans-serif; max-width: 720px; margin: 0 auto; padding: 32px 16px; color: #1f2933; background: #fafafa; }
   h1 { margin-bottom: 4px; } p.sub { color: #52606d; margin-top: 0; }
@@ -36,7 +36,7 @@ const PLACEHOLDER = `<!doctype html>
 </style>
 </head>
 <body>
-  <h1>API Lab</h1>
+  <h1>Callbox</h1>
   <p class="sub">Tələbələr üçün API təlim platforması — server işləyir.</p>
   <ul>
     <li><a href="/docs">Swagger UI — /docs</a> (bütün endpoint-lər, "Try it out")</li>

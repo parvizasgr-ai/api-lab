@@ -104,7 +104,7 @@ const translations = {
     sandboxNote: "Qeydiyyatdan sonra sənə öz sandbox hesabların (AZN, USD) və kartların veriləcək.",
     extKicker: "RAPIDAPI HUB",
     extTitle: "Real external API-lər",
-    extSubtitle: "RapidAPI-dəki pulsuz API-ləri API Lab proxy-si ilə çağır. Öz açarını yaz — server onu yalnız ötürür, saxlamır.",
+    extSubtitle: "RapidAPI-dəki pulsuz API-ləri Callbox proxy-si ilə çağır. Öz açarını yaz — server onu yalnız ötürür, saxlamır.",
     extKeyLabel: "Öz RapidAPI açarım",
     extKeyPlaceholder: "rapidapi.com → Apps → Authorization → X-RapidAPI-Key",
     extKeyHint: "Açar yalnız bu vərəqənin yaddaşındadır (localStorage yoxdur) — səhifəni yeniləyəndə silinir.",
@@ -240,7 +240,7 @@ const translations = {
     accounts: "3 HESAB",
     quickStartKicker: "SÜRƏTLİ BAŞLANĞIC",
     terminal: "Terminal",
-    copyright: `© ${new Date().getFullYear()} API Lab`,
+    copyright: `© ${new Date().getFullYear()} Callbox`,
     explorerTitle: "API Explorer",
     explorerSubtitle:
       "Endpoint seç, request-i hazırla və response-u real vaxtda araşdır.",
@@ -497,15 +497,15 @@ const translations = {
     customerUpdated: "Customer yeniləndi",
     googleConsent: "Google ilə davam et",
     googleConsentSubtitle:
-      "API Lab hesabına daxil olmaq üçün mock OAuth flow-unu izlə.",
+      "Callbox hesabına daxil olmaq üçün mock OAuth flow-unu izlə.",
     oauthFlow: "OAuth flow",
     authorizationRequest: "Authorization request",
     userConsent: "İstifadəçi icazəsi",
     authorizationCode: "Authorization code",
     tokenExchange: "Token exchange",
-    consentTitle: "API Lab bu məlumatlara giriş istəyir",
+    consentTitle: "Callbox bu məlumatlara giriş istəyir",
     consentAccount: "Daxil olunan hesab",
-    consentPermissions: "API Lab aşağıdakılara giriş əldə edəcək:",
+    consentPermissions: "Callbox aşağıdakılara giriş əldə edəcək:",
     viewProfile: "Ad və profile şəklini görmək",
     viewEmail: "Email ünvanını görmək",
     allow: "İcazə ver",
@@ -605,7 +605,7 @@ const translations = {
     signInToContinue: "Davam etmək üçün daxil ol",
     signInHeroTitle: "Real API-ləri çağırmaq üçün daxil ol",
     signInHeroSubtitle:
-      "API Lab-də real request göndər, data-nı SQL ilə yoxla və Auth flow-larını təhlükəsiz mühitdə öyrən.",
+      "Callbox-də real request göndər, data-nı SQL ilə yoxla və Auth flow-larını təhlükəsiz mühitdə öyrən.",
     benefitEndpoints: "Real endpoint-lər və SQL ilə yoxlanılan data",
     benefitSandbox: "Təhlükəsiz təlim sandbox-u",
     benefitTools: "Postman və curl ilə işləyir",
@@ -628,7 +628,7 @@ const translations = {
     consent: "İcazə",
     tokenExchangeStep: "Token exchange",
     useAnotherAccount: "Başqa hesab istifadə et",
-    googleAccessTitle: "API Lab Google Account-na giriş istəyir",
+    googleAccessTitle: "Callbox Google Account-na giriş istəyir",
     permissionIdentity: "Adını və e-poçtunu görmək",
     permissionSandbox: "Sandbox profile yaratmaq",
     mockGoogleNotice:
@@ -696,7 +696,7 @@ const translations = {
     sandboxNote: "After registering you get your own sandbox accounts (AZN, USD) and cards.",
     extKicker: "RAPIDAPI HUB",
     extTitle: "Real external APIs",
-    extSubtitle: "Call free RapidAPI APIs through the API Lab proxy. Enter your own key — the server only forwards it, never stores it.",
+    extSubtitle: "Call free RapidAPI APIs through the Callbox proxy. Enter your own key — the server only forwards it, never stores it.",
     extKeyLabel: "My own RapidAPI key",
     extKeyPlaceholder: "rapidapi.com → Apps → Authorization → X-RapidAPI-Key",
     extKeyHint: "The key lives only in this tab's memory (no localStorage) — it is gone after a reload.",
@@ -832,7 +832,7 @@ const translations = {
     accounts: "3 ACCOUNTS",
     quickStartKicker: "QUICK START",
     terminal: "Terminal",
-    copyright: `© ${new Date().getFullYear()} API Lab`,
+    copyright: `© ${new Date().getFullYear()} Callbox`,
     explorerTitle: "API Explorer",
     explorerSubtitle:
       "Choose an endpoint, build a request, and inspect the response in real time.",
@@ -1089,15 +1089,15 @@ const translations = {
     customerUpdated: "Customer updated",
     googleConsent: "Continue with Google",
     googleConsentSubtitle:
-      "Follow a mock OAuth flow to sign in to your API Lab account.",
+      "Follow a mock OAuth flow to sign in to your Callbox account.",
     oauthFlow: "OAuth flow",
     authorizationRequest: "Authorization request",
     userConsent: "User consent",
     authorizationCode: "Authorization code",
     tokenExchange: "Token exchange",
-    consentTitle: "API Lab wants access to your information",
+    consentTitle: "Callbox wants access to your information",
     consentAccount: "Signed-in account",
-    consentPermissions: "API Lab will be able to:",
+    consentPermissions: "Callbox will be able to:",
     viewProfile: "View your name and profile picture",
     viewEmail: "View your email address",
     allow: "Allow",
@@ -1220,7 +1220,7 @@ const translations = {
     consent: "Consent",
     tokenExchangeStep: "Token exchange",
     useAnotherAccount: "Use another account",
-    googleAccessTitle: "API Lab wants to access your Google Account",
+    googleAccessTitle: "Callbox wants to access your Google Account",
     permissionIdentity: "View your name and email",
     permissionSandbox: "Create a sandbox profile",
     mockGoogleNotice:
@@ -1551,11 +1551,11 @@ function Header({
   return (
     <header className="site-header">
       <div className="header-inner">
-        <a className="brand" href="/" aria-label="API Lab Home" onClick={(event) => { event.preventDefault(); navigate("home"); }}>
+        <a className="brand" href="/" aria-label="Callbox Home" onClick={(event) => { event.preventDefault(); navigate("home"); }}>
           <span className="brand-mark">
             <Icon name="code" size={21} />
           </span>
-          <span>API Lab</span>
+          <span>Callbox</span>
           <span className="brand-badge">{t.beta}</span>
         </a>
 
@@ -2849,7 +2849,7 @@ function FlightsApp({ t }: { t: Translation }) {
     setBookingError(null);
     const [firstName, ...rest] = passenger.trim().split(/\s+/);
     const count = Math.max(1, query.adults);
-    const passengers = Array.from({ length: count }, (_, i) => ({ firstName: firstName || "Sərnişin", lastName: (rest.join(" ") || "API Lab") + (i ? ` ${i + 1}` : "") }));
+    const passengers = Array.from({ length: count }, (_, i) => ({ firstName: firstName || "Sərnişin", lastName: (rest.join(" ") || "Callbox") + (i ? ` ${i + 1}` : "") }));
     try {
       setBooking(await flights.book(selectedFlight.id, passengers));
       void runSearch();
@@ -5002,7 +5002,7 @@ function App() {
                   <i />
                   <i />
                 </div>
-                <span>api-lab / explorer</span>
+                <span>callbox / explorer</span>
                 <span className="live-pill">
                   <i />
                   {t.live}
@@ -5224,9 +5224,9 @@ function App() {
 
       <footer>
         <div className="footer-inner">
-          <a aria-label="API Lab" className="brand brand--footer" href="/" onClick={(event) => { event.preventDefault(); navigateTo("home"); window.scrollTo({ top: 0 }); }}>
+          <a aria-label="Callbox" className="brand brand--footer" href="/" onClick={(event) => { event.preventDefault(); navigateTo("home"); window.scrollTo({ top: 0 }); }}>
             <span className="brand-mark"><Icon name="code" size={18} /></span>
-            <span>API Lab</span>
+            <span>Callbox</span>
           </a>
           <p>{t.footerText}</p>
           <span>{t.copyright}</span>

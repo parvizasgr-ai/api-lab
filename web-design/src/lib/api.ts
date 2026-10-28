@@ -1,4 +1,4 @@
-// Portalın API client-i — hamısı real backend-ə (API Lab server) gedir, mock data yoxdur.
+// Portalın API client-i — hamısı real backend-ə (Callbox server) gedir, mock data yoxdur.
 // Endpoint-lərin tam siyahısı: /api/openapi.json (Swagger: /docs).
 import { AuthClientError, SERVER_URL, api, type NetworkCall } from "./http";
 

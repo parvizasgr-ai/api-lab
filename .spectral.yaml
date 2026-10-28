@@ -1,5 +1,5 @@
 # Spectral ruleset — OpenAPI lint (npm run openapi:lint)
-# Standart "spectral:oas" qaydaları + API Lab-a xas qaydalar.
+# Standart "spectral:oas" qaydaları + Callbox-a xas qaydalar.
 extends: [[spectral:oas, recommended]]
 
 rules:

@@ -78,7 +78,7 @@ test('QA-L03: Materials dərs filteri URL-də və reload-dan sonra qalır', asyn
 
 test('QA-L04: footer ili cari ildir', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('footer')).toContainText(`© ${new Date().getFullYear()} API Lab`)
+  await expect(page.locator('footer')).toContainText(`© ${new Date().getFullYear()} Callbox`)
 })
 
 test('QA-L10 + QA-M06: müştərilər səhifələnir; silmə xətası göstərilir və modal açıq qalır', async ({ page }) => {

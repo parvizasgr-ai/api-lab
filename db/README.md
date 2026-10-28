@@ -1,4 +1,4 @@
-# API Lab — verilənlər bazası
+# Callbox — verilənlər bazası
 
 SQLite (`data/apilab.db`), raw SQL, ORM yoxdur.
 

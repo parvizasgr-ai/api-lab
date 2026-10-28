@@ -122,7 +122,7 @@ describe("OAuth2 Authorization Code (mock Google)", () => {
     return (call: MockCall) => {
       const url = new URL(call.url, "http://localhost:3000");
       if (url.pathname === "/oauth/authorize" && call.method === "GET") {
-        return json(200, { client: { clientId: "apilab-portal", name: "API Lab Portal" }, redirectUri: url.searchParams.get("redirect_uri"), scope: "openid", state: url.searchParams.get("state"), accounts: [{ username: "student", fullName: "Aysel Məmmədova", email: "student@apilab.az" }] });
+        return json(200, { client: { clientId: "apilab-portal", name: "Callbox Portal" }, redirectUri: url.searchParams.get("redirect_uri"), scope: "openid", state: url.searchParams.get("state"), accounts: [{ username: "student", fullName: "Aysel Məmmədova", email: "student@apilab.az" }] });
       }
       if (url.pathname === "/oauth/authorize") {
         const form = new URLSearchParams(call.body);

@@ -1,4 +1,4 @@
-# API Lab
+# Callbox
 
 Tələbələrin **Postman / curl** ilə real API sorğuları göndərdiyi və nəticəni **SQL** ilə yoxladığı təlim platforması.
 IT Business Analyst kursu üçün hazırlanıb (Div Academy, UNEC): Dərs 1 — API əsasları, Dərs 2 — HTTP və REST, Dərs 3 — Security, Design, API Specification.
@@ -23,7 +23,7 @@ npm run db:setup     # rollar + bazalar + migration + demo data
 npm run dev
 ```
 
-Terminalda `API Lab: http://localhost:3000` görünməlidir.
+Terminalda `Callbox: http://localhost:3000` görünməlidir.
 
 | Ünvan | Nə var |
 |---|---|
@@ -34,7 +34,7 @@ Terminalda `API Lab: http://localhost:3000` görünməlidir.
 ### 2. Postman-ı qoşun (2 dəq)
 
 Postman → **Import** → `postman/api-lab.postman_collection.json` və `postman/api-lab.postman_environment.json` faylları (və ya yuxarıdakı URL-lər).
-Sağ yuxarıda environment kimi **API Lab — Local** seçin. Əvvəlcə **Auth → POST /api/v1/auth/login** göndərin — token avtomatik `{{token}}`-a yazılır.
+Sağ yuxarıda environment kimi **Callbox — Local** seçin. Əvvəlcə **Auth → POST /api/v1/auth/login** göndərin — token avtomatik `{{token}}`-a yazılır.
 
 ### 3. İlk sorğular (4 dəq)
 
@@ -506,7 +506,7 @@ Qeydiyyatdan sonra tələbə avtomatik daxil olur və **öz sandbox datasını**
 
 ## External APIs (RapidAPI)
 
-Portalın **External APIs** səhifəsi (`/external-apis`) və `/external/*` endpoint-ləri RapidAPI Hub-dakı 7 real API-ni API Lab proxy-si ilə çağırır:
+Portalın **External APIs** səhifəsi (`/external-apis`) və `/external/*` endpoint-ləri RapidAPI Hub-dakı 7 real API-ni Callbox proxy-si ilə çağırır:
 JokeAPI, GeoDB Cities, WeatherAPI.com, OMDb (Movie Database Alternative), Numbers API, Deep Translate, QR Code Factory.
 
 **Standart rejim: hər tələbə öz açarı ilə işləyir.** Açar `X-RapidAPI-Key` başlığında göndərilir. Server onu yalnız RapidAPI-yə ötürür: DB-yə, loglara və `/_history`-ə yazmır, cavabda əks olunsa `***` ilə əvəz edir. Portal açarı yalnız vərəqənin yaddaşında saxlayır (localStorage yoxdur), səhifə yenilənəndə açar silinir.

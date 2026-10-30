@@ -1,6 +1,6 @@
 // Real URL routing (History API): reload və paylaşılan link eyni səhifəni açır.
 // Server bu yolların hamısına portalın index.html-ini verir (SPA fallback, server/src/static.ts).
-export type Page = "home" | "reference" | "explorer" | "apps" | "auth" | "sql" | "materials" | "signin" | "register" | "admin" | "infra" | "ai";
+export type Page = "home" | "reference" | "explorer" | "apps" | "auth" | "sql" | "materials" | "signin" | "register" | "admin" | "infra" | "ai" | "design";
 export type AppId = "bank" | "currency" | "flights" | "hotels" | "books" | "music" | "google" | "customers";
 
 const PAGE_PATHS: Record<Page, string> = {
@@ -16,11 +16,12 @@ const PAGE_PATHS: Record<Page, string> = {
   admin: "/admin", // superadmin paneli (istifadəçilər, qruplar, nəticələr)
   infra: "/infra", // Redis / Kafka / MongoDB (?tab=kafka)
   ai: "/ai", // Callbox AI (Gemini chat)
+  design: "/design", // Design (Google Stitch)
 };
 const APP_IDS: readonly AppId[] = ["bank", "currency", "flights", "hotels", "books", "music", "google", "customers"];
 
 // Giriş tələb edən səhifələr: sessiya yoxdursa /signin, girişdən sonra bura qayıdılır
-export const PROTECTED_PAGES: readonly Page[] = ["explorer", "apps", "auth", "sql", "materials", "admin", "infra", "ai"];
+export const PROTECTED_PAGES: readonly Page[] = ["explorer", "apps", "auth", "sql", "materials", "admin", "infra", "ai", "design"];
 
 // "/apps/bank/" → { page: "apps", app: "bank" }; naməlum yol → home
 export function parseRoute(pathname: string): { page: Page; app: AppId | null } {

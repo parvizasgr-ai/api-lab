@@ -105,6 +105,24 @@ export const config = {
     rateLimitPerMin: 10, // istifadəçi başına (free tier kvotasını qorumaq üçün)
   },
 
+  // Design bölməsi (Google Stitch MCP). Stitch-in günlük ~400 krediti BÜTÜN istifadəçilər üçün ortaq hovuzdur.
+  design: {
+    apiKey: env.STITCH_API_KEY ?? '',
+    endpoint: env.STITCH_MCP_URL ?? 'https://stitch.googleapis.com/mcp',
+    modelId: env.STITCH_MODEL ?? 'GEMINI_3_5_FLASH_LITE', // GEMINI_3_8_FLASH — keyfiyyətli, amma daha yavaş
+    perUserDaily: Number(env.DESIGN_PER_USER_DAILY ?? 8), // tələbə başına gündə generasiya + redaktə sayı
+    poolDailyCredits: 400, // Stitch-in günlük hovuzu
+    poolHardLimit: Number(env.DESIGN_POOL_LIMIT ?? 350), // təhlükəsizlik həddi: bundan sonra yeni sorğu qəbul olunmur
+    warnRatio: 0.8, // hovuzun 80%-i → admin panelində və logda xəbərdarlıq
+    // Təxmini kredit dəyəri (Stitch dəqiq rəqəm qaytarmır) — design_jobs.credits-də saxlanılır, limitləri sonra dəqiqləşdirmək üçün
+    credits: { SIMPLE: { GENERATE: 3, EDIT: 2 }, COMPLEX: { GENERATE: 6, EDIT: 4 } },
+    maxPromptChars: 2000,
+    callTimeoutMs: 6 * 60_000, // generate/edit bir neçə dəqiqə çəkə bilər
+    pollIntervalMs: 30_000, // Stitch tövsiyəsi: timeout olsa get/list_screens hər 30 san, ən çox 10 dəfə
+    pollAttempts: 10,
+    clientPollMs: 4000, // portal job statusunu bu intervalla soruşur
+  },
+
   // SQL Playground: icra limiti, maks. sətir və nəticə ölçüsü
   sqlPlayground: { timeoutMs: 2000, maxRows: 200, maxBytes: 1_000_000 },
 

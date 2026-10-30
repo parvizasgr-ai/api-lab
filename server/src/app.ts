@@ -43,6 +43,9 @@ import { v2BankHandlers } from './modules/v2/bank.js';
 import { v2CatalogHandlers } from './modules/v2/catalog.js';
 import { aiHandlers, SYSTEM_INSTRUCTION } from './modules/ai/routes.js';
 import { GeminiService, type GenerateFn } from './modules/ai/gemini.js';
+import { DesignService } from './modules/design/service.js';
+import { designHandlers } from './modules/design/routes.js';
+import type { StitchTransport } from './modules/design/stitch.js';
 
 export interface AppContext {
   db: DB;
@@ -52,6 +55,7 @@ export interface AppContext {
   materials: MaterialsService;
   infra: Infra; // Redis / Kafka / MongoDB simulyasiyaları
   ai: GeminiService; // Callbox AI (Google Gemini)
+  design: DesignService; // Design bölməsi (Google Stitch)
 }
 
 const API_PREFIXES = ['/api', '/oauth', '/bff', '/external', '/realms'];
@@ -69,7 +73,7 @@ function applyRuntimeOptions(spec: OpenApiDoc, config: Config): OpenApiDoc {
 }
 
 // aiGenerator — testlər üçün saxta Gemini (real Google-a sorğu getmir); verilməsə SDK istifadə olunur
-export function createApp(options: { db: DB; config?: Partial<Config>; handlers?: Handlers; aiGenerator?: GenerateFn | null }) {
+export function createApp(options: { db: DB; config?: Partial<Config>; handlers?: Handlers; aiGenerator?: GenerateFn | null; stitchTransport?: StitchTransport | null; stitchWait?: (ms: number) => Promise<void> }) {
   const config: Config = { ...defaultConfig, ...options.config };
   const spec = applyRuntimeOptions(loadOpenApi(), config);
   const ctx: AppContext = {
@@ -83,6 +87,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
       { ...config.ai, systemInstruction: SYSTEM_INSTRUCTION },
       options.aiGenerator !== undefined ? options.aiGenerator : undefined,
     ),
+    design: new DesignService(options.db, config, options.stitchTransport, options.stitchWait),
   };
 
   const handlers: Handlers = {
@@ -107,12 +112,14 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...v2BankHandlers(ctx),
     ...v2CatalogHandlers(ctx),
     ...aiHandlers(ctx),
+    ...designHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 
   const app = express();
   // Spec-də olub handler-i olmayan endpoint-lər (501 qaytarır) — testlər və başlanğıc log-u üçün
   app.locals.materials = ctx.materials; // testlər üçün: konvertasiya növbəsini gözləmək
+  app.locals.design = ctx.design; // testlər/başlanğıc üçün: arxa plan generasiyalarını gözləmək, yarımçıq işləri bağlamaq
   app.locals.infra = ctx.infra; // testlər üçün: Kafka consumer-lərini gözləmək (infra.kafka.idle())
   app.locals.unimplemented = listOperations(spec)
     .filter((op) => !handlers[op.operationId] && op.method !== 'options')

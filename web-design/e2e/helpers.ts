@@ -1,7 +1,7 @@
 // E2E ümumi köməkçilər: giriş, naviqasiya (desktop nav və ya mobil menyu), problem toplayıcı
 import { expect, type Page } from '@playwright/test'
 
-export const PAGES = ['home', 'reference', 'explorer', 'apps', 'auth', 'sql', 'materials', 'infra', 'ai'] as const
+export const PAGES = ['home', 'reference', 'explorer', 'apps', 'auth', 'sql', 'materials', 'infra', 'design', 'ai'] as const
 
 export type Issue = { where: string; kind: string; detail: string }
 
@@ -46,6 +46,8 @@ export async function go(page: Page, target: string) {
     await page.locator('.menu-button').click()
     await page.locator(`.mobile-nav a[href="${pathOf(target)}"]`).click()
   }
+  // lazy səhifə: Suspense fallback-ı (<main aria-busy>) bir anlıq köhnə səhifə ilə yanaşı ola bilər — yükləmə bitsin
+  await expect(page.locator('main[aria-busy="true"]')).toHaveCount(0)
   await expect(page.locator('main')).toBeVisible()
   await expect(page).toHaveURL(new RegExp(`${pathOf(target).replace('/', '\\/')}(\\?.*)?$`)) // QA-M04: real URL
   await page.waitForLoadState('networkidle')

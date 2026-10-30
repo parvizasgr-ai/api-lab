@@ -207,7 +207,7 @@ erDiagram
 
 ---
 
-## Endpoint-lər (141)
+## Endpoint-lər (151)
 
 Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/docs**.
 
@@ -385,6 +385,26 @@ SELECT id, status, principal_minor, annual_rate, maturity_date FROM deposits ORD
 SELECT pnr, contact_email, passengers, total_minor FROM flight_bookings WHERE pnr IS NOT NULL;
 SELECT p.first_name, p.passenger_type, p.ticket_number FROM flight_passengers p WHERE p.ticket_number IS NOT NULL;
 SELECT confirmation_code, guest_name, check_in, check_out FROM hotel_bookings WHERE confirmation_code IS NOT NULL;
+```
+
+## Design (Google Stitch)
+
+Portalda **Design** (`/design`): tələbə chat-də ekran ideyasını yazır → server Google Stitch-də (MCP API) ekran yaradır →
+HTML serverdə sanitize olunur və Callbox daxilində `<iframe sandbox="allow-scripts" srcdoc>`-də göstərilir (Stitch saytına keçid yoxdur).
+Növbəti mesajlar həmin ekranı redaktə edir (`edit_screens`). Hər dizayn sessiyası Stitch-də ayrıca layihədir.
+
+* Backend: `server/src/modules/design/` — `stitch.ts` (MCP JSON-RPC client, `X-Goog-Api-Key`), `service.ts` (sessiyalar, asinxron işlər,
+  kredit limitləri), `sanitize.ts`. Endpoint-lər `/api/v1/design/*` və `GET /api/v1/admin/design-usage`. DB: `007_design.sql`.
+* **Asinxron:** `POST …/messages` → `202` + `Location: /api/v1/design/jobs/{id}`; portal 4 san-dən bir status soruşur.
+  Stitch çağırışı timeout olsa **təkrar göndərilmir** (kredit iki dəfə xərclənməsin) — `list_screens` ilə 30 san-dən bir, 10 dəfəyə qədər yoxlanılır.
+* **Kredit:** sayğac `design_jobs.credits` cəmidir, `usage_day` = UTC tarixi → UTC 00:00-da (Bakı 04:00) avtomatik sıfırlanır.
+  Tələbə başına gündə 8 iş (`DESIGN_PER_USER_DAILY`), ortaq hovuz 350 kredit (`DESIGN_POOL_LIMIT`), 80%-də log + müəllim panelində xəbərdarlıq.
+  Təxmini dəyər: sadə 3 (redaktə 2), mürəkkəb 6 (redaktə 4) — Stitch dəqiq rəqəm qaytarmır; Stitch rədd edibsə kredit geri qaytarılır.
+* Testlərdə real Stitch-ə sorğu getmir (`tests/helpers.ts` → `fakeStitch`).
+
+```sql
+-- bu günün istifadəsi (UTC)
+SELECT user_id, kind, complexity, credits, status, error_code FROM design_jobs WHERE usage_day = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD');
 ```
 
 ## Callbox AI (Google Gemini)

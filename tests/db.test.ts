@@ -36,7 +36,7 @@ describe('migrations + seed', () => {
   });
 
   it('bütün cədvəl, view və trigger-ləri yaradır', async () => {
-    expect(await userTables(db)).toHaveLength(38); // + deposits (006)
+    expect(await userTables(db)).toHaveLength(40); // + deposits (006), design_sessions + design_jobs (007)
     const views = await db.prepare(`SELECT table_name FROM information_schema.views WHERE table_schema = 'public'`).pluck().all();
     expect(views).toHaveLength(6);
     const triggers = await db.prepare(`SELECT DISTINCT trigger_name FROM information_schema.triggers WHERE trigger_schema = 'public'`).pluck().all();

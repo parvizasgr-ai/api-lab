@@ -71,6 +71,18 @@ const skipHappy = (op: OperationInfo) => buildRequest(op).contentType === 'multi
 
 type Ctx = ReturnType<typeof createTestApp>;
 
+async function designSession(ctx: Ctx): Promise<string> {
+  const token = (await ctx.login()).access_token;
+  return (await ctx.api().post('/api/v1/design/sessions').set('Authorization', `Bearer ${token}`).send({ title: 'Contract' })).body.id;
+}
+async function designJob(ctx: Ctx): Promise<string> {
+  const token = (await ctx.login()).access_token;
+  const sessionId = await designSession(ctx);
+  const job = await ctx.api().post(`/api/v1/design/sessions/${sessionId}/messages`).set('Authorization', `Bearer ${token}`).send({ prompt: 'Login ekranı' });
+  await (ctx.app.locals.design as { idle(): Promise<void> }).idle();
+  return job.body.id;
+}
+
 const dayFromToday = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 const opById = (id: string) => operations.find((o) => o.operationId === id)!;
 
@@ -124,6 +136,15 @@ const PREPARE: Record<string, (ctx: Ctx) => Promise<Overrides>> = {
   },
   async createHotelReview() {
     return { path: { hotelId: 3 } }; // student-in bu otelə seed rəyi yoxdur
+  },
+  // Design: real sessiya (saxta Stitch) — path nümunələri təsadüfi id-dir
+  ...Object.fromEntries(['designGetSession', 'designDeleteSession', 'designPostMessage'].map((id) => [id, async (ctx: Ctx) => ({ path: { sessionId: await designSession(ctx) } })])),
+  ...Object.fromEntries(['designGetJob', 'designGetJobHtml'].map((id) => [id, async (ctx: Ctx) => ({ path: { jobId: await designJob(ctx) } })])),
+  async designPreview(ctx) {
+    const jobId = await designJob(ctx);
+    const token = (await ctx.login()).access_token;
+    const url = new URL((await ctx.api().get(`/api/v1/design/jobs/${jobId}/html`).set('Authorization', `Bearer ${token}`)).body.previewUrl, 'http://x');
+    return { path: { jobId }, query: Object.fromEntries(url.searchParams) };
   },
   // API v2: spec nümunələrindəki tarixlər sabitdir — testdə bu günə nisbətən tarix (seed də bu günə nisbətəndir)
   async v2GetExchangeRates() {

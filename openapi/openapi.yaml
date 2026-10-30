@@ -90,6 +90,8 @@ tags:
       `verified: false` API-lər 404 qaytarır. Upstream 401/403/429/5xx → 502/504 (vahid xəta formatı).
   - name: SQL Playground
     description: Tələbələrin DB-ni yalnız SELECT ilə yoxlaması
+  - name: Design
+    description: Google Stitch — mətndən UI ekranı (asinxron generasiya, polling), redaktə; ortaq günlük kredit hovuzu
   - name: Callbox AI
     description: Google Gemini ilə tələbə köməkçisi (chat) — açar yalnız serverdə, 429 üçün retry/backoff
   - name: Notifications
@@ -4180,6 +4182,299 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               example: { timestamp: '2026-10-30T09:00:00Z', status: 504, code: AI_TIMEOUT, message: Gemini vaxtında cavab vermədi — yenidən cəhd edin, details: [], traceId: req_7f2c9a }
 
+  /api/v1/design/usage:
+    get:
+      tags: [Design]
+      operationId: designUsage
+      summary: Günlük Stitch limitim və ortaq kredit hovuzu
+      security: [{ bearerAuth: [] }]
+      description: |
+        Stitch-in günlük ~400 krediti **bütün tələbələr üçün ortaq hovuzdur**. Bu endpoint göstərir:
+        * `user` — sizin bu günkü generasiya/redaktə sayınız və limitiniz (default 8);
+        * `pool` — hamının bu gün xərclədiyi təxmini kredit, təhlükəsizlik həddi (350), faiz, `warning` (≥80%), `exhausted`;
+        * `resetsAt` — sayğac UTC 00:00-da sıfırlanır; `resetsAtBaku` — eyni an Bakı vaxtı ilə (04:00).
+        * `creditEstimates` — təxmini kredit dəyərləri (sadə / mürəkkəb, generasiya / redaktə).
+      x-db-impact: { reads: [design_jobs], writes: [] }
+      responses:
+        '200':
+          description: Limitlər
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DesignUsage' }
+              example: { configured: true, day: '2026-10-30', resetsAt: '2026-10-31T00:00:00Z', resetsAtBaku: '31.10.2026 04:00', user: { used: 2, limit: 8, remaining: 6 }, pool: { usedCredits: 57, hardLimit: 350, dailyCredits: 400, requests: 19, percent: 16, warning: false, exhausted: false }, creditEstimates: { SIMPLE: { GENERATE: 3, EDIT: 2 }, COMPLEX: { GENERATE: 6, EDIT: 4 } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/design/sessions:
+    get:
+      tags: [Design]
+      operationId: designListSessions
+      summary: Dizayn sessiyalarım
+      security: [{ bearerAuth: [] }]
+      description: Tələbənin dizayn sessiyaları (ən yenisi birinci). Hər sessiya Stitch-də ayrıca layihədir.
+      x-db-impact: { reads: [design_sessions], writes: [] }
+      responses:
+        '200':
+          description: Sessiyalar
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties: { items: { type: array, items: { $ref: '#/components/schemas/DesignSession' } } }
+              example: { items: [{ id: ds_4f1a2b3c4d5e6f70, title: Bank login ekranı, deviceType: MOBILE, stitchProjectId: '7125237815187816575', currentScreenId: 081aa4db0e9b47df9cfdd56ccdb8e5d1, createdAt: '2026-10-30T09:00:00Z', updatedAt: '2026-10-30T09:02:10Z', messages: [] }] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [Design]
+      operationId: designCreateSession
+      summary: Yeni dizayn sessiyası (ayrıca Stitch project)
+      security: [{ bearerAuth: [] }]
+      description: Stitch-də yeni layihə yaradır (kredit xərcləmir). Sonra `POST …/messages` ilə ekran istəyin.
+      x-db-impact: { reads: [], writes: [INSERT design_sessions] }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DesignSessionCreate' }
+            example: { title: Bank login ekranı, deviceType: MOBILE }
+      responses:
+        '201':
+          description: Sessiya yaradıldı
+          headers:
+            Location: { schema: { type: string }, example: /api/v1/design/sessions/ds_4f1a2b3c4d5e6f70 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DesignSession' }
+              example: { id: ds_4f1a2b3c4d5e6f70, title: Bank login ekranı, deviceType: MOBILE, stitchProjectId: '7125237815187816575', currentScreenId: null, createdAt: '2026-10-30T09:00:00Z', updatedAt: '2026-10-30T09:00:00Z', messages: [] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429':
+          description: Callbox rate limit və ya Stitch kvotası
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-30T09:00:00Z', status: 429, code: DESIGN_RATE_LIMITED, message: Stitch hazırda çox yüklüdür və ya günlük kvota bitib — bir az sonra yenidən cəhd edin, details: [], traceId: req_7f2c9a }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '502': { $ref: '#/components/responses/DesignUpstream' }
+        '503': { $ref: '#/components/responses/DesignNotConfigured' }
+
+  /api/v1/design/sessions/{sessionId}:
+    parameters:
+      - { name: sessionId, in: path, required: true, description: Sessiya id-si, schema: { type: string, pattern: '^ds_[a-f0-9]{16}$' }, example: ds_4f1a2b3c4d5e6f70 }
+    get:
+      tags: [Design]
+      operationId: designGetSession
+      summary: Sessiya və mesajlar (generasiya tarixçəsi)
+      security: [{ bearerAuth: [] }]
+      description: Sessiya + bütün mesajlar (hər biri bir generasiya/redaktə işi, statusu ilə). Başqasının sessiyası → 404.
+      x-db-impact: { reads: [design_sessions, design_jobs], writes: [] }
+      responses:
+        '200':
+          description: Sessiya
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DesignSession' }
+              example: { id: ds_4f1a2b3c4d5e6f70, title: Bank login ekranı, deviceType: MOBILE, stitchProjectId: '7125237815187816575', currentScreenId: 081aa4db0e9b47df9cfdd56ccdb8e5d1, createdAt: '2026-10-30T09:00:00Z', updatedAt: '2026-10-30T09:02:10Z', messages: [{ id: dj_9a8b7c6d5e4f3a2b, sessionId: ds_4f1a2b3c4d5e6f70, kind: GENERATE, prompt: Bank tətbiqi üçün mobil login ekranı, deviceType: MOBILE, status: SUCCEEDED, credits: 3, complexity: SIMPLE, screenId: 081aa4db0e9b47df9cfdd56ccdb8e5d1, message: Login ekranı hazırdır., error: null, createdAt: '2026-10-30T09:00:05Z', startedAt: '2026-10-30T09:00:05Z', finishedAt: '2026-10-30T09:01:22Z', hasHtml: true }] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/DesignSessionNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      tags: [Design]
+      operationId: designDeleteSession
+      summary: Sessiyanı sil
+      security: [{ bearerAuth: [] }]
+      description: Sessiya və onun işləri Callbox-dan silinir (kredit sayğacına təsir etmir — günlük limit dəyişmir). Generasiya gedirsə → 409.
+      x-db-impact: { reads: [design_sessions, design_jobs], writes: [DELETE design_sessions, DELETE design_jobs (CASCADE)] }
+      responses:
+        '204': { description: Silindi }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/DesignSessionNotFound' }
+        '409': { $ref: '#/components/responses/DesignJobInProgress' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/design/sessions/{sessionId}/messages:
+    parameters:
+      - { name: sessionId, in: path, required: true, description: Sessiya id-si, schema: { type: string, pattern: '^ds_[a-f0-9]{16}$' }, example: ds_4f1a2b3c4d5e6f70 }
+    post:
+      tags: [Design]
+      operationId: designPostMessage
+      summary: Dizayn istəyi göndər (generasiya və ya redaktə) — asinxron, 202
+      security: [{ bearerAuth: [] }]
+      description: |
+        Sessiyada hələ ekran yoxdursa → Stitch `generate_screen_from_text`, varsa → `edit_screens` (son ekran redaktə olunur).
+        Generasiya **bir neçə dəqiqə** çəkir: cavab dərhal **202 Accepted** + `Location: /api/v1/design/jobs/{id}`;
+        statusu `GET /api/v1/design/jobs/{id}` ilə 4 saniyədən bir soruşun (`QUEUED → RUNNING → SUCCEEDED | FAILED`).
+
+        **Limitlər** (`GET /api/v1/design/usage`): tələbə başına gündə 8 iş → `429 DESIGN_DAILY_LIMIT`;
+        ortaq hovuz 350 krediti keçəcəksə → `429 DESIGN_POOL_EXHAUSTED`. Hər ikisində `Retry-After` və mesajda Bakı vaxtı ilə yenilənmə saatı.
+        Təxmini kredit: sadə istək 3 (redaktə 2), mürəkkəb (uzun təsvir, bir neçə ekran) 6 (redaktə 4).
+        Stitch istəyi rədd edibsə (açar, kvota, səhv təsvir) kredit geri qaytarılır.
+      x-db-impact:
+        reads: [design_sessions, design_jobs]
+        writes: [INSERT design_jobs, UPDATE design_sessions, sonra arxa planda UPDATE design_jobs (status, html)]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DesignMessage' }
+            example: { prompt: 'Bank tətbiqi üçün mobil login ekranı: loqo, e-poçt, parol, "Daxil ol" düyməsi', deviceType: MOBILE }
+      responses:
+        '202':
+          description: Qəbul olundu — generasiya arxa planda
+          headers:
+            Location: { schema: { type: string }, example: /api/v1/design/jobs/dj_9a8b7c6d5e4f3a2b }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DesignJob' }
+              example: { id: dj_9a8b7c6d5e4f3a2b, sessionId: ds_4f1a2b3c4d5e6f70, kind: GENERATE, prompt: Bank tətbiqi üçün mobil login ekranı, deviceType: MOBILE, status: QUEUED, credits: 3, complexity: SIMPLE, screenId: null, message: null, error: null, createdAt: '2026-10-30T09:00:05Z', startedAt: null, finishedAt: null, hasHtml: false }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/DesignSessionNotFound' }
+        '409': { $ref: '#/components/responses/DesignJobInProgress' }
+        '413': { $ref: '#/components/responses/BodyTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429':
+          description: Günlük limit (tələbə və ya ortaq hovuz)
+          headers:
+            Retry-After: { schema: { type: integer }, example: 41520 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              examples:
+                user: { summary: Tələbənin günlük limiti, value: { timestamp: '2026-10-30T12:28:00Z', status: 429, code: DESIGN_DAILY_LIMIT, message: 'Bu gün üçün 8 generasiya limitiniz bitib. Limit 31.10.2026 04:00-də (Bakı vaxtı) yenilənəcək', details: [], traceId: req_7f2c9a } }
+                pool: { summary: Ortaq hovuz bitib, value: { timestamp: '2026-10-30T12:28:00Z', status: 429, code: DESIGN_POOL_EXHAUSTED, message: 'Bütün tələbələr üçün ortaq günlük Stitch krediti bitib. Yenilənmə: 31.10.2026 04:00 (Bakı vaxtı)', details: [], traceId: req_7f2c9a } }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DesignNotConfigured' }
+
+  /api/v1/design/jobs/{jobId}:
+    get:
+      tags: [Design]
+      operationId: designGetJob
+      summary: Generasiya statusu (polling)
+      security: [{ bearerAuth: [] }]
+      description: |
+        `status`: `QUEUED` → `RUNNING` → `SUCCEEDED` (HTML hazırdır: `hasHtml: true`) və ya `FAILED` (`error.code` + aydın mesaj).
+        Xəta kodları: `DESIGN_AUTH_FAILED`, `DESIGN_RATE_LIMITED`, `DESIGN_TIMEOUT`, `DESIGN_INVALID_PROMPT`, `DESIGN_UPSTREAM_ERROR`, `DESIGN_INTERRUPTED`.
+      x-db-impact: { reads: [design_jobs], writes: [] }
+      parameters:
+        - { name: jobId, in: path, required: true, description: İşin id-si, schema: { type: string, pattern: '^dj_[a-f0-9]{16}$' }, example: dj_9a8b7c6d5e4f3a2b }
+      responses:
+        '200':
+          description: İş
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DesignJob' }
+              examples:
+                running: { summary: Gedir, value: { id: dj_9a8b7c6d5e4f3a2b, sessionId: ds_4f1a2b3c4d5e6f70, kind: GENERATE, prompt: Bank login ekranı, deviceType: MOBILE, status: RUNNING, credits: 3, complexity: SIMPLE, screenId: null, message: null, error: null, createdAt: '2026-10-30T09:00:05Z', startedAt: '2026-10-30T09:00:05Z', finishedAt: null, hasHtml: false } }
+                failed: { summary: Xəta, value: { id: dj_9a8b7c6d5e4f3a2b, sessionId: ds_4f1a2b3c4d5e6f70, kind: GENERATE, prompt: Bank login ekranı, deviceType: MOBILE, status: FAILED, credits: 0, complexity: SIMPLE, screenId: null, message: null, error: { code: DESIGN_RATE_LIMITED, message: Stitch hazırda çox yüklüdür və ya günlük kvota bitib — bir az sonra yenidən cəhd edin }, createdAt: '2026-10-30T09:00:05Z', startedAt: '2026-10-30T09:00:05Z', finishedAt: '2026-10-30T09:00:09Z', hasHtml: false } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/DesignJobNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/design/jobs/{jobId}/html:
+    get:
+      tags: [Design]
+      operationId: designGetJobHtml
+      summary: Hazır ekranın HTML-i (sanitize edilmiş)
+      security: [{ bearerAuth: [] }]
+      description: |
+        Stitch-in HTML-i serverdə təmizlənib: yalnız Tailwind CDN skripti və onun konfiqurasiyası qalır, `on*` atributları,
+        `javascript:` URL-ləri, iframe/object/embed silinir, linklər heç yerə aparmır, `Content-Security-Policy` əlavə olunur.
+        Portal onu `<iframe sandbox="allow-scripts" srcdoc>` daxilində göstərir (Callbox-un token və cookie-lərinə çıxışı yoxdur).
+      x-db-impact: { reads: [design_jobs], writes: [] }
+      parameters:
+        - { name: jobId, in: path, required: true, description: İşin id-si, schema: { type: string, pattern: '^dj_[a-f0-9]{16}$' }, example: dj_9a8b7c6d5e4f3a2b }
+      responses:
+        '200':
+          description: HTML
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [jobId, screenId, html, previewUrl]
+                properties: { jobId: { type: string }, screenId: { type: string, nullable: true }, html: { type: string }, previewUrl: { type: string, description: 'iframe src üçün imzalı URL (1 saat)' } }
+              example: { jobId: dj_9a8b7c6d5e4f3a2b, screenId: 081aa4db0e9b47df9cfdd56ccdb8e5d1, previewUrl: '/api/v1/design/preview/dj_9a8b7c6d5e4f3a2b?exp=1793260800&sig=3f9a…', html: '<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src ''none''; …">…</head><body>…</body></html>' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/DesignJobNotFound' }
+        '409':
+          description: Nəticə hələ hazır deyil
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-30T09:00:00Z', status: 409, code: DESIGN_NOT_READY, message: Nəticə hələ hazır deyil, details: [], traceId: req_7f2c9a }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/design/preview/{jobId}:
+    get:
+      tags: [Design]
+      operationId: designPreview
+      summary: Dizaynın HTML önizləməsi (iframe src, imzalı URL)
+      security: []
+      description: |
+        `<iframe sandbox="allow-scripts" src>` üçün. iframe `Authorization` başlığı göndərə bilmədiyi üçün URL imzalıdır
+        (`exp` + HMAC `sig`, 1 saat) — `GET /api/v1/design/jobs/{jobId}/html` cavabındakı `previewUrl`.
+        Cavabın öz `Content-Security-Policy`-si var: yalnız Tailwind CDN və Google Fonts, `connect-src 'none'`,
+        `frame-ancestors 'self'` və `sandbox allow-scripts` (sənəd opaque origin-dədir — Callbox-un token/cookie-lərinə çıxışı yoxdur).
+      x-db-impact: { reads: [design_jobs], writes: [] }
+      parameters:
+        - { name: jobId, in: path, required: true, description: İşin id-si, schema: { type: string, pattern: '^dj_[a-f0-9]{16}$' }, example: dj_9a8b7c6d5e4f3a2b }
+        - { name: exp, in: query, required: true, description: Bitmə vaxtı (Unix saniyə), schema: { type: integer }, example: 1793260800 }
+        - { name: sig, in: query, required: true, description: HMAC-SHA256 imza, schema: { type: string, pattern: '^[a-f0-9]{64}$' }, example: 3f9a2b1c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8 }
+      responses:
+        '200':
+          description: Sanitize edilmiş HTML
+          content:
+            text/html:
+              schema: { type: string }
+              example: '<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src ''none''; …"></head><body>…</body></html>'
+        '403':
+          description: İmza etibarsızdır və ya vaxtı keçib
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { timestamp: '2026-10-30T09:00:00Z', status: 403, code: INVALID_SIGNATURE, message: Preview linki etibarsızdır və ya vaxtı keçib, details: [], traceId: req_7f2c9a }
+        '404': { $ref: '#/components/responses/DesignJobNotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/v1/admin/design-usage:
+    get:
+      tags: [Admin]
+      operationId: adminDesignUsage
+      summary: Stitch kredit istifadəsi (müəllim paneli)
+      security: [{ bearerAuth: [] }]
+      x-required-scopes: [superadmin]
+      description: Bu günün ortaq hovuz istifadəsi (80%-də `warning`), son 7 gün və bu gün ən çox istifadə edən tələbələr.
+      x-db-impact: { reads: [design_jobs, users], writes: [] }
+      responses:
+        '200':
+          description: İstifadə
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DesignAdminUsage' }
+              example: { usedCredits: 292, hardLimit: 350, dailyCredits: 400, requests: 88, percent: 83, warning: true, exhausted: false, day: '2026-10-30', resetsAt: '2026-10-31T00:00:00Z', resetsAtBaku: '31.10.2026 04:00', perUserDaily: 8, configured: true, byDay: [{ day: '2026-10-30', credits: 292, requests: 88, failed: 3 }], topUsers: [{ userId: 1, username: student, fullName: Aysel Məmmədova, credits: 24, requests: 8 }] }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   /api/v1/notifications:
     get:
       tags: [Notifications]
@@ -5849,6 +6144,36 @@ components:
       example: GET, POST, HEAD, OPTIONS
 
   responses:
+    DesignNotConfigured:
+      description: Design qoşulmayıb (STITCH_API_KEY yoxdur / etibarsızdır)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-30T09:00:00Z', status: 503, code: DESIGN_NOT_CONFIGURED, message: 'Design bölməsi qoşulmayıb: serverin .env faylında STITCH_API_KEY yoxdur', details: [], traceId: req_7f2c9a }
+    DesignUpstream:
+      description: Stitch xətası
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-30T09:00:00Z', status: 502, code: DESIGN_UPSTREAM_ERROR, message: 'Stitch xətası — bir az sonra yenidən cəhd edin', details: [], traceId: req_7f2c9a }
+    DesignSessionNotFound:
+      description: Sessiya tapılmadı (və ya başqasınındır)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-30T09:00:00Z', status: 404, code: DESIGN_SESSION_NOT_FOUND, message: 'Dizayn sessiyası tapılmadı', details: [], traceId: req_7f2c9a }
+    DesignJobNotFound:
+      description: İş tapılmadı
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-30T09:00:00Z', status: 404, code: DESIGN_JOB_NOT_FOUND, message: 'Generasiya tapılmadı', details: [], traceId: req_7f2c9a }
+    DesignJobInProgress:
+      description: Sessiyada generasiya gedir
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { timestamp: '2026-10-30T09:00:00Z', status: 409, code: DESIGN_JOB_IN_PROGRESS, message: 'Əvvəlki generasiya hələ bitməyib — nəticəni gözləyin', details: [], traceId: req_7f2c9a }
     DepositNotFound:
       description: Depozit tapılmadı
       content:
@@ -6121,6 +6446,106 @@ components:
       summary: Aktiv depozit
       value: { id: dep_5f2a9c1e7b30, object: deposit, status: ACTIVE, currency: AZN, principal: 500.00, annualRate: 8, termMonths: 6, interestPayout: AT_MATURITY, autoRenew: false, sourceAccountId: AZ21NABZ0001, openedAt: '2026-09-20T10:00:00Z', maturityDate: '2027-03-20', daysElapsed: 40, accruedInterest: 4.38, expectedInterest: 19.78, expectedPayout: 519.78, closedAt: null, interestPaid: null }
   schemas:
+    DesignUsage:
+      type: object
+      required: [configured, day, resetsAt, resetsAtBaku, user, pool, creditEstimates]
+      properties:
+        configured: { type: boolean, description: Serverdə STITCH_API_KEY varmı }
+        day: { type: string, format: date, description: Sayğacın günü (UTC) }
+        resetsAt: { type: string, format: date-time, description: Növbəti sıfırlanma (UTC 00:00) }
+        resetsAtBaku: { type: string, description: 'Eyni an Bakı vaxtı ilə, məs. 31.10.2026 04:00' }
+        user:
+          type: object
+          required: [used, limit, remaining]
+          properties: { used: { type: integer }, limit: { type: integer }, remaining: { type: integer } }
+        pool:
+          type: object
+          required: [usedCredits, hardLimit, dailyCredits, requests, percent, warning, exhausted]
+          properties:
+            usedCredits: { type: integer, description: Bütün tələbələrin bu gün xərclədiyi təxmini kredit }
+            hardLimit: { type: integer, description: Təhlükəsizlik həddi (bundan sonra yeni sorğu qəbul olunmur) }
+            dailyCredits: { type: integer, description: Stitch-in günlük hovuzu }
+            requests: { type: integer }
+            percent: { type: integer, description: 'usedCredits / hardLimit × 100' }
+            warning: { type: boolean, description: '≥ 80%' }
+            exhausted: { type: boolean }
+        creditEstimates: { type: object, additionalProperties: { type: object, additionalProperties: { type: integer } } }
+    DesignSessionCreate:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 80 }
+        deviceType: { type: string, enum: [MOBILE, DESKTOP, TABLET], default: MOBILE }
+    DesignMessage:
+      type: object
+      additionalProperties: false
+      required: [prompt]
+      properties:
+        prompt: { type: string, minLength: 1, maxLength: 2000, description: Dizayn ideyası və ya redaktə istəyi (istənilən dildə) }
+        deviceType: { type: string, enum: [MOBILE, DESKTOP, TABLET], description: Yoxdursa sessiyanın cihaz tipi }
+    DesignJob:
+      type: object
+      required: [id, sessionId, kind, prompt, deviceType, status, credits, complexity, screenId, message, error, createdAt, startedAt, finishedAt, hasHtml]
+      properties:
+        id: { type: string }
+        sessionId: { type: string }
+        kind: { type: string, enum: [GENERATE, EDIT], description: 'GENERATE — ilk ekran (generate_screen_from_text), EDIT — redaktə (edit_screens)' }
+        prompt: { type: string }
+        deviceType: { type: string, enum: [MOBILE, DESKTOP, TABLET] }
+        status: { type: string, enum: [QUEUED, RUNNING, SUCCEEDED, FAILED] }
+        credits: { type: integer, description: Təxmini kredit (Stitch rədd edibsə 0) }
+        complexity: { type: string, enum: [SIMPLE, COMPLEX] }
+        screenId: { type: string, nullable: true }
+        message: { type: string, nullable: true, description: Stitch-in mətn cavabı və təklifləri }
+        error:
+          type: object
+          nullable: true
+          required: [code, message]
+          properties: { code: { type: string }, message: { type: string } }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: string, format: date-time, nullable: true }
+        finishedAt: { type: string, format: date-time, nullable: true }
+        hasHtml: { type: boolean }
+    DesignSession:
+      type: object
+      required: [id, title, deviceType, stitchProjectId, currentScreenId, createdAt, updatedAt, messages]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        deviceType: { type: string, enum: [MOBILE, DESKTOP, TABLET] }
+        stitchProjectId: { type: string, nullable: true }
+        currentScreenId: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        messages: { type: array, items: { $ref: '#/components/schemas/DesignJob' } }
+    DesignAdminUsage:
+      type: object
+      required: [usedCredits, hardLimit, dailyCredits, requests, percent, warning, exhausted, day, resetsAt, resetsAtBaku, perUserDaily, configured, byDay, topUsers]
+      properties:
+        usedCredits: { type: integer }
+        hardLimit: { type: integer }
+        dailyCredits: { type: integer }
+        requests: { type: integer }
+        percent: { type: integer }
+        warning: { type: boolean }
+        exhausted: { type: boolean }
+        day: { type: string, format: date }
+        resetsAt: { type: string, format: date-time }
+        resetsAtBaku: { type: string }
+        perUserDaily: { type: integer }
+        configured: { type: boolean }
+        byDay:
+          type: array
+          items:
+            type: object
+            required: [day, credits, requests, failed]
+            properties: { day: { type: string }, credits: { type: integer }, requests: { type: integer }, failed: { type: integer } }
+        topUsers:
+          type: array
+          items:
+            type: object
+            required: [userId, username, fullName, credits, requests]
+            properties: { userId: { type: integer }, username: { type: string }, fullName: { type: string }, credits: { type: integer }, requests: { type: integer } }
     AiStatus:
       type: object
       required: [configured, model, maxChars]
@@ -6757,6 +7182,8 @@ components:
         - EXTERNAL_API_NOT_FOUND
         - NOTIFICATION_NOT_FOUND
         - KAFKA_TOPIC_NOT_FOUND
+        - DESIGN_SESSION_NOT_FOUND
+        - DESIGN_JOB_NOT_FOUND
         # 405 / 406 / 415
         - METHOD_NOT_ALLOWED
         - NOT_ACCEPTABLE
@@ -6776,6 +7203,8 @@ components:
         - TRACK_ALREADY_IN_PLAYLIST
         - MATERIAL_BUSY
         - TASK_EXISTS
+        - DESIGN_JOB_IN_PROGRESS
+        - DESIGN_NOT_READY
         # 413
         - PAYLOAD_TOO_LARGE
         # 422
@@ -6819,6 +7248,9 @@ components:
         - ADULT_REQUIRED
         - AI_BLOCKED
         - AI_RATE_LIMITED
+        - DESIGN_RATE_LIMITED
+        - DESIGN_DAILY_LIMIT
+        - DESIGN_POOL_EXHAUSTED
         - TOO_MANY_REQUESTS
         # 5xx
         - INTERNAL_ERROR
@@ -6827,6 +7259,9 @@ components:
         - SERVICE_UNAVAILABLE
         - GATEWAY_TIMEOUT
         - AI_NOT_CONFIGURED
+        - DESIGN_NOT_CONFIGURED
+        - DESIGN_AUTH_FAILED
+        - DESIGN_UPSTREAM_ERROR
         - AI_UPSTREAM_ERROR
         - AI_TIMEOUT
         - EXTERNAL_NOT_SUBSCRIBED

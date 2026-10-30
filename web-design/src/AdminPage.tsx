@@ -2,6 +2,7 @@
 // istifadəçi detalları (dərslər, tapşırıqlar, son API və SQL sorğuları) və nəticələrin CSV-yə endirilməsi.
 import { useEffect, useRef, useState } from "react";
 import { adminPanel, type AdminGroup, type AdminUserDetail, type AdminUserPage } from "./lib/admin";
+import { api } from "./lib/http";
 
 type Language = "az" | "en";
 
@@ -121,6 +122,41 @@ function ProgressBar({ percent, label }: { percent: number; label: string }) {
   );
 }
 
+type DesignAdminUsage = {
+  usedCredits: number; hardLimit: number; dailyCredits: number; requests: number; percent: number; warning: boolean; exhausted: boolean;
+  resetsAtBaku: string; perUserDaily: number; configured: boolean;
+  topUsers: { userId: number; username: string; fullName: string; credits: number; requests: number }[];
+};
+
+const DESIGN_TEXT = {
+  az: { title: "Design (Stitch) — günlük ortaq kredit", used: (u: number, l: number, r: number) => `${u} / ${l} kredit · ${r} sorğu`, reset: (t: string) => `Sıfırlanma: ${t} (Bakı vaxtı) · tələbə limiti`, warn: "⚠ Hovuzun 80%-i keçilib — tələbələrə qənaətlə istifadəni xatırladın", exhausted: "Hovuz bitib — yeni sorğular sabaha qədər dayandırılıb", off: "STITCH_API_KEY yoxdur", top: "Bu gün ən aktiv" },
+  en: { title: "Design (Stitch) — shared daily credits", used: (u: number, l: number, r: number) => `${u} / ${l} credits · ${r} requests`, reset: (t: string) => `Resets: ${t} (Baku time) · per-student limit`, warn: "⚠ Over 80% of the pool used — remind students to use it sparingly", exhausted: "Pool exhausted — new requests are paused until reset", off: "STITCH_API_KEY is missing", top: "Most active today" },
+};
+
+// Stitch kredit hovuzu: 80%-də xəbərdarlıq (müəllim paneli)
+function DesignUsageCard({ language }: { language: Language }) {
+  const t = DESIGN_TEXT[language];
+  const [u, setU] = useState<DesignAdminUsage | null>(null);
+  useEffect(() => {
+    api.get<DesignAdminUsage>("/api/v1/admin/design-usage").then((r) => setU(r.data)).catch(() => setU(null));
+  }, []);
+  if (!u) return null;
+  return (
+    <section aria-label={t.title} className={`admin-design${u.warning ? " warn" : ""}`}>
+      <div>
+        <strong>{t.title}</strong>
+        <span>{u.configured ? t.used(u.usedCredits, u.hardLimit, u.requests) : t.off}</span>
+        <span>{t.reset(u.resetsAtBaku)}: {u.perUserDaily}</span>
+        {u.warning && <span className="admin-design-warn" role="alert">{u.exhausted ? t.exhausted : t.warn}</span>}
+      </div>
+      <ProgressBar label={t.title} percent={Math.min(100, u.percent)} />
+      {u.topUsers.length > 0 && (
+        <small>{t.top}: {u.topUsers.slice(0, 5).map((x) => `${x.fullName || x.username} (${x.credits})`).join(", ")}</small>
+      )}
+    </section>
+  );
+}
+
 export default function AdminPage({ language }: { language: Language }) {
   const t = TEXT[language];
   const locale = language === "az" ? "az-AZ" : "en-GB";
@@ -189,6 +225,8 @@ export default function AdminPage({ language }: { language: Language }) {
           {downloading ? t.downloading : t.download}
         </button>
       </div>
+
+      <DesignUsageCard language={language} />
 
       {error && (
         <div className="admin-error" role="alert">

@@ -58,6 +58,7 @@ const AdminPage = lazy(() => import("./AdminPage"));
 const InfraPage = lazy(() => import("./InfraPage")); // Redis / Kafka / MongoDB
 const ReferencePage = lazy(() => import("./ReferencePage")); // API Reference (developer portal)
 const AiChatPage = lazy(() => import("./AiChatPage")); // Callbox AI (Google Gemini)
+const DesignPage = lazy(() => import("./DesignPage")); // Design (Google Stitch)
 
 type Language = "az" | "en";
 type Theme = "light" | "dark";
@@ -1479,6 +1480,7 @@ function Header({
     { label: t.sql, page: "sql" },
     { label: t.materials, page: "materials" },
     { label: t.infra, page: "infra" },
+    { label: "Design", page: "design" },
     { label: "Callbox AI", page: "ai" },
     ...(session?.user.role === "superadmin" ? [{ label: t.teacherPanel, page: "admin" as Page }] : []),
   ];
@@ -5084,7 +5086,11 @@ function App() {
       ) : currentPage === "sql" ? (
         <SqlPlaygroundPage t={t} />
       ) : (
-        currentPage === "ai" ? (
+        currentPage === "design" ? (
+          <Suspense fallback={<main className="design-page" id="main-content" aria-busy="true" />}>
+            <DesignPage language={language} />
+          </Suspense>
+        ) : currentPage === "ai" ? (
           <Suspense fallback={<main className="ai-page" id="main-content" aria-busy="true" />}>
             <AiChatPage fullName={session?.user.name ?? ""} language={language} username={session?.user.username ?? "guest"} />
           </Suspense>

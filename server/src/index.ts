@@ -7,6 +7,7 @@ import { detectTools } from './modules/materials/tools.js';
 import { importSlides } from './modules/materials/slides.js';
 import { materialsRepo } from './modules/materials/repo.js';
 import type { MaterialsService } from './modules/materials/service.js';
+import type { DesignService } from './modules/design/service.js';
 
 // Şəbəkəyə açıq rejimdə zəif konfiqurasiya ilə başlamırıq (sinif Wi-Fi-ında hər kəs ADMIN ola bilərdi)
 const problems = exposureProblems(config);
@@ -43,6 +44,9 @@ else console.log('Superadmin yoxdur — npm run superadmin:init (müəllim panel
 
 const app = createApp({ db });
 const materials = app.locals.materials as MaterialsService;
+const interrupted = await (app.locals.design as DesignService).failInterrupted();
+if (interrupted) console.log(`Design: server dayananda yarımçıq qalan ${interrupted} generasiya FAILED kimi bağlandı`);
+console.log(`Design (Stitch): ${(app.locals.design as DesignService).configured ? '✓ STITCH_API_KEY' : '✗ STITCH_API_KEY yoxdur'}`);
 
 // Konvertasiya alətləri: yoxdursa materiallar READY_NO_PREVIEW olur (yalnız endirmə)
 const tools = detectTools(config);

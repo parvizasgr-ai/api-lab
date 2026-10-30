@@ -4659,6 +4659,628 @@
       ]
     },
     {
+      "name": "Design",
+      "item": [
+        {
+          "name": "GET /api/v1/design/usage — Günlük Stitch limitim və ortaq kredit hovuzu",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/design/usage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "design",
+                "usage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Stitch-in günlük ~400 krediti **bütün tələbələr üçün ortaq hovuzdur**. Bu endpoint göstərir:\n* `user` — sizin bu günkü generasiya/redaktə sayınız və limitiniz (default 8);\n* `pool` — hamının bu gün xərclədiyi təxmini kredit, təhlükəsizlik həddi (350), faiz, `warning` (≥80%), `exhausted`;\n* `resetsAt` — sayğac UTC 00:00-da sıfırlanır; `resetsAtBaku` — eyni an Bakı vaxtı ilə (04:00).\n* `creditEstimates` — təxmini kredit dəyərləri (sadə / mürəkkəb, generasiya / redaktə).\n"
+          }
+        },
+        {
+          "name": "GET /api/v1/design/sessions — Dizayn sessiyalarım",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/design/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "design",
+                "sessions"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Tələbənin dizayn sessiyaları (ən yenisi birinci). Hər sessiya Stitch-də ayrıca layihədir."
+          }
+        },
+        {
+          "name": "POST /api/v1/design/sessions — Yeni dizayn sessiyası (ayrıca Stitch project)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/design/sessions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "design",
+                "sessions"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Stitch-də yeni layihə yaradır (kredit xərcləmir). Sonra `POST …/messages` ilə ekran istəyin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Bank login ekranı\",\n  \"deviceType\": \"MOBILE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/design/sessions/{sessionId} — Sessiya və mesajlar (generasiya tarixçəsi)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/design/sessions/:sessionId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "design",
+                "sessions",
+                ":sessionId"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Sessiya + bütün mesajlar (hər biri bir generasiya/redaktə işi, statusu ilə). Başqasının sessiyası → 404."
+          }
+        },
+        {
+          "name": "DELETE /api/v1/design/sessions/{sessionId} — Sessiyanı sil",
+          "request": {
+            "method": "DELETE",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/design/sessions/:sessionId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "design",
+                "sessions",
+                ":sessionId"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Sessiya və onun işləri Callbox-dan silinir (kredit sayğacına təsir etmir — günlük limit dəyişmir). Generasiya gedirsə → 409."
+          }
+        },
+        {
+          "name": "POST /api/v1/design/sessions/{sessionId}/messages — Dizayn istəyi göndər (generasiya və ya redaktə) — asinxron, 202",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/design/sessions/:sessionId/messages",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "design",
+                "sessions",
+                ":sessionId",
+                "messages"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Sessiyada hələ ekran yoxdursa → Stitch `generate_screen_from_text`, varsa → `edit_screens` (son ekran redaktə olunur).\nGenerasiya **bir neçə dəqiqə** çəkir: cavab dərhal **202 Accepted** + `Location: /api/v1/design/jobs/{id}`;\nstatusu `GET /api/v1/design/jobs/{id}` ilə 4 saniyədən bir soruşun (`QUEUED → RUNNING → SUCCEEDED | FAILED`).\n\n**Limitlər** (`GET /api/v1/design/usage`): tələbə başına gündə 8 iş → `429 DESIGN_DAILY_LIMIT`;\nortaq hovuz 350 krediti keçəcəksə → `429 DESIGN_POOL_EXHAUSTED`. Hər ikisində `Retry-After` və mesajda Bakı vaxtı ilə yenilənmə saatı.\nTəxmini kredit: sadə istək 3 (redaktə 2), mürəkkəb (uzun təsvir, bir neçə ekran) 6 (redaktə 4).\nStitch istəyi rədd edibsə (açar, kvota, səhv təsvir) kredit geri qaytarılır.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"Bank tətbiqi üçün mobil login ekranı: loqo, e-poçt, parol, \\\"Daxil ol\\\" düyməsi\",\n  \"deviceType\": \"MOBILE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v1/design/jobs/{jobId} — Generasiya statusu (polling)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/design/jobs/:jobId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "design",
+                "jobs",
+                ":jobId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "dj_9a8b7c6d5e4f3a2b"
+                }
+              ]
+            },
+            "description": "`status`: `QUEUED` → `RUNNING` → `SUCCEEDED` (HTML hazırdır: `hasHtml: true`) və ya `FAILED` (`error.code` + aydın mesaj).\nXəta kodları: `DESIGN_AUTH_FAILED`, `DESIGN_RATE_LIMITED`, `DESIGN_TIMEOUT`, `DESIGN_INVALID_PROMPT`, `DESIGN_UPSTREAM_ERROR`, `DESIGN_INTERRUPTED`.\n"
+          }
+        },
+        {
+          "name": "GET /api/v1/design/jobs/{jobId}/html — Hazır ekranın HTML-i (sanitize edilmiş)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/design/jobs/:jobId/html",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "design",
+                "jobs",
+                ":jobId",
+                "html"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "dj_9a8b7c6d5e4f3a2b"
+                }
+              ]
+            },
+            "description": "Stitch-in HTML-i serverdə təmizlənib: yalnız Tailwind CDN skripti və onun konfiqurasiyası qalır, `on*` atributları,\n`javascript:` URL-ləri, iframe/object/embed silinir, linklər heç yerə aparmır, `Content-Security-Policy` əlavə olunur.\nPortal onu `<iframe sandbox=\"allow-scripts\" srcdoc>` daxilində göstərir (Callbox-un token və cookie-lərinə çıxışı yoxdur).\n"
+          }
+        },
+        {
+          "name": "GET /api/v1/design/preview/{jobId} — Dizaynın HTML önizləməsi (iframe src, imzalı URL)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/design/preview/:jobId?exp=1793260800&sig=3f9a2b1c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "design",
+                "preview",
+                ":jobId"
+              ],
+              "query": [
+                {
+                  "key": "exp",
+                  "value": "1793260800",
+                  "disabled": false
+                },
+                {
+                  "key": "sig",
+                  "value": "3f9a2b1c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f8",
+                  "disabled": false
+                }
+              ],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "dj_9a8b7c6d5e4f3a2b"
+                }
+              ]
+            },
+            "description": "`<iframe sandbox=\"allow-scripts\" src>` üçün. iframe `Authorization` başlığı göndərə bilmədiyi üçün URL imzalıdır\n(`exp` + HMAC `sig`, 1 saat) — `GET /api/v1/design/jobs/{jobId}/html` cavabındakı `previewUrl`.\nCavabın öz `Content-Security-Policy`-si var: yalnız Tailwind CDN və Google Fonts, `connect-src 'none'`,\n`frame-ancestors 'self'` və `sandbox allow-scripts` (sənəd opaque origin-dədir — Callbox-un token/cookie-lərinə çıxışı yoxdur).\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "GET /api/v1/admin/design-usage — Stitch kredit istifadəsi (müəllim paneli)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/design-usage",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "design-usage"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Bu günün ortaq hovuz istifadəsi (80%-də `warning`), son 7 gün və bu gün ən çox istifadə edən tələbələr."
+          }
+        },
+        {
+          "name": "GET /api/v1/admin/users — Bütün istifadəçilər — qrup, tapşırıq nəticəsi, aktivlik (yalnız SUPERADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users?group=BA-2026-A&q=nərmin&role=USER",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "group",
+                  "value": "BA-2026-A",
+                  "disabled": false
+                },
+                {
+                  "key": "q",
+                  "value": "nərmin",
+                  "disabled": false
+                },
+                {
+                  "key": "role",
+                  "value": "USER",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "page",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "size",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Müəllim paneli. Hər istifadəçi üçün tamamlanmış tapşırıqlar (`task_progress`), API sorğuları (`request_log`) və SQL Playground sorğuları (`audit_log`)."
+          }
+        },
+        {
+          "name": "GET /api/v1/admin/groups — Qruplar üzrə xülasə — tələbə sayı, orta nəticə (yalnız SUPERADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/groups",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "groups"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Qruplar üzrə xülasə — tələbə sayı, orta nəticə (yalnız SUPERADMIN)"
+          }
+        },
+        {
+          "name": "GET /api/v1/admin/users/{userId} — Tələbənin detalları — dərslər üzrə nəticə, tapşırıqlar, son sorğular, SQL sorğuları (yalnız SUPERADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/:userId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ":userId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Tələbənin detalları — dərslər üzrə nəticə, tapşırıqlar, son sorğular, SQL sorğuları (yalnız SUPERADMIN)"
+          }
+        },
+        {
+          "name": "GET /api/v1/admin/results.csv — Nəticələr cədvəli — CSV (Excel / Google Sheets), qrup filteri ilə (yalnız SUPERADMIN)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/results.csv?group=BA-2026-A",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "results.csv"
+              ],
+              "query": [
+                {
+                  "key": "group",
+                  "value": "BA-2026-A",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "UTF-8 BOM ilə (Azərbaycan hərfləri Excel-də düzgün açılır). Formula ilə başlayan dəyərlər (=, +, -, @) zərərsizləşdirilir (CSV injection)."
+          }
+        },
+        {
+          "name": "POST /api/v1/_reset — DB-ni seed vəziyyətinə qaytar (ADMIN; qeydiyyatlı tələbələr varsa — yalnız SUPERADMIN + təsdiq)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_reset"
+              ],
+              "query": [
+                {
+                  "key": "confirm",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Bütün cədvəllər silinir, migration-lar və seed yenidən icra olunur. Dərsi dayandırmadan \"hər şeyi sıfırla\".\n**Qeydiyyatdan keçmiş tələbələr varsa** onların hesabları və nəticələri də silinəcək — ona görə yalnız SUPERADMIN\nvə `?confirm=all-users` ilə; əks halda 403 / 409 `RESET_WOULD_DELETE_USERS`. Superadmin hesabı sıfırlamadan sonra da qalır.\n"
+          }
+        },
+        {
+          "name": "GET /api/v1/_history — Sorğu tarixçəsi (API Explorer \"History\")",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/_history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "_history"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "all",
+                  "value": "",
+                  "disabled": true
+                }
+              ],
+              "variable": []
+            },
+            "description": "Token varsa — həmin istifadəçinin sorğuları; yoxdursa — IP üzrə. ADMIN `all=true` ilə hamısını görür."
+          }
+        }
+      ]
+    },
+    {
       "name": "Notifications",
       "item": [
         {
@@ -5922,255 +6544,6 @@
                 }
               ]
             }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Admin",
-      "item": [
-        {
-          "name": "GET /api/v1/admin/users — Bütün istifadəçilər — qrup, tapşırıq nəticəsi, aktivlik (yalnız SUPERADMIN)",
-          "request": {
-            "method": "GET",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token}}"
-                }
-              ]
-            },
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/users?group=BA-2026-A&q=nərmin&role=USER",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "admin",
-                "users"
-              ],
-              "query": [
-                {
-                  "key": "group",
-                  "value": "BA-2026-A",
-                  "disabled": false
-                },
-                {
-                  "key": "q",
-                  "value": "nərmin",
-                  "disabled": false
-                },
-                {
-                  "key": "role",
-                  "value": "USER",
-                  "disabled": false
-                },
-                {
-                  "key": "sort",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "page",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "size",
-                  "value": "",
-                  "disabled": true
-                }
-              ],
-              "variable": []
-            },
-            "description": "Müəllim paneli. Hər istifadəçi üçün tamamlanmış tapşırıqlar (`task_progress`), API sorğuları (`request_log`) və SQL Playground sorğuları (`audit_log`)."
-          }
-        },
-        {
-          "name": "GET /api/v1/admin/groups — Qruplar üzrə xülasə — tələbə sayı, orta nəticə (yalnız SUPERADMIN)",
-          "request": {
-            "method": "GET",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token}}"
-                }
-              ]
-            },
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/groups",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "admin",
-                "groups"
-              ],
-              "query": [],
-              "variable": []
-            },
-            "description": "Qruplar üzrə xülasə — tələbə sayı, orta nəticə (yalnız SUPERADMIN)"
-          }
-        },
-        {
-          "name": "GET /api/v1/admin/users/{userId} — Tələbənin detalları — dərslər üzrə nəticə, tapşırıqlar, son sorğular, SQL sorğuları (yalnız SUPERADMIN)",
-          "request": {
-            "method": "GET",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token}}"
-                }
-              ]
-            },
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/users/:userId",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "admin",
-                "users",
-                ":userId"
-              ],
-              "query": [],
-              "variable": [
-                {
-                  "key": "userId",
-                  "value": "1"
-                }
-              ]
-            },
-            "description": "Tələbənin detalları — dərslər üzrə nəticə, tapşırıqlar, son sorğular, SQL sorğuları (yalnız SUPERADMIN)"
-          }
-        },
-        {
-          "name": "GET /api/v1/admin/results.csv — Nəticələr cədvəli — CSV (Excel / Google Sheets), qrup filteri ilə (yalnız SUPERADMIN)",
-          "request": {
-            "method": "GET",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token}}"
-                }
-              ]
-            },
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/admin/results.csv?group=BA-2026-A",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "admin",
-                "results.csv"
-              ],
-              "query": [
-                {
-                  "key": "group",
-                  "value": "BA-2026-A",
-                  "disabled": false
-                }
-              ],
-              "variable": []
-            },
-            "description": "UTF-8 BOM ilə (Azərbaycan hərfləri Excel-də düzgün açılır). Formula ilə başlayan dəyərlər (=, +, -, @) zərərsizləşdirilir (CSV injection)."
-          }
-        },
-        {
-          "name": "POST /api/v1/_reset — DB-ni seed vəziyyətinə qaytar (ADMIN; qeydiyyatlı tələbələr varsa — yalnız SUPERADMIN + təsdiq)",
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token}}"
-                }
-              ]
-            },
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/_reset",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "_reset"
-              ],
-              "query": [
-                {
-                  "key": "confirm",
-                  "value": "",
-                  "disabled": true
-                }
-              ],
-              "variable": []
-            },
-            "description": "Bütün cədvəllər silinir, migration-lar və seed yenidən icra olunur. Dərsi dayandırmadan \"hər şeyi sıfırla\".\n**Qeydiyyatdan keçmiş tələbələr varsa** onların hesabları və nəticələri də silinəcək — ona görə yalnız SUPERADMIN\nvə `?confirm=all-users` ilə; əks halda 403 / 409 `RESET_WOULD_DELETE_USERS`. Superadmin hesabı sıfırlamadan sonra da qalır.\n"
-          }
-        },
-        {
-          "name": "GET /api/v1/_history — Sorğu tarixçəsi (API Explorer \"History\")",
-          "request": {
-            "method": "GET",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token}}"
-                }
-              ]
-            },
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/_history",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "_history"
-              ],
-              "query": [
-                {
-                  "key": "limit",
-                  "value": "",
-                  "disabled": true
-                },
-                {
-                  "key": "all",
-                  "value": "",
-                  "disabled": true
-                }
-              ],
-              "variable": []
-            },
-            "description": "Token varsa — həmin istifadəçinin sorğuları; yoxdursa — IP üzrə. ADMIN `all=true` ilə hamısını görür."
           }
         }
       ]

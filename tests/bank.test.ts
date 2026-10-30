@@ -29,7 +29,7 @@ describe('accounts', () => {
     expect(res.status).toBe(200);
     expectMatchesSpec(res, 'listAccounts');
     expect(res.body.items.map((a: { id: string }) => a.id)).toEqual(['AZ21NABZ0001', 'AZ21NABZ0002', 'AZ21NABZ0003']);
-    expect(res.body.items[0].balance).toBe(4481.9);
+    expect(res.body.items[0].balance).toBe(3981.9); // 4481.90 − 500.00 seed depoziti (dep_5f2a9c1e7b30)
   });
 
   it('GET /accounts/{id} — başqasının hesabı 403, olmayan 404, səhv format 422', async () => {

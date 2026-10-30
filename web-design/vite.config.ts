@@ -7,7 +7,7 @@ import path from 'node:path'
 
 // Backend (Callbox server). Dev rejimində bu prefikslər ora yönləndirilir — CORS lazım olmur.
 const API_TARGET = process.env.API_TARGET ?? 'http://localhost:3000'
-const proxied = ['/api', '/oauth', '/bff', '/docs']
+const proxied = ['/api', '/oauth', '/realms', '/bff', '/docs']
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],

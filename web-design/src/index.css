@@ -127,7 +127,7 @@ pre {
 
 .app {
   min-height: 100vh;
-  overflow: hidden;
+  overflow-x: clip; /* hidden deyil: hidden scroll konteyneri yaradır və position: sticky (header, API Reference nav) işləmir */
 }
 
 .skip-link {
@@ -8795,4 +8795,715 @@ footer {
   .infra-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .infra-messages button { grid-template-columns: auto 1fr; }
   .infra-notifications li { flex-direction: column; align-items: stretch; }
+}
+
+/* ======================================================================
+   API Reference (/reference) — Stripe üslubu: nav | sənəd | kod
+   ====================================================================== */
+.ref-page {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  min-height: calc(100vh - 64px);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.ref-state {
+  grid-column: 1 / -1;
+  padding: 64px 24px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.ref-state button,
+.ref-token button {
+  margin-left: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ref-nav {
+  position: sticky;
+  top: 64px;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
+  padding: 20px 16px 40px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.ref-search input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.ref-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 20px;
+}
+
+.ref-nav-title {
+  padding: 0 10px 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ref-nav a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.ref-nav-group > a:first-child:not(.ref-nav-title) {
+  font-weight: 600;
+}
+
+.ref-nav-op a {
+  padding-left: 22px;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+}
+
+.ref-nav a:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ref-nav a.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.ref-nav-method {
+  flex-shrink: 0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font: 700 10px "JetBrains Mono", monospace;
+}
+
+.ref-nav-empty {
+  padding: 12px 10px;
+  color: var(--text-secondary);
+}
+
+.ref-content {
+  min-width: 0;
+}
+
+.ref-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr);
+  gap: 48px;
+  padding: 48px 48px;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 64px;
+}
+
+.ref-doc {
+  min-width: 0;
+  max-width: 680px;
+}
+
+.ref-doc h1 {
+  margin: 8px 0 16px;
+  font-size: 36px;
+}
+
+.ref-doc h2 {
+  margin: 0 0 12px;
+  font-size: 28px;
+}
+
+.ref-doc h3 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.ref-endpoint-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ref-endpoint-line code {
+  color: var(--text-primary);
+  font: 600 14px "JetBrains Mono", monospace;
+  word-break: break-all;
+}
+
+.ref-method {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font: 700 11px "JetBrains Mono", monospace;
+  letter-spacing: 0.02em;
+}
+
+.ref-auth-badge {
+  display: inline-block;
+  margin-bottom: 16px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ref-auth-badge.secured {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.ref-auth-badge.public {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success-text);
+}
+
+.ref-auth-badge code {
+  margin-left: 4px;
+  font-size: 12px;
+}
+
+.ref-block {
+  margin-top: 32px;
+}
+
+.ref-block h4 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 4px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 16px;
+}
+
+.ref-content-type {
+  color: var(--text-secondary);
+  font: 500 12px "JetBrains Mono", monospace;
+}
+
+.ref-returns {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.ref-attr-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ref-attr {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.ref-attr-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ref-attr-name {
+  color: var(--text-primary);
+  font: 700 14px "JetBrains Mono", monospace;
+}
+
+.ref-attr-type {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.ref-attr-required {
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ref-attr-optional {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.ref-attr .md p {
+  margin: 6px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.ref-attr-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.ref-attr-meta code,
+.ref-auth-badge code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+
+.ref-attr-meta span code + code {
+  margin-left: 4px;
+}
+
+.ref-children {
+  margin-top: 10px;
+}
+
+.ref-children-toggle {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ref-children-toggle:hover {
+  color: var(--accent);
+}
+
+.ref-children .ref-attr-list {
+  margin-top: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ref-children .ref-attr:last-child {
+  border-bottom: 0;
+}
+
+.ref-code-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  align-self: start;
+  position: sticky;
+  top: 84px;
+}
+
+.ref-code-card {
+  overflow: hidden;
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-lg);
+  background: var(--code-bg);
+  color: var(--code-text);
+}
+
+.ref-code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--code-border);
+  background: var(--code-surface);
+}
+
+.ref-code-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--code-text);
+  font: 600 12.5px "JetBrains Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ref-copy {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--code-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ref-copy:hover {
+  color: var(--code-text);
+}
+
+.ref-lang-tabs,
+.ref-example-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 6px 10px 0;
+}
+
+.ref-lang-tabs button,
+.ref-example-tabs button {
+  padding: 6px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--code-muted);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ref-lang-tabs button.active,
+.ref-example-tabs button.active {
+  border-bottom-color: var(--code-key);
+  color: var(--code-text);
+}
+
+.ref-code {
+  margin: 0;
+  max-height: 420px;
+  overflow: auto;
+  padding: 14px 16px;
+  color: var(--code-text);
+  font: 12.5px/1.6 "JetBrains Mono", monospace;
+  white-space: pre;
+}
+
+.ref-json .json-key {
+  color: var(--code-key);
+}
+
+.ref-json .json-string {
+  color: var(--code-string);
+}
+
+.ref-json .json-number,
+.ref-json .json-literal {
+  color: var(--code-number);
+}
+
+.ref-try {
+  display: block;
+  width: calc(100% - 28px);
+  margin: 0 14px 14px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ref-try:hover {
+  background: var(--accent-hover);
+}
+
+.ref-status-select select {
+  max-width: 220px;
+  padding: 4px 8px;
+  border: 1px solid var(--code-border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--code-text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.ref-endpoint-list ul {
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+}
+
+.ref-endpoint-list a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 14px;
+  color: var(--code-text);
+  font: 12.5px "JetBrains Mono", monospace;
+  text-decoration: none;
+}
+
+.ref-endpoint-list a:hover {
+  background: var(--code-surface);
+}
+
+.ref-endpoint-list .ref-method {
+  min-width: 46px;
+  justify-content: center;
+}
+
+.ref-token {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.ref-token.ok {
+  border-color: color-mix(in srgb, var(--success) 40%, var(--border));
+  background: color-mix(in srgb, var(--success) 8%, var(--bg-surface));
+}
+
+/* Markdown (description-lar) */
+.md p {
+  margin: 0 0 12px;
+  color: var(--text-primary);
+  line-height: 1.65;
+}
+
+.md code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  font: 0.9em "JetBrains Mono", monospace;
+}
+
+.md a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.md-heading {
+  margin: 22px 0 8px;
+  font-size: 16px;
+}
+
+.md-list {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  list-style: disc;
+  line-height: 1.65;
+}
+
+.md-code {
+  margin: 0 0 12px;
+  overflow: auto;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  color: var(--code-text);
+  font: 12.5px/1.6 "JetBrains Mono", monospace;
+}
+
+.md-code code {
+  padding: 0;
+  background: none;
+}
+
+.md-table-wrap {
+  margin: 0 0 14px;
+  overflow-x: auto;
+}
+
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.md-table th,
+.md-table td {
+  display: table-cell; /* qlobal td:first-child { display: flex } əvəzlənir */
+  height: auto;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md-table th {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Callbox GUI — OAuth 2.0, token mənbəyi, body rejimi */
+.auth-source {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.oauth-box {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+}
+
+.oauth-box input[readonly] {
+  color: var(--text-secondary);
+}
+
+.oauth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.oauth-get {
+  padding: 9px 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.oauth-get:hover {
+  background: var(--accent-hover);
+}
+
+.oauth-ok,
+.oauth-error {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.oauth-ok {
+  color: var(--success-text);
+}
+
+.oauth-error {
+  color: var(--danger);
+}
+
+.oauth-token {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font: 12px "JetBrains Mono", monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.body-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.body-mode label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.token-notice {
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--success) 10%, var(--bg-surface));
+  color: var(--success-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+@media (max-width: 1180px) {
+  .ref-section {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    padding: 36px 28px;
+  }
+
+  .ref-code-column {
+    position: static;
+  }
+}
+
+@media (max-width: 860px) {
+  .ref-page {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ref-nav {
+    position: static;
+    height: auto;
+    max-height: 300px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ref-section {
+    padding: 28px 16px;
+  }
+
+  .ref-doc h1 {
+    font-size: 28px;
+  }
+}
+
+/* Kod kartlarının (tünd fon) içində metod nişanları — kod palitrası (kontrast AA) */
+.ref-code-card .ref-method {
+  background: var(--code-surface);
+}
+
+.ref-code-card .method-get {
+  color: var(--code-success);
+}
+
+.ref-code-card .method-post {
+  color: var(--code-key);
+}
+
+.ref-code-card .method-put,
+.ref-code-card .method-patch {
+  color: var(--code-number);
+}
+
+.ref-code-card .method-delete {
+  color: var(--code-danger);
 }

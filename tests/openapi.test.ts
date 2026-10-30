@@ -78,7 +78,8 @@ describe('nümunə tarixləri köhnəlmir', () => {
     };
     for (const o of ops) {
       for (const p of (o.operation.parameters ?? []).map((x: any) => (x.$ref ? spec.components.parameters[x.$ref.split('/').pop()] : x))) {
-        if (p.in === 'query' && keys.has(p.name) && p.example) found.push(`${o.operationId}.${p.name}=${p.example}`);
+        // v2GetExchangeRates.date — tarixi məzənnə: nümunə mütləq keçmişdədir (gələcək tarix → 422)
+        if (p.in === 'query' && keys.has(p.name) && p.example && o.operationId !== 'v2GetExchangeRates') found.push(`${o.operationId}.${p.name}=${p.example}`);
       }
       const media = o.operation.requestBody?.content?.['application/json'];
       if (media) scan(o.operationId, { example: media.example, examples: media.examples });

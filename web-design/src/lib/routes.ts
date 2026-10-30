@@ -1,11 +1,12 @@
 // Real URL routing (History API): reload və paylaşılan link eyni səhifəni açır.
 // Server bu yolların hamısına portalın index.html-ini verir (SPA fallback, server/src/static.ts).
-export type Page = "home" | "explorer" | "apps" | "auth" | "sql" | "materials" | "external" | "signin" | "register" | "admin" | "infra";
+export type Page = "home" | "reference" | "explorer" | "apps" | "auth" | "sql" | "materials" | "external" | "signin" | "register" | "admin" | "infra";
 export type AppId = "bank" | "currency" | "flights" | "hotels" | "books" | "music" | "google" | "customers";
 
 const PAGE_PATHS: Record<Page, string> = {
   home: "/",
-  explorer: "/explorer",
+  reference: "/reference", // API Reference (developer portal)
+  explorer: "/callbox", // Callbox GUI (köhnə /explorer linki də bura açılır)
   apps: "/apps",
   auth: "/auth",
   sql: "/sql",
@@ -24,7 +25,7 @@ export const PROTECTED_PAGES: readonly Page[] = ["explorer", "apps", "auth", "sq
 // "/apps/bank/" → { page: "apps", app: "bank" }; naməlum yol → home
 export function parseRoute(pathname: string): { page: Page; app: AppId | null } {
   const [first = "", second = ""] = pathname.replace(/^\/+|\/+$/g, "").split("/");
-  const page = (Object.keys(PAGE_PATHS) as Page[]).find((p) => PAGE_PATHS[p] === `/${first}`) ?? "home";
+  const page = first === "explorer" ? "explorer" : ((Object.keys(PAGE_PATHS) as Page[]).find((p) => PAGE_PATHS[p] === `/${first}`) ?? "home");
   const app = page === "apps" && (APP_IDS as readonly string[]).includes(second) ? (second as AppId) : null;
   return { page, app };
 }

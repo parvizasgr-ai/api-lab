@@ -24,14 +24,16 @@ test('QA-M04: real URL — reload və paylaşılan link eyni səhifəni açır, 
   await page.reload()
   await expect(page.locator('.bank-app')).toBeVisible()
 
-  // Geri → /apps (kataloq), Geri → /sql, İrəli → /apps
+  // Geri → /apps (kataloq), Geri → /reference (Apps oradan açılır), Geri → /sql, İrəli → /reference
   await page.goBack()
   await expect(page).toHaveURL(/\/apps$/)
   await expect(page.locator('.app-card').first()).toBeVisible()
   await page.goBack()
+  await expect(page).toHaveURL(/\/reference/)
+  await page.goBack()
   await expect(page.locator('.schema-panel')).toBeVisible()
   await page.goForward()
-  await expect(page.locator('.app-card').first()).toBeVisible()
+  await expect(page.locator('.ref-nav')).toBeVisible()
 
   // Yeni vərəqədə birbaşa link
   const other = await page.context().newPage()

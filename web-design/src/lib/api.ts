@@ -28,6 +28,7 @@ type OpenApiOperation = {
   summary: string;
   tags?: string[];
   parameters?: unknown[];
+  security?: Record<string, string[]>[];
   requestBody?: { content?: Record<string, { example?: unknown; examples?: Record<string, { value: unknown }> }> };
 };
 type OpenApiDoc = {
@@ -133,9 +134,15 @@ async function sendExplorerRequest(req: ExplorerRequest): Promise<ExplorerRespon
   };
 }
 
-export type EndpointGroup = { label: string; endpoints: { method: string; path: string; label: string; body?: string }[] };
+export type EndpointAuth = "bearer" | "apiKey" | "basic" | "none";
+export type EndpointQuery = { name: string; value: string; description: string; required: boolean };
+export type Endpoint = { method: string; path: string; label: string; body?: string; contentType?: string; auth: EndpointAuth; query: EndpointQuery[] };
+export type EndpointGroup = { label: string; endpoints: Endpoint[] };
 
-// Endpoint kitabxanası OpenAPI-dən (tag → qrup). Path parametrləri spec nümunələri ilə doldurulur.
+type SpecParam = { name: string; in: string; required?: boolean; description?: string; example?: unknown; schema?: { example?: unknown; default?: unknown } };
+
+// Endpoint kitabxanası OpenAPI-dən (tag → qrup). Path parametrləri spec nümunələri ilə doldurulur;
+// query parametrləri (məcburi olanlar nümunə dəyəri ilə), auth növü və body formatı Callbox GUI-ni avtomatik doldurur.
 async function getEndpointGroups(): Promise<EndpointGroup[]> {
   const spec = await getSpec();
   const groups = new Map<string, EndpointGroup>();
@@ -147,19 +154,27 @@ async function getEndpointGroups(): Promise<EndpointGroup[]> {
       if (!groups.has(tag)) groups.set(tag, { label: tag, endpoints: [] });
       const params = (op.parameters ?? []).map((p) => {
         const ref = (p as { $ref?: string }).$ref;
-        return ref ? spec.components.parameters?.[ref.split("/").pop()!] : (p as { name: string; in: string; example?: unknown });
+        return (ref ? spec.components.parameters?.[ref.split("/").pop()!] : p) as SpecParam | undefined;
       });
       const filled = path.replace(/\{([^}]+)\}/g, (_, name: string) => {
-        const param = params.find((p) => p?.name === name && p.in === "path") as { example?: unknown } | undefined;
+        const param = params.find((p) => p?.name === name && p.in === "path");
         return String(param?.example ?? 1);
       });
-      const json = op.requestBody?.content?.["application/json"];
-      const example = json?.example ?? Object.values(json?.examples ?? {})[0]?.value;
+      const [contentType, media] = Object.entries(op.requestBody?.content ?? {})[0] ?? [];
+      const example = media?.example ?? Object.values(media?.examples ?? {})[0]?.value;
+      const form = contentType === "application/x-www-form-urlencoded";
+      const schemes = (op.security ?? []).flatMap((s) => Object.keys(s));
+      const auth: EndpointAuth = schemes.some((s) => s === "bearerAuth" || s === "googleOAuth") ? "bearer" : schemes.includes("apiKeyAuth") ? "apiKey" : schemes.includes("basicAuth") ? "basic" : "none";
       groups.get(tag)!.endpoints.push({
         method: method.toUpperCase(),
         path: filled,
         label: op.summary,
-        body: example === undefined ? undefined : JSON.stringify(example, null, 2),
+        body: example === undefined ? undefined : form ? new URLSearchParams(Object.entries(example as Record<string, string>).map(([k, v]) => [k, String(v)])).toString() : JSON.stringify(example, null, 2),
+        contentType,
+        auth,
+        query: params
+          .filter((p): p is SpecParam => !!p && p.in === "query")
+          .map((p) => ({ name: p.name, required: !!p.required, description: p.description ?? "", value: p.required ? String(p.example ?? p.schema?.example ?? p.schema?.default ?? "") : "" })),
       });
     }
   }
@@ -331,7 +346,11 @@ export const learning = {
 
 // Səhifələr arası ötürmə: tapşırıqdan Explorer-ə / SQL-ə hazır sorğu ilə keçid
 // Explorer-ə hazır sorğu: headers/body opsional (External APIs — X-RapidAPI-Key yalnız yaddaşdan gəlir)
-type Handoff = { explorer?: { method: string; path: string; headers?: Record<string, string>; body?: string }; sql?: string; lesson?: number };
+type Handoff = {
+  explorer?: { method: string; path: string; headers?: Record<string, string>; body?: string; contentType?: string; auth?: "bearer" | "apiKey" | "basic" | "none" };
+  sql?: string;
+  lesson?: number;
+};
 let handoff: Handoff = {};
 export const handoffs = {
   set: (next: Handoff) => (handoff = next),

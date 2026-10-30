@@ -207,7 +207,7 @@ erDiagram
 
 ---
 
-## Endpoint-lər (119)
+## Endpoint-lər (139)
 
 Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/docs**.
 
@@ -356,6 +356,36 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 | `GET` | `/api/postman/environment.json` | Postman environment (baseUrl, token, apiKey) | — |  |
 
 ---
+
+## API Reference və Callbox GUI (API v2)
+
+Portalda **API Reference** (`/reference`) — Stripe API Reference üslubunda developer portal: hər endpoint üçün təsvir,
+parametrlər (tip, məcburi/könüllü, default, mümkün dəyərlər), request body atributları, cavab atributları, xəta kodları,
+cURL / JavaScript / Python nümunələri və cavab nümunəsi. Hamısı `openapi/openapi.yaml`-dan yaranır (`x-tagGroups: Callbox API v2`).
+Köhnə **Explorer**, **Auth Lab** və **Apps** menyusu birləşdi: Auth Lab və Demo tətbiqlər Reference-in "Laboratoriyalar" bölməsindədir.
+
+**Callbox GUI** (`/callbox`, köhnə `/explorer` linki də açılır) — Postman kimi klient: endpoint seçəndə Params, Authorization,
+Headers və Body avtomatik dolur; `x-www-form-urlencoded` body; Authorization → **OAuth 2.0 → Get New Access Token**.
+Token endpoint-indən alınan token yadda saxlanılır və Bearer tələb edən bütün sorğulara **avtomatik** əlavə olunur.
+
+| Qrup | Endpoint-lər | Auth |
+|---|---|---|
+| Token (OpenID Connect) | `POST /realms/callbox/protocol/openid-connect/token` (`grant_type=password` / `refresh_token`, `client_id=callbox-api`) | — |
+| Bank (10) | `GET /api/v2/accounts`, `GET /api/v2/accounts/{id}/transactions`, `GET·POST /api/v2/cards`, `GET /api/v2/cards/{id}`, `POST /api/v2/cards/{id}/block`, `GET·POST /api/v2/deposits`, `GET /api/v2/deposits/{id}`, `POST /api/v2/deposits/{id}/close` | Bearer |
+| Valyuta (2) | `GET /api/v2/currencies`, `GET /api/v2/exchange-rates?from=USD&to=AZN&date=&amount=` | — |
+| Aviareys (3) | `GET /api/v2/airports`, `GET /api/v2/flights/search`, `POST /api/v2/flights/bookings` | — |
+| Otel (2) | `GET /api/v2/hotels/search`, `POST /api/v2/hotels/bookings` | — |
+| Kitab (2) | `GET /api/v2/books/{id}`, `GET /api/v2/books/{id}/reviews` | — |
+
+DB (`006_api_v2.sql`): `deposits` cədvəli, `cards`-a kart sifarişi sahələri, `currencies`-ə ISO 4217 rəqəm kodu,
+`flight_bookings` / `hotel_bookings`-də qonaq bronu (PNR, təsdiq kodu, əlaqə). SQL ilə yoxlama:
+
+```sql
+SELECT id, status, principal_minor, annual_rate, maturity_date FROM deposits ORDER BY opened_at DESC;
+SELECT pnr, contact_email, passengers, total_minor FROM flight_bookings WHERE pnr IS NOT NULL;
+SELECT p.first_name, p.passenger_type, p.ticket_number FROM flight_passengers p WHERE p.ticket_number IS NOT NULL;
+SELECT confirmation_code, guest_name, check_in, check_out FROM hotel_bookings WHERE confirmation_code IS NOT NULL;
+```
 
 ## API konsepsiyaları — harada görmək olar
 

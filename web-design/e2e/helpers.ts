@@ -1,7 +1,7 @@
 // E2E ümumi köməkçilər: giriş, naviqasiya (desktop nav və ya mobil menyu), problem toplayıcı
 import { expect, type Page } from '@playwright/test'
 
-export const PAGES = ['home', 'explorer', 'apps', 'auth', 'sql', 'materials', 'external', 'infra'] as const
+export const PAGES = ['home', 'reference', 'explorer', 'apps', 'auth', 'sql', 'materials', 'external', 'infra'] as const
 
 export type Issue = { where: string; kind: string; detail: string }
 
@@ -28,9 +28,17 @@ export async function signIn(page: Page, username: string, password: string) {
   await expect(page.locator('.user-chip')).toBeVisible()
 }
 
-export const pathOf = (target: string) => (target === 'home' ? '/' : target === 'external' ? '/external-apis' : `/${target}`)
+export const pathOf = (target: string) => (target === 'home' ? '/' : target === 'external' ? '/external-apis' : target === 'explorer' ? '/callbox' : `/${target}`)
 
 export async function go(page: Page, target: string) {
+  // Apps və Auth Lab menyuda yoxdur — API Reference-in "Laboratoriyalar" bölməsindən açılır
+  if (target === 'apps' || target === 'auth') {
+    await go(page, 'reference')
+    await page.locator('.ref-nav a').filter({ hasText: target === 'apps' ? /Demo tətbiqlər|Demo apps/ : /Auth Lab/ }).click()
+    await expect(page).toHaveURL(new RegExp(`/${target}$`))
+    await page.waitForLoadState('networkidle')
+    return
+  }
   const desktop = page.locator(`.desktop-nav a[href="${pathOf(target)}"]`)
   if (await desktop.isVisible()) {
     await desktop.click()

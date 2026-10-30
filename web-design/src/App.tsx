@@ -9,6 +9,7 @@ import {
   type AuthSession,
   type GoogleAccount,
 } from "./api/auth";
+import { apiToken, PUBLIC_CLIENT_ID, requestToken, TOKEN_PATH } from "./lib/reference";
 import {
   apiClient,
   bank,
@@ -28,6 +29,7 @@ import {
   type Customer,
   type Dashboard,
   type DbTable,
+  type Endpoint,
   type EndpointGroup,
   type ExplorerResponse,
   type Flight,
@@ -55,6 +57,7 @@ import { normalizeRegistration, serverFieldErrors, validateRegistration, type Re
 // Müəllim paneli ayrıca chunk-dır — tələbələr onu yükləmir
 const AdminPage = lazy(() => import("./AdminPage"));
 const InfraPage = lazy(() => import("./InfraPage")); // Redis / Kafka / MongoDB
+const ReferencePage = lazy(() => import("./ReferencePage")); // API Reference (developer portal)
 
 type Language = "az" | "en";
 type Theme = "light" | "dark";
@@ -73,7 +76,8 @@ const translations = {
     skipToContent: "Əsas məzmuna keç",
     navLabel: "Əsas naviqasiya",
     home: "Home",
-    explorer: "Explorer",
+    explorer: "Callbox GUI",
+    apiReference: "API Reference",
     apps: "Apps",
     authLab: "Auth Lab",
     sql: "SQL",
@@ -118,7 +122,7 @@ const translations = {
     extHardLimit: "Hard Limit",
     extNotVerified: "Yoxlanmayıb",
     extTry: "Sına",
-    extOpenExplorer: "Explorer-də aç",
+    extOpenExplorer: "Callbox GUI-də aç",
     extSubscribe: "RapidAPI-də abunə ol",
     extEmpty: "Hələ təsdiqlənmiş external API yoxdur.",
     extEmptyAdmin: "Kataloqdakı API-lər yoxlanmayıb. Serverdə RAPIDAPI_KEY ilə `npm run external:verify` işlədin və təklif olunan verified bayraqlarını catalog.ts-də təsdiqləyin.",
@@ -144,7 +148,7 @@ const translations = {
     heroDescription:
       "Real endpoint-lərə request göndər, response-ları araşdır və müasir API-lərin necə işlədiyini təcrübə ilə öyrən.",
     startLearning: "Öyrənməyə başla",
-    openExplorer: "Explorer-i aç",
+    openExplorer: "Callbox GUI-ni aç",
     learningPath: "3 mərhələli öyrənmə yolu",
     practiceLabel: "Canlı təcrübə",
     practiceValue: "Real request, təhlükəsiz sandbox",
@@ -241,9 +245,9 @@ const translations = {
     quickStartKicker: "SÜRƏTLİ BAŞLANĞIC",
     terminal: "Terminal",
     copyright: `© ${new Date().getFullYear()} Callbox`,
-    explorerTitle: "API Explorer",
+    explorerTitle: "Callbox GUI",
     explorerSubtitle:
-      "Endpoint seç, request-i hazırla və response-u real vaxtda araşdır.",
+      "Postman kimi API klienti: endpoint seç — Params, Authorization, Headers və Body avtomatik dolur. Göndər və cavabı araşdır.",
     endpointLibrary: "Endpoint kitabxanası",
     searchEndpoints: "Endpoint-ləri axtar",
     noEndpoints: "Uyğun endpoint tapılmadı",
@@ -276,6 +280,15 @@ const translations = {
     basic: "Basic",
     bearerToken: "Bearer token",
     tokenPlaceholder: "Token-i daxil et",
+    tokenSourceManual: "Əl ilə yazılmış token istifadə olunur.",
+    tokenSourceApi: (u: string, m: number) => `Token endpoint-indən alınmış token avtomatik istifadə olunur (${u}, ${m} dəq qalıb).`,
+    tokenSourceSession: "Portal sessiyasının tokeni istifadə olunur. Öz API tokeninizi almaq üçün OAuth 2.0 seçin.",
+    tokenSourceNone: "Token yoxdur — OAuth 2.0 seçib “Get New Access Token” düyməsini basın.",
+    getNewToken: "Get New Access Token",
+    clearToken: "Tokeni sil",
+    tokenSaved: (u: string, m: number) => `Token alındı (${u}, ${m} dəq). Bearer tələb edən bütün sorğulara avtomatik əlavə olunacaq.`,
+    tokenFailed: "Token alınmadı",
+    tokenAuto: "access_token yadda saxlanıldı — Bearer token tələb edən sorğuların Authorization başlığına avtomatik əlavə olunacaq.",
     bodyJsonHint: "JSON payload",
     testsHint: "Response üçün JavaScript test-ləri yaz.",
     testsPlaceholder: "pm.test('Status code 200-dür', () => { ... })",
@@ -337,7 +350,7 @@ const translations = {
     collapseNetwork: "Network panel-i bağla",
     expandNetwork: "Network panel-i aç",
     noNetworkCalls: "Hələ API call edilməyib.",
-    openInExplorer: "Explorer-də aç",
+    openInExplorer: "Callbox GUI-də aç",
     internalCalls: "Daxili call-lar",
     overview: "Ümumi baxış",
     totalBalance: "Ümumi balans",
@@ -577,7 +590,7 @@ const translations = {
     lessonMaterials: "Dərs materialları",
     practicalTasks: "Praktik task-lar",
     markComplete: "Tamamlandı kimi işarələ",
-    openInExplorerTask: "Explorer-də aç",
+    openInExplorerTask: "Callbox GUI-də aç",
     checkWithSql: "SQL ilə yoxla",
     taskSendRequest: "GET /users endpoint-inə request göndər",
     taskInspectHeaders: "Response headers və status code-u yoxla",
@@ -665,7 +678,8 @@ const translations = {
     skipToContent: "Skip to main content",
     navLabel: "Main navigation",
     home: "Home",
-    explorer: "Explorer",
+    explorer: "Callbox GUI",
+    apiReference: "API Reference",
     apps: "Apps",
     authLab: "Auth Lab",
     sql: "SQL",
@@ -710,7 +724,7 @@ const translations = {
     extHardLimit: "Hard Limit",
     extNotVerified: "Not verified",
     extTry: "Try",
-    extOpenExplorer: "Open in Explorer",
+    extOpenExplorer: "Open in Callbox GUI",
     extSubscribe: "Subscribe on RapidAPI",
     extEmpty: "No verified external APIs yet.",
     extEmptyAdmin: "The catalog APIs are not verified. Run `npm run external:verify` on the server with RAPIDAPI_KEY and confirm the proposed verified flags in catalog.ts.",
@@ -736,7 +750,7 @@ const translations = {
     heroDescription:
       "Send requests to real endpoints, inspect responses, and learn how modern APIs work through hands-on practice.",
     startLearning: "Start learning",
-    openExplorer: "Open Explorer",
+    openExplorer: "Open Callbox GUI",
     learningPath: "3-step learning path",
     practiceLabel: "Live practice",
     practiceValue: "Real requests, safe sandbox",
@@ -833,9 +847,9 @@ const translations = {
     quickStartKicker: "QUICK START",
     terminal: "Terminal",
     copyright: `© ${new Date().getFullYear()} Callbox`,
-    explorerTitle: "API Explorer",
+    explorerTitle: "Callbox GUI",
     explorerSubtitle:
-      "Choose an endpoint, build a request, and inspect the response in real time.",
+      "A Postman-style API client: pick an endpoint — Params, Authorization, Headers and Body are pre-filled. Send it and inspect the response.",
     endpointLibrary: "Endpoint library",
     searchEndpoints: "Search endpoints",
     noEndpoints: "No matching endpoints",
@@ -868,6 +882,15 @@ const translations = {
     basic: "Basic",
     bearerToken: "Bearer token",
     tokenPlaceholder: "Enter token",
+    tokenSourceManual: "Using the token typed above.",
+    tokenSourceApi: (u: string, m: number) => `Using the token from the token endpoint automatically (${u}, ${m} min left).`,
+    tokenSourceSession: "Using the portal session token. Choose OAuth 2.0 to get your own API token.",
+    tokenSourceNone: "No token — choose OAuth 2.0 and press “Get New Access Token”.",
+    getNewToken: "Get New Access Token",
+    clearToken: "Clear token",
+    tokenSaved: (u: string, m: number) => `Token received (${u}, ${m} min). It will be added to every Bearer request automatically.`,
+    tokenFailed: "Could not get a token",
+    tokenAuto: "access_token saved — it will be added to the Authorization header of Bearer requests automatically.",
     bodyJsonHint: "JSON payload",
     testsHint: "Write JavaScript tests for the response.",
     testsPlaceholder: "pm.test('Status code is 200', () => { ... })",
@@ -929,7 +952,7 @@ const translations = {
     collapseNetwork: "Collapse Network panel",
     expandNetwork: "Expand Network panel",
     noNetworkCalls: "No API calls yet.",
-    openInExplorer: "Open in Explorer",
+    openInExplorer: "Open in Callbox GUI",
     internalCalls: "Internal calls",
     overview: "Overview",
     totalBalance: "Total balance",
@@ -1169,7 +1192,7 @@ const translations = {
     lessonMaterials: "Lesson materials",
     practicalTasks: "Practical tasks",
     markComplete: "Mark as complete",
-    openInExplorerTask: "Open in Explorer",
+    openInExplorerTask: "Open in Callbox GUI",
     checkWithSql: "Check with SQL",
     taskSendRequest: "Send a request to the GET /users endpoint",
     taskInspectHeaders: "Inspect response headers and status code",
@@ -1488,6 +1511,9 @@ function CopyButton({
   );
 }
 
+// Auth Lab və Demo tətbiqlər API Reference bölməsinə aiddir (menyuda ayrıca bənd yoxdur)
+const navSection = (page: Page): Page => (page === "apps" || page === "auth" ? "reference" : page);
+
 function Header({
   language,
   setLanguage,
@@ -1514,9 +1540,8 @@ function Header({
   const [remainingSeconds, setRemainingSeconds] = useState(0);
   const navItems: { label: string; page?: Page }[] = [
     { label: t.home, page: "home" },
+    { label: t.apiReference, page: "reference" }, // Explorer + Auth Lab + Apps birləşdi: Auth Lab və Demo tətbiqlər Reference-in "Laboratoriyalar" bölməsindədir
     { label: t.explorer, page: "explorer" },
-    { label: t.apps, page: "apps" },
-    { label: t.authLab, page: "auth" },
     { label: t.sql, page: "sql" },
     { label: t.materials, page: "materials" },
     { label: t.externalApis, page: "external" },
@@ -1562,7 +1587,7 @@ function Header({
         <nav className="desktop-nav" aria-label={t.navLabel}>
           {navItems.map((item) => (
             <a
-              className={item.page === currentPage ? "nav-link active" : "nav-link"}
+              className={item.page === navSection(currentPage) ? "nav-link active" : "nav-link"}
               href={item.page ? pathOf(item.page) : "/"}
               key={item.label}
               onClick={(event) => {
@@ -1672,7 +1697,7 @@ function Header({
         <nav className="mobile-nav" aria-label={t.navLabel}>
           {navItems.map((item) => (
             <a
-              className={item.page === currentPage ? "mobile-nav-link active" : "mobile-nav-link"}
+              className={item.page === navSection(currentPage) ? "mobile-nav-link active" : "mobile-nav-link"}
               href={item.page ? pathOf(item.page) : "/"}
               key={item.label}
               onClick={(event) => {
@@ -1746,6 +1771,11 @@ function StatusChip({ status }: { status: number }) {
   );
 }
 
+// Spec-dəki security → Authorization tab-ının növü
+const AUTH_TYPE_OF: Record<Endpoint["auth"], string> = { bearer: "bearer", apiKey: "api-key", basic: "basic", none: "none" };
+// "a=1&b=2" → form body sətirləri
+const formRowsOf = (encoded: string): KeyValueRow[] => [...new URLSearchParams(encoded)].map(([key, value]) => ({ key, value, description: "" }));
+
 function ExplorerPage({ t }: { t: Translation }) {
   const baseUrl = `${window.location.origin}`;
   const [search, setSearch] = useState("");
@@ -1759,6 +1789,12 @@ function ExplorerPage({ t }: { t: Translation }) {
   const [params, setParams] = useState<KeyValueRow[]>([{ key: "", value: "", description: "" }]);
   const [headers, setHeaders] = useState<KeyValueRow[]>([{ key: "Accept", value: "application/json", description: "" }]);
   const [body, setBody] = useState("");
+  const [bodyMode, setBodyMode] = useState<"json" | "form">("json");
+  const [formRows, setFormRows] = useState<KeyValueRow[]>([{ key: "", value: "", description: "" }]);
+  const [storedToken, setStoredToken] = useState(apiToken.get);
+  const [oauthForm, setOauthForm] = useState({ username: "student", password: "student123" });
+  const [oauthStatus, setOauthStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [tokenNotice, setTokenNotice] = useState("");
   const [response, setResponse] = useState<ExplorerResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -1768,20 +1804,33 @@ function ExplorerPage({ t }: { t: Translation }) {
   const [testsScript, setTestsScript] = useState(SAMPLE_TESTS);
   const [testResults, setTestResults] = useState<TestResult[] | null>(null);
 
+  useEffect(() => apiToken.subscribe(() => setStoredToken(apiToken.get())), []);
+
   // Endpoint kitabxanası OpenAPI spec-dən
   useEffect(() => {
     apiClient.getEndpointGroups().then(setGroups).catch(() => setGroups([]));
     const pending = handoffs.take().explorer;
     if (pending) {
       setMethod(pending.method);
-      setUrl(`${baseUrl}${pending.path}`);
+      // Query string → Params cədvəli (Postman kimi)
+      const [pathOnly, search = ""] = pending.path.split("?");
+      setUrl(`${baseUrl}${pathOnly}`);
+      const query = [...new URLSearchParams(search)].map(([key, value]) => ({ key, value, description: "" }));
+      if (query.length) setParams(query);
+      if (pending.auth) setAuthType(AUTH_TYPE_OF[pending.auth]);
+      if (pending.contentType === "application/x-www-form-urlencoded" && pending.body) {
+        setBodyMode("form");
+        setFormRows(formRowsOf(pending.body));
+        setRequestTab("body");
+      }
       // External APIs: X-RapidAPI-Key (yalnız yaddaşdan) və JSON body
       if (pending.headers) {
         setHeaders([{ key: "Accept", value: "application/json", description: "" }, ...Object.entries(pending.headers).map(([key, value]) => ({ key, value, description: "" }))]);
         setRequestTab("headers");
       }
-      if (pending.body) {
+      if (pending.body && pending.contentType !== "application/x-www-form-urlencoded") {
         setBody(pending.body);
+        setBodyMode("json");
         setRequestTab("body");
       }
     }
@@ -1826,34 +1875,55 @@ function ExplorerPage({ t }: { t: Translation }) {
     return () => window.clearInterval(timer);
   }, [countdown]);
 
-  const selectEndpoint = (nextMethod: string, path: string, exampleBody?: string) => {
-    setMethod(nextMethod);
-    setUrl(`${baseUrl}${path}`);
-    setBody(exampleBody ?? "");
+  // Endpoint seçiləndə Params (query), Authorization (spec-dəki security) və Body (nümunə) avtomatik doldurulur
+  const selectEndpoint = (endpoint: Endpoint) => {
+    setMethod(endpoint.method);
+    setUrl(`${baseUrl}${endpoint.path}`);
+    const query = endpoint.query.map((q) => ({ key: q.name, value: q.value, description: `${q.required ? "* " : ""}${q.description}` }));
+    setParams(query.length ? query : [{ key: "", value: "", description: "" }]);
+    setAuthType(AUTH_TYPE_OF[endpoint.auth]);
+    setAuthValue(endpoint.auth === "apiKey" ? "apilab-demo-key-2026" : "");
+    const form = endpoint.contentType === "application/x-www-form-urlencoded";
+    setBodyMode(form ? "form" : "json");
+    setFormRows(form && endpoint.body ? formRowsOf(endpoint.body) : [{ key: "", value: "", description: "" }]);
+    setBody(form ? "" : endpoint.body ?? "");
     setResponse(null);
+    setTokenNotice("");
     setMobilePanel("request");
-    if (exampleBody) setRequestTab("body");
+    setRequestTab(endpoint.body ? "body" : query.length ? "params" : endpoint.auth !== "none" ? "auth" : "params");
+  };
+
+  // OAuth 2.0 → Get New Access Token (token endpoint-i, password grant)
+  const getNewAccessToken = async () => {
+    setOauthStatus(null);
+    const result = await requestToken({ grant_type: "password", client_id: PUBLIC_CLIENT_ID, username: oauthForm.username, password: oauthForm.password });
+    const b = result.body as { error_description?: string; expires_in?: number } | null;
+    setOauthStatus(result.status === 200 ? { ok: true, text: t.tokenSaved(oauthForm.username, Math.round((b?.expires_in ?? 900) / 60)) } : { ok: false, text: `${result.status} — ${b?.error_description ?? t.tokenFailed}` });
   };
 
   // Params → URL query, Headers + Auth → request headers
   const buildRequest = () => {
     const target = new URL(url, baseUrl);
-    params.filter((row) => row.key.trim()).forEach((row) => target.searchParams.set(row.key.trim(), row.value));
+    // Boş dəyərli parametr göndərilmir (Postman-da söndürülmüş sətir kimi)
+    params.filter((row) => row.key.trim() && row.value !== "").forEach((row) => target.searchParams.set(row.key.trim(), row.value));
     const requestHeaders: Record<string, string> = {};
     headers.filter((row) => row.key.trim()).forEach((row) => (requestHeaders[row.key.trim()] = row.value));
-    const sendsBody = body.trim() !== "" && !["GET", "HEAD"].includes(method);
+    const formBody = new URLSearchParams(formRows.filter((row) => row.key.trim()).map((row) => [row.key.trim(), row.value])).toString();
+    const payload = bodyMode === "form" ? formBody : body;
+    const sendsBody = payload.trim() !== "" && !["GET", "HEAD"].includes(method);
     if (sendsBody && !Object.keys(requestHeaders).some((key) => key.toLowerCase() === "content-type")) {
-      requestHeaders["Content-Type"] = "application/json";
+      requestHeaders["Content-Type"] = bodyMode === "form" ? "application/x-www-form-urlencoded" : "application/json";
     }
-    if (authType === "bearer") {
-      const token = authValue.trim() || authClient.getStoredSession()?.accessToken;
+    if (authType === "bearer" || authType === "oauth2") {
+      // Prioritet: əl ilə yazılan token → token endpoint-indən alınan API token → portal sessiyası
+      const token = authValue.trim() || (storedToken && storedToken.expiresAt > Date.now() ? storedToken.accessToken : "") || authClient.getStoredSession()?.accessToken;
       if (token) requestHeaders.Authorization = `Bearer ${token}`;
     } else if (authType === "api-key" && authValue.trim()) {
       requestHeaders["X-API-Key"] = authValue.trim();
     } else if (authType === "basic" && authValue.includes(":")) {
       requestHeaders.Authorization = `Basic ${toBase64(authValue)}`;
     }
-    return { url: target.toString(), headers: requestHeaders, body: sendsBody ? body : undefined };
+    return { url: target.toString(), headers: requestHeaders, body: sendsBody ? payload : undefined };
   };
 
   const sendRequest = async () => {
@@ -1863,6 +1933,11 @@ function ExplorerPage({ t }: { t: Translation }) {
     const built = buildRequest();
     const result = await apiClient.sendExplorerRequest({ method, ...built });
     setResponse(result);
+    // Token endpoint-inin uğurlu cavabı → token yadda saxlanılır və Bearer sorğulara avtomatik əlavə olunur
+    if (result.status === 200 && new URL(built.url).pathname === TOKEN_PATH) {
+      const saved = apiToken.setFromResponse(result.body, formRows.find((row) => row.key === "username")?.value);
+      setTokenNotice(saved ? t.tokenAuto : "");
+    } else setTokenNotice("");
     // Tests tab-ındakı assertion-lar real cavab üzərində icra olunur
     setTestResults(runTests(testsScript, { status: result.status, headers: result.headers, body: result.body, time: result.time }));
     setIsLoading(false);
@@ -1986,7 +2061,7 @@ function ExplorerPage({ t }: { t: Translation }) {
                       <button
                         className={active ? "endpoint-item active" : "endpoint-item"}
                         key={`${endpoint.method}-${endpoint.path}`}
-                        onClick={() => selectEndpoint(endpoint.method, endpoint.path, endpoint.body)}
+                        onClick={() => selectEndpoint(endpoint)}
                         type="button"
                       >
                         <span className={`mini-method method-${endpoint.method.toLowerCase()}`}>
@@ -2087,12 +2162,40 @@ function ExplorerPage({ t }: { t: Translation }) {
                   <span>{t.authType}</span>
                   <select value={authType} onChange={(event) => setAuthType(event.target.value)}>
                     <option value="none">{t.none}</option>
-                    <option value="bearer">Bearer</option>
+                    <option value="bearer">Bearer Token</option>
+                    <option value="oauth2">OAuth 2.0</option>
                     <option value="api-key">{t.apiKey}</option>
                     <option value="basic">{t.basic}</option>
                   </select>
                 </label>
-                {authType !== "none" && (
+                {(authType === "bearer" || authType === "oauth2") && (
+                  <p className="auth-source" role="status">
+                    {authValue.trim()
+                      ? t.tokenSourceManual
+                      : storedToken && storedToken.expiresAt > Date.now()
+                        ? t.tokenSourceApi(storedToken.username ?? "?", Math.max(1, Math.round((storedToken.expiresAt - Date.now()) / 60000)))
+                        : authClient.getStoredSession()
+                          ? t.tokenSourceSession
+                          : t.tokenSourceNone}
+                  </p>
+                )}
+                {authType === "oauth2" && (
+                  <div className="oauth-box">
+                    <strong>{t.getNewToken}</strong>
+                    <label><span>Token URL</span><input readOnly value={`${baseUrl}${TOKEN_PATH}`} /></label>
+                    <label><span>Grant type</span><input readOnly value="Password Credentials" /></label>
+                    <label><span>Client ID</span><input readOnly value={PUBLIC_CLIENT_ID} /></label>
+                    <label><span>Username</span><input autoComplete="off" onChange={(event) => setOauthForm((f) => ({ ...f, username: event.target.value }))} value={oauthForm.username} /></label>
+                    <label><span>Password</span><input autoComplete="off" onChange={(event) => setOauthForm((f) => ({ ...f, password: event.target.value }))} type="password" value={oauthForm.password} /></label>
+                    <div className="oauth-actions">
+                      <button className="oauth-get" onClick={() => void getNewAccessToken()} type="button">{t.getNewToken}</button>
+                      {storedToken && <button className="add-row-button" onClick={() => apiToken.clear()} type="button">{t.clearToken}</button>}
+                    </div>
+                    {oauthStatus && <p className={oauthStatus.ok ? "oauth-ok" : "oauth-error"} role="status">{oauthStatus.text}</p>}
+                    {storedToken && <code className="oauth-token">{storedToken.accessToken.slice(0, 48)}…</code>}
+                  </div>
+                )}
+                {authType !== "none" && authType !== "oauth2" && (
                   <label>
                     <span>{authType === "bearer" ? t.bearerToken : t.value}</span>
                     <input
@@ -2109,15 +2212,43 @@ function ExplorerPage({ t }: { t: Translation }) {
             {requestTab === "body" && (
               <div className="code-editor">
                 <div className="editor-toolbar">
-                  <span>{t.bodyJsonHint}</span>
-                  <code>application/json</code>
+                  <div className="body-mode" role="radiogroup" aria-label="Body">
+                    {(["json", "form"] as const).map((mode) => (
+                      <label key={mode}>
+                        <input checked={bodyMode === mode} name="body-mode" onChange={() => setBodyMode(mode)} type="radio" />
+                        {mode === "json" ? "raw (JSON)" : "x-www-form-urlencoded"}
+                      </label>
+                    ))}
+                  </div>
+                  <code>{bodyMode === "json" ? "application/json" : "application/x-www-form-urlencoded"}</code>
                 </div>
-                <textarea
-                  aria-label={t.bodyJsonHint}
-                  onChange={(event) => setBody(event.target.value)}
-                  spellCheck="false"
-                  value={body}
-                />
+                {bodyMode === "json" ? (
+                  <textarea
+                    aria-label={t.bodyJsonHint}
+                    onChange={(event) => setBody(event.target.value)}
+                    spellCheck="false"
+                    value={body}
+                  />
+                ) : (
+                  <div className="key-value-editor">
+                    <div className="kv-head">
+                      <span>{t.key}</span>
+                      <span>{t.value}</span>
+                      <span>{t.description}</span>
+                    </div>
+                    {formRows.map((row, index) => (
+                      <div className="kv-row" key={index}>
+                        <input aria-label={t.key} onChange={(event) => setFormRows((items) => items.map((r, i) => (i === index ? { ...r, key: event.target.value } : r)))} placeholder="grant_type" value={row.key} />
+                        <input aria-label={t.value} onChange={(event) => setFormRows((items) => items.map((r, i) => (i === index ? { ...r, value: event.target.value } : r)))} placeholder="password" type={row.key === "password" ? "password" : "text"} value={row.value} />
+                        <input aria-label={t.description} onChange={(event) => setFormRows((items) => items.map((r, i) => (i === index ? { ...r, description: event.target.value } : r)))} placeholder="—" value={row.description} />
+                      </div>
+                    ))}
+                    <button className="add-row-button" onClick={() => setFormRows((items) => [...items, { key: "", value: "", description: "" }])} type="button">
+                      <span>+</span>
+                      {t.addParameter}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2137,6 +2268,7 @@ function ExplorerPage({ t }: { t: Translation }) {
         </section>
 
         <aside className={`response-panel explorer-column panel-${mobilePanel}`}>
+          {tokenNotice && <div className="token-notice" role="status">{tokenNotice}</div>}
           <div className="panel-heading response-panel-heading">
             <div>
               <span>{t.response}</span>
@@ -5194,6 +5326,10 @@ function App() {
       </main>
       ) : currentPage === "signin" || currentPage === "register" ? (
         <SignInPage language={language} mode={currentPage} onModeChange={(mode) => navigateTo(mode)} onSignedIn={completeSignIn} t={t} />
+      ) : currentPage === "reference" ? (
+        <Suspense fallback={<main className="ref-page" id="main-content" aria-busy="true" />}>
+          <ReferencePage language={language} onNavigate={(page) => navigateTo(page)} />
+        </Suspense>
       ) : currentPage === "explorer" ? (
         <ExplorerPage t={t} />
       ) : currentPage === "apps" ? (

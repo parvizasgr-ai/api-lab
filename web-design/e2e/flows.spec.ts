@@ -164,7 +164,7 @@ test('klaviatura: ilk Tab → "Əsas məzmuna keç", Enter → main; nav linklə
     expect(info.visible, `fokus göstəricisi görünmür: ${info.text || info.href}`).toBe(true)
     reached.push(info.href)
   }
-  for (const target of ['/', '/explorer', '/apps', '/auth', '/sql', '/materials']) expect(reached).toContain(target)
+  for (const target of ['/', '/reference', '/callbox', '/sql', '/materials']) expect(reached).toContain(target)
   // Enter ilə naviqasiya
   await page.locator('.desktop-nav a[href="/sql"]').focus()
   await page.keyboard.press('Enter')

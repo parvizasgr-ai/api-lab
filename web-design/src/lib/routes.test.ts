@@ -4,7 +4,9 @@ import { parseRoute, pathOf, PROTECTED_PAGES } from "./routes";
 describe("routes (QA-M04)", () => {
   it("URL → səhifə və tətbiq; sonda / və naməlum yollar", () => {
     expect(parseRoute("/")).toEqual({ page: "home", app: null });
-    expect(parseRoute("/explorer")).toEqual({ page: "explorer", app: null });
+    expect(parseRoute("/explorer")).toEqual({ page: "explorer", app: null }); // köhnə link → Callbox GUI
+    expect(parseRoute("/callbox")).toEqual({ page: "explorer", app: null });
+    expect(parseRoute("/reference")).toEqual({ page: "reference", app: null });
     expect(parseRoute("/sql/")).toEqual({ page: "sql", app: null });
     expect(parseRoute("/apps/bank")).toEqual({ page: "apps", app: "bank" });
     expect(parseRoute("/apps/unknown")).toEqual({ page: "apps", app: null });
@@ -16,7 +18,7 @@ describe("routes (QA-M04)", () => {
     expect(pathOf("home")).toBe("/");
     expect(pathOf("apps", "customers")).toBe("/apps/customers");
     expect(pathOf("materials", "bank")).toBe("/materials");
-    for (const page of ["home", "explorer", "apps", "auth", "sql", "materials", "signin"] as const) expect(parseRoute(pathOf(page)).page).toBe(page);
+    for (const page of ["home", "reference", "explorer", "apps", "auth", "sql", "materials", "signin"] as const) expect(parseRoute(pathOf(page)).page).toBe(page);
   });
 
   it("qorunan səhifələr: home və signin deyil", () => {

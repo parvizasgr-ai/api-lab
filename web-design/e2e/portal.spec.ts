@@ -11,7 +11,15 @@ async function signIn(page: Page, username: string, password: string) {
   await expect(page.locator('.user-chip')).toBeVisible()
 }
 
-const nav = (page: Page, label: string) => page.locator('.desktop-nav').getByText(label, { exact: true }).click()
+// Apps və Auth Lab menyuda ayrıca yoxdur — API Reference → "Laboratoriyalar"; Explorer → Callbox GUI
+const nav = async (page: Page, label: string) => {
+  if (label === 'Apps' || label === 'Auth Lab') {
+    await page.locator('.desktop-nav').getByText('API Reference', { exact: true }).click()
+    await page.locator('.ref-nav a').filter({ hasText: label === 'Apps' ? /Demo tətbiqlər|Demo apps/ : /Auth Lab/ }).click()
+    return
+  }
+  await page.locator('.desktop-nav').getByText(label === 'Explorer' ? 'Callbox GUI' : label, { exact: true }).click()
+}
 
 async function session(page: Page) {
   return page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? 'null'), SESSION_KEY)

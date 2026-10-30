@@ -71,6 +71,9 @@ const skipHappy = (op: OperationInfo) => buildRequest(op).contentType === 'multi
 
 type Ctx = ReturnType<typeof createTestApp>;
 
+const dayFromToday = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+const opById = (id: string) => operations.find((o) => o.operationId === id)!;
+
 type Overrides = { body?: unknown; query?: Record<string, string>; path?: Record<string, string | number>; headers?: Record<string, string> };
 
 // External proxy əməliyyatları: upstream mock + verified kataloq + tələbə açarı (real RapidAPI-yə getmirik)
@@ -121,6 +124,19 @@ const PREPARE: Record<string, (ctx: Ctx) => Promise<Overrides>> = {
   },
   async createHotelReview() {
     return { path: { hotelId: 3 } }; // student-in bu otelə seed rəyi yoxdur
+  },
+  // API v2: spec nümunələrindəki tarixlər sabitdir — testdə bu günə nisbətən tarix (seed də bu günə nisbətəndir)
+  async v2GetExchangeRates() {
+    return { query: { from: 'USD', to: 'AZN', date: dayFromToday(-3), amount: '100' } };
+  },
+  async v2SearchFlights() {
+    return { query: { origin: 'GYD', destination: 'IST', departureDate: dayFromToday(3) } };
+  },
+  async v2SearchHotels() {
+    return { query: { city: 'Bakı', checkIn: dayFromToday(10), checkOut: dayFromToday(13) } };
+  },
+  async v2CreateHotelBooking() {
+    return { body: { ...(buildRequest(opById('v2CreateHotelBooking')).body as object), checkIn: dayFromToday(10), checkOut: dayFromToday(13) } };
   },
   // Bildiriş Kafka consumer-i ilə yaranır: kartı blokla → notification-service → MongoDB
   async updateNotification(ctx) {

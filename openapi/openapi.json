@@ -21,6 +21,38 @@
   ],
   "tags": [
     {
+      "name": "Authentication",
+      "description": "OpenID Connect token endpoint — `access_token` və `refresh_token` (API v2)"
+    },
+    {
+      "name": "Bank Accounts",
+      "description": "Bank hesabları və çıxarış (API v2, Bearer)"
+    },
+    {
+      "name": "Bank Cards",
+      "description": "Kart sifarişi, kart məlumatı, bloklama (API v2, Bearer)"
+    },
+    {
+      "name": "Deposits",
+      "description": "Depozit rəsmiləşdirmə, məlumat, bağlama (API v2, Bearer)"
+    },
+    {
+      "name": "Exchange Rates",
+      "description": "Valyuta kodları və məzənnələr (API v2, açıq)"
+    },
+    {
+      "name": "Air Travel",
+      "description": "Hava limanları, reys axtarışı, aviabilet bronu (API v2, açıq)"
+    },
+    {
+      "name": "Hotel Booking",
+      "description": "Otel axtarışı və bronu (API v2, açıq)"
+    },
+    {
+      "name": "Book Catalog",
+      "description": "Kitab məlumatı və rəylər (API v2, açıq)"
+    },
+    {
       "name": "Auth",
       "description": "Login, JWT access/refresh token, Basic Auth nümunəsi"
     },
@@ -109,7 +141,2751 @@
       "description": "Health, OpenAPI sənədi, Postman collection"
     }
   ],
+  "x-tagGroups": [
+    {
+      "name": "Callbox API v2",
+      "tags": [
+        "Authentication",
+        "Bank Accounts",
+        "Bank Cards",
+        "Deposits",
+        "Exchange Rates",
+        "Air Travel",
+        "Hotel Booking",
+        "Book Catalog"
+      ]
+    }
+  ],
   "paths": {
+    "/realms/callbox/protocol/openid-connect/token": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "operationId": "v2Token",
+        "summary": "Access token al (OpenID Connect token endpoint)",
+        "security": [],
+        "x-error-format": "oauth2",
+        "description": "Keycloak / OpenID Connect standartında **token endpoint**-i. Bank API-lərini (10 endpoint) çağırmaq üçün əvvəlcə buradan\n`access_token` alırsınız və onu sorğunun başlığına yazırsınız:\n\n```\nAuthorization: Bearer <access_token>\n```\n\nBody **`application/x-www-form-urlencoded`** formatındadır (JSON yox — OAuth 2.0 standartı, RFC 6749 §4.3).\n\n### Dəstəklənən grant növləri\n| `grant_type` | Məcburi sahələr | Nə vaxt istifadə olunur |\n|---|---|---|\n| `password` | `client_id`, `username`, `password` | İlk dəfə token almaq (istifadəçi adı + parol) |\n| `refresh_token` | `client_id`, `refresh_token` | `access_token`-in vaxtı (15 dəq) bitəndə yenisini almaq |\n\n* `client_id` həmişə **`callbox-api`**-dir (public client — `client_secret` lazım deyil).\n* `access_token` — JWT, **900 saniyə** (15 dəq) etibarlıdır. Məzmununa [jwt.io](https://jwt.io)-da baxa bilərsiniz.\n* `refresh_token` — **7 gün** etibarlıdır və **birdəfəlikdir** (rotation): hər istifadədə yenisi verilir, köhnəsi ləğv olunur.\n  Ləğv olunmuş refresh token yenidən göndərilsə, təhlükəsizlik üçün istifadəçinin bütün refresh token-ləri ləğv edilir.\n* 5 uğursuz parol cəhdindən sonra istifadəçi 15 dəqiqəlik bloklanır (**429**).\n\nXətalar RFC 6749 formatındadır: `{ \"error\": \"...\", \"error_description\": \"...\" }`.\n\nCallbox GUI-də **Authorization → OAuth 2.0 → Get New Access Token** düyməsi bu endpoint-i çağırır və alınan token\nBearer token tələb edən bütün sorğulara avtomatik əlavə olunur.\n",
+        "x-db-impact": {
+          "reads": [
+            "users",
+            "user_scopes",
+            "refresh_tokens",
+            "rate_limit_counters"
+          ],
+          "writes": [
+            "INSERT refresh_tokens",
+            "UPDATE refresh_tokens (revoked_at — refresh grant)",
+            "UPDATE users (last_login_at)"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/V2TokenForm"
+              },
+              "examples": {
+                "password": {
+                  "summary": "grant_type=password — ilk token",
+                  "value": {
+                    "grant_type": "password",
+                    "client_id": "callbox-api",
+                    "username": "student",
+                    "password": "student123"
+                  }
+                },
+                "refresh": {
+                  "summary": "grant_type=refresh_token — tokeni yenilə",
+                  "value": {
+                    "grant_type": "refresh_token",
+                    "client_id": "callbox-api",
+                    "refresh_token": "rt_4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token cütü",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "no-store"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2TokenResponse"
+                },
+                "example": {
+                  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidXNlcm5hbWUiOiJzdHVkZW50In0.sig",
+                  "expires_in": 900,
+                  "refresh_expires_in": 604800,
+                  "refresh_token": "rt_4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f",
+                  "token_type": "Bearer",
+                  "not-before-policy": 0,
+                  "scope": "accounts:read cards:read cards:write transfers:write bookings:read bookings:write books:write music:read music:write"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "RFC 6749 xətası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                },
+                "examples": {
+                  "badCredentials": {
+                    "summary": "Username və ya parol səhvdir",
+                    "value": {
+                      "error": "invalid_grant",
+                      "error_description": "Invalid user credentials"
+                    }
+                  },
+                  "badRefresh": {
+                    "summary": "Refresh token etibarsızdır / artıq istifadə olunub",
+                    "value": {
+                      "error": "invalid_grant",
+                      "error_description": "Refresh token etibarsızdır, vaxtı keçib və ya artıq istifadə olunub"
+                    }
+                  },
+                  "missingField": {
+                    "summary": "Məcburi sahə yoxdur",
+                    "value": {
+                      "error": "invalid_request",
+                      "error_description": "password grant üçün username və password məcburidir"
+                    }
+                  },
+                  "wrongGrant": {
+                    "summary": "Dəstəklənməyən grant_type",
+                    "value": {
+                      "error": "unsupported_grant_type",
+                      "error_description": "Dəstəklənən grant_type: password, refresh_token"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "client_id səhvdir",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthError"
+                },
+                "example": {
+                  "error": "invalid_client",
+                  "error_description": "Naməlum client_id: my-app"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/accounts": {
+      "get": {
+        "tags": [
+          "Bank Accounts"
+        ],
+        "operationId": "v2ListAccounts",
+        "summary": "Hesabların siyahısı",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "accounts:read"
+        ],
+        "description": "Token sahibinin bütün bank hesablarını qaytarır (cari və yığım). Kart sifarişi və depozit üçün lazım olan\n**`id`** (məs. `AZ21NABZ0001`) buradan götürülür.\n\nYalnız **öz** hesablarınız görünür — başqa istifadəçinin hesabı heç vaxt siyahıya düşmür.\n",
+        "x-db-impact": {
+          "reads": [
+            "accounts"
+          ],
+          "writes": []
+        },
+        "responses": {
+          "200": {
+            "description": "Hesablar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2AccountList"
+                },
+                "example": {
+                  "object": "list",
+                  "url": "/api/v2/accounts",
+                  "hasMore": false,
+                  "data": [
+                    {
+                      "id": "AZ21NABZ0001",
+                      "object": "account",
+                      "type": "CURRENT",
+                      "currency": "AZN",
+                      "balance": 3981.9,
+                      "openedAt": "2025-10-15T10:00:00Z",
+                      "updatedAt": "2026-10-29T19:00:00Z"
+                    },
+                    {
+                      "id": "AZ21NABZ0002",
+                      "object": "account",
+                      "type": "SAVINGS",
+                      "currency": "USD",
+                      "balance": 910,
+                      "openedAt": "2025-12-29T11:00:00Z",
+                      "updatedAt": "2026-10-18T14:00:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/accounts/{accountId}/transactions": {
+      "get": {
+        "tags": [
+          "Bank Accounts"
+        ],
+        "operationId": "v2ListAccountTransactions",
+        "summary": "Hesab çıxarışı (əməliyyatlar)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "accounts:read"
+        ],
+        "description": "Hesab üzrə əməliyyatlar — ən yenisi birinci. Depozit açılışı/bağlanışı da burada `depositId` ilə görünür.\n\n**Pagination (cursor):** cavabda `hasMore: true` varsa, növbəti səhifə üçün son elementin `id`-sini\n`startingAfter` parametrinə yazın: `?limit=10&startingAfter=812`.\n",
+        "x-db-impact": {
+          "reads": [
+            "accounts",
+            "transactions"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "description": "Hesab nömrəsi (`GET /api/v2/accounts`)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{8,34}$"
+            },
+            "example": "AZ21NABZ0001"
+          },
+          {
+            "name": "fromDate",
+            "in": "query",
+            "required": false,
+            "description": "Bu tarixdən (daxil)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-10-01"
+          },
+          {
+            "name": "toDate",
+            "in": "query",
+            "required": false,
+            "description": "Bu tarixədək (daxil)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-10-31"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "description": "DEBIT — çıxış, CREDIT — mədaxil",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DEBIT",
+                "CREDIT"
+              ]
+            },
+            "example": "DEBIT"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Səhifədə element sayı",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            },
+            "example": 20
+          },
+          {
+            "name": "startingAfter",
+            "in": "query",
+            "required": false,
+            "description": "Cursor: əvvəlki səhifənin son əməliyyatının id-si",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 812
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Əməliyyatlar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2TransactionList"
+                },
+                "example": {
+                  "object": "list",
+                  "url": "/api/v2/accounts/AZ21NABZ0001/transactions",
+                  "hasMore": true,
+                  "data": [
+                    {
+                      "id": 845,
+                      "object": "transaction",
+                      "type": "DEBIT",
+                      "amount": 500,
+                      "currency": "AZN",
+                      "description": "Depozit açılışı: dep_5f2a9c1e7b30 (6 ay, 8%)",
+                      "transferId": null,
+                      "depositId": "dep_5f2a9c1e7b30",
+                      "createdAt": "2026-09-19T10:00:00Z"
+                    },
+                    {
+                      "id": 812,
+                      "object": "transaction",
+                      "type": "CREDIT",
+                      "amount": 1500,
+                      "currency": "AZN",
+                      "description": "Əmək haqqı",
+                      "transferId": null,
+                      "depositId": null,
+                      "createdAt": "2026-09-15T09:00:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenBola"
+          },
+          "404": {
+            "description": "Hesab tapılmadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-30T09:00:00Z",
+                  "status": 404,
+                  "code": "ACCOUNT_NOT_FOUND",
+                  "message": "Hesab tapılmadı",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/cards": {
+      "get": {
+        "tags": [
+          "Bank Cards"
+        ],
+        "operationId": "v2ListCards",
+        "summary": "Kartların siyahısı",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "cards:read"
+        ],
+        "description": "Token sahibinin bütün kartları. `status` və `accountId` ilə filtrləmək olar.",
+        "x-db-impact": {
+          "reads": [
+            "cards",
+            "accounts"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Status filtri",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "BLOCKED",
+                "EXPIRED"
+              ]
+            },
+            "example": "ACTIVE"
+          },
+          {
+            "name": "accountId",
+            "in": "query",
+            "required": false,
+            "description": "Yalnız bu hesaba bağlı kartlar",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{8,34}$"
+            },
+            "example": "AZ21NABZ0001"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kartlar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2CardList"
+                },
+                "example": {
+                  "object": "list",
+                  "url": "/api/v2/cards",
+                  "hasMore": false,
+                  "data": [
+                    {
+                      "id": 8,
+                      "object": "card",
+                      "accountId": "AZ21NABZ0001",
+                      "type": "VIRTUAL",
+                      "brand": "VISA",
+                      "last4": "0427",
+                      "maskedNumber": "4*** **** **** 0427",
+                      "nameOnCard": "AYSEL MAMMADOVA",
+                      "currency": "AZN",
+                      "status": "ACTIVE",
+                      "statusReason": null,
+                      "dailyLimit": 500,
+                      "expiry": {
+                        "month": 10,
+                        "year": 2029
+                      },
+                      "delivery": null,
+                      "createdAt": "2026-10-30T09:00:00Z",
+                      "updatedAt": "2026-10-30T09:00:00Z"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Bank Cards"
+        ],
+        "operationId": "v2CreateCard",
+        "summary": "Kart sifarişi (kart rəsmiləşdirmə)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "cards:write"
+        ],
+        "description": "Mövcud hesaba yeni debet kart rəsmiləşdirir. Kart dərhal `ACTIVE` statusunda yaranır (sandbox), kartın valyutası\nbağlandığı hesabın valyutasıdır.\n\n| `type` | Nə deməkdir | `delivery` |\n|---|---|---|\n| `VIRTUAL` | Yalnız onlayn ödənişlər üçün, dərhal istifadəyə hazırdır | **göndərilmir** |\n| `PHYSICAL` | Plastik kart, 5 iş günü ərzində hazırlanır | **məcburidir**: `BRANCH` + `branchCode` və ya `COURIER` + `address` |\n\n**Biznes qaydaları**\n* `nameOnCard` — kartın üzərində yazılan ad: yalnız **böyük latın hərfləri**, boşluq, nöqtə, defis; 2–26 simvol (ISO/IEC 7813).\n* `dailyLimit` — gündəlik xərc limiti (default **1000.00**, maks. **10000.00**).\n* Bir istifadəçinin ən çox **10 aktiv** kartı ola bilər → `422 CARD_LIMIT_REACHED`.\n* Kartın müddəti — 3 il (ayın son günü).\n* Başqasının hesabına kart sifarişi → `403 FORBIDDEN`.\n* Şəbəkə xətasından sonra təkrar göndərmə üçün `Idempotency-Key` başlığı (könüllü) — eyni açar ikinci kart yaratmır.\n",
+        "x-db-impact": {
+          "reads": [
+            "accounts",
+            "cards"
+          ],
+          "writes": [
+            "INSERT cards",
+            "INSERT card_status_history (trigger)",
+            "INSERT audit_log"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyOptional"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2CardCreate"
+              },
+              "examples": {
+                "virtual": {
+                  "summary": "Virtual kart",
+                  "value": {
+                    "accountId": "AZ21NABZ0001",
+                    "type": "VIRTUAL",
+                    "brand": "VISA",
+                    "nameOnCard": "AYSEL MAMMADOVA",
+                    "dailyLimit": 500
+                  }
+                },
+                "physicalBranch": {
+                  "summary": "Fiziki kart — filialdan götürmə",
+                  "value": {
+                    "accountId": "AZ21NABZ0001",
+                    "type": "PHYSICAL",
+                    "brand": "MASTERCARD",
+                    "nameOnCard": "AYSEL MAMMADOVA",
+                    "delivery": {
+                      "method": "BRANCH",
+                      "branchCode": "BR-028"
+                    }
+                  }
+                },
+                "physicalCourier": {
+                  "summary": "Fiziki kart — kuryer",
+                  "value": {
+                    "accountId": "AZ21NABZ0002",
+                    "type": "PHYSICAL",
+                    "brand": "VISA",
+                    "nameOnCard": "AYSEL MAMMADOVA",
+                    "delivery": {
+                      "method": "COURIER",
+                      "address": "Bakı, Nizami küç. 10, mənzil 5"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Kart yaradıldı",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "/api/v2/cards/8"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Card"
+                },
+                "examples": {
+                  "virtual": {
+                    "$ref": "#/components/examples/V2CardVirtual"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Validation və ya biznes qaydası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "deliveryRequired": {
+                    "summary": "Fiziki kart üçün delivery yoxdur",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "DELIVERY_REQUIRED",
+                      "message": "Fiziki kart üçün delivery məcburidir",
+                      "details": [
+                        {
+                          "field": "delivery",
+                          "message": "Fiziki kart üçün delivery məcburidir"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "limit": {
+                    "summary": "Aktiv kart limiti",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "CARD_LIMIT_REACHED",
+                      "message": "Ən çox 10 aktiv kart ola bilər",
+                      "details": [
+                        {
+                          "field": "accountId",
+                          "message": "Ən çox 10 aktiv kart ola bilər"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "validation": {
+                    "summary": "nameOnCard kiçik hərflə",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "VALIDATION_ERROR",
+                      "message": "Request sxemə uyğun deyil",
+                      "details": [
+                        {
+                          "field": "body.nameOnCard",
+                          "message": "must match pattern \"^[A-Z][A-Z .'-]{1,25}$\""
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/cards/{cardId}": {
+      "get": {
+        "tags": [
+          "Bank Cards"
+        ],
+        "operationId": "v2GetCard",
+        "summary": "Kart haqqında məlumat",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "cards:read"
+        ],
+        "description": "Kartın tam məlumatı: maskalı nömrə, status, limit, bitmə tarixi, çatdırılma vəziyyəti.\nTam kart nömrəsi və CVV **heç vaxt** qaytarılmır (PCI DSS).\n\nKart yoxdursa → `404 CARD_NOT_FOUND`, başqasınındırsa → `403 FORBIDDEN` (BOLA qorunması).\n",
+        "x-db-impact": {
+          "reads": [
+            "cards",
+            "accounts"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "cardId",
+            "in": "path",
+            "required": true,
+            "description": "Kartın id-si",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kart",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Card"
+                },
+                "examples": {
+                  "physical": {
+                    "$ref": "#/components/examples/V2CardPhysical"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenBola"
+          },
+          "404": {
+            "$ref": "#/components/responses/CardNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/cards/{cardId}/block": {
+      "post": {
+        "tags": [
+          "Bank Cards"
+        ],
+        "operationId": "v2BlockCard",
+        "summary": "Kartı blokla",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "cards:write"
+        ],
+        "description": "Kartı dərhal bloklayır — bütün ödənişlər rədd olunur. Səbəb məcburidir:\n\n| `reason` | Nə vaxt |\n|---|---|\n| `LOST` | Kart itib |\n| `STOLEN` | Kart oğurlanıb (bu kart bir daha açılmır — yeni kart sifariş edin) |\n| `SUSPECTED_FRAUD` | Şübhəli əməliyyat görülüb |\n\nArtıq bloklanmış kart → `409 CARD_ALREADY_BLOCKED`, müddəti bitmiş kart → `409 CARD_EXPIRED`.\nUğurlu bloklama Kafka-ya `card.blocked` hadisəsi göndərir (Infra → Kafka-da görünür).\n",
+        "x-db-impact": {
+          "reads": [
+            "cards"
+          ],
+          "writes": [
+            "UPDATE cards (status",
+            "status_reason)",
+            "INSERT card_status_history (trigger)",
+            "INSERT audit_log"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "cardId",
+            "in": "path",
+            "required": true,
+            "description": "Kartın id-si",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2CardBlock"
+              },
+              "example": {
+                "reason": "LOST",
+                "comment": "Metroda itirmişəm"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Kart bloklandı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Card"
+                },
+                "examples": {
+                  "blocked": {
+                    "$ref": "#/components/examples/V2CardBlocked"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenBola"
+          },
+          "404": {
+            "$ref": "#/components/responses/CardNotFound"
+          },
+          "409": {
+            "description": "Kartın hazırkı statusu bloklamağa imkan vermir",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "already": {
+                    "summary": "Artıq bloklanıb",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 409,
+                      "code": "CARD_ALREADY_BLOCKED",
+                      "message": "Kart artıq bloklanıb",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "expired": {
+                    "summary": "Müddəti bitib",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 409,
+                      "code": "CARD_EXPIRED",
+                      "message": "Kartın müddəti bitib",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/deposits": {
+      "get": {
+        "tags": [
+          "Deposits"
+        ],
+        "operationId": "v2ListDeposits",
+        "summary": "Depozitlərin siyahısı",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "accounts:read"
+        ],
+        "description": "Token sahibinin bütün depozitləri (ən yenisi birinci), hər biri üçün bu günədək hesablanmış faiz (`accruedInterest`).",
+        "x-db-impact": {
+          "reads": [
+            "deposits"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "Status filtri",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "CLOSED"
+              ]
+            },
+            "example": "ACTIVE"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Depozitlər",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DepositList"
+                },
+                "example": {
+                  "object": "list",
+                  "url": "/api/v2/deposits",
+                  "hasMore": false,
+                  "data": [
+                    {
+                      "id": "dep_5f2a9c1e7b30",
+                      "object": "deposit",
+                      "status": "ACTIVE",
+                      "currency": "AZN",
+                      "principal": 500,
+                      "annualRate": 8,
+                      "termMonths": 6,
+                      "interestPayout": "AT_MATURITY",
+                      "autoRenew": false,
+                      "sourceAccountId": "AZ21NABZ0001",
+                      "openedAt": "2026-09-20T10:00:00Z",
+                      "maturityDate": "2027-03-20",
+                      "daysElapsed": 40,
+                      "accruedInterest": 4.38,
+                      "expectedInterest": 19.78,
+                      "expectedPayout": 519.78,
+                      "closedAt": null,
+                      "interestPaid": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Deposits"
+        ],
+        "operationId": "v2CreateDeposit",
+        "summary": "Depozit rəsmiləşdirmə",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "transfers:write"
+        ],
+        "description": "Müddətli depozit açır. Məbləğ `sourceAccountId` hesabından **dərhal çıxılır** (çıxarışda `DEBIT` əməliyyatı yaranır),\ndepozitin valyutası həmin hesabın valyutasıdır.\n\n### Faiz cədvəli (illik, %)\n| Valyuta | 3 ay | 6 ay | 12 ay | 24 ay |\n|---|---|---|---|---|\n| AZN | 7.0 | 8.0 | 10.0 | 11.0 |\n| USD | 1.0 | 1.5 | 2.5 | 3.0 |\n| EUR | 0.5 | 1.0 | 1.5 | 2.0 |\n\n* Minimum məbləğ: **100.00** (hər valyutada). Digər valyutalarda depozit açılmır → `422 DEPOSIT_CURRENCY_NOT_SUPPORTED`.\n* Faiz sadə üsulla hesablanır (ACT/365): `principal × rate / 100 × gün / 365`.\n  Məs. 1000 AZN, 12 ay, 10% → **100.00 AZN** faiz, müddətin sonunda **1100.00 AZN**.\n* `interestPayout`: `AT_MATURITY` (müddətin sonunda, default) və ya `MONTHLY` (məlumat üçün; məbləğ eynidir).\n* Hesabda kifayət qədər vəsait yoxdursa → `422 INSUFFICIENT_FUNDS` (balans dəyişmir).\n",
+        "x-db-impact": {
+          "reads": [
+            "accounts"
+          ],
+          "writes": [
+            "INSERT deposits",
+            "UPDATE accounts (balance_minor)",
+            "INSERT transactions (DEBIT",
+            "deposit_id)",
+            "INSERT audit_log"
+          ]
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKeyOptional"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2DepositCreate"
+              },
+              "example": {
+                "sourceAccountId": "AZ21NABZ0001",
+                "amount": 1000,
+                "termMonths": 12,
+                "interestPayout": "AT_MATURITY",
+                "autoRenew": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Depozit açıldı",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "/api/v2/deposits/dep_8a41c0d2e9f7"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Deposit"
+                },
+                "example": {
+                  "id": "dep_8a41c0d2e9f7",
+                  "object": "deposit",
+                  "status": "ACTIVE",
+                  "currency": "AZN",
+                  "principal": 1000,
+                  "annualRate": 10,
+                  "termMonths": 12,
+                  "interestPayout": "AT_MATURITY",
+                  "autoRenew": false,
+                  "sourceAccountId": "AZ21NABZ0001",
+                  "openedAt": "2026-10-30T09:00:00Z",
+                  "maturityDate": "2027-10-30",
+                  "daysElapsed": 0,
+                  "accruedInterest": 0,
+                  "expectedInterest": 100,
+                  "expectedPayout": 1100,
+                  "closedAt": null,
+                  "interestPaid": null
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Validation və ya biznes qaydası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "funds": {
+                    "summary": "Balans çatmır",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "INSUFFICIENT_FUNDS",
+                      "message": "Hesabda kifayət qədər vəsait yoxdur",
+                      "details": [
+                        {
+                          "field": "amount",
+                          "message": "Mövcud balans: 398.19 AZN"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "small": {
+                    "summary": "Minimum məbləğ",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "AMOUNT_TOO_SMALL",
+                      "message": "Minimum depozit məbləği: 100.00 AZN",
+                      "details": [
+                        {
+                          "field": "amount",
+                          "message": "Minimum depozit məbləği: 100.00 AZN"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "currency": {
+                    "summary": "Valyuta dəstəklənmir",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "DEPOSIT_CURRENCY_NOT_SUPPORTED",
+                      "message": "GBP valyutasında depozit açılmır (yalnız AZN, USD, EUR)",
+                      "details": [
+                        {
+                          "field": "sourceAccountId",
+                          "message": "GBP valyutasında depozit açılmır (yalnız AZN, USD, EUR)"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/deposits/{depositId}": {
+      "get": {
+        "tags": [
+          "Deposits"
+        ],
+        "operationId": "v2GetDeposit",
+        "summary": "Depozit haqqında məlumat",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "accounts:read"
+        ],
+        "description": "Depozitin tam vəziyyəti: əsas məbləğ, faiz dərəcəsi, bitmə tarixi, **bu günədək hesablanmış faiz** (`accruedInterest`),\nmüddətin sonunda gözlənilən faiz və ümumi məbləğ (`expectedInterest`, `expectedPayout`).\n",
+        "x-db-impact": {
+          "reads": [
+            "deposits"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "depositId",
+            "in": "path",
+            "required": true,
+            "description": "Depozitin id-si",
+            "schema": {
+              "type": "string",
+              "pattern": "^dep_[a-f0-9]{12}$"
+            },
+            "example": "dep_5f2a9c1e7b30"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Depozit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Deposit"
+                },
+                "examples": {
+                  "active": {
+                    "$ref": "#/components/examples/V2Deposit"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenBola"
+          },
+          "404": {
+            "$ref": "#/components/responses/DepositNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/deposits/{depositId}/close": {
+      "post": {
+        "tags": [
+          "Deposits"
+        ],
+        "operationId": "v2CloseDeposit",
+        "summary": "Depoziti bağla",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-required-scopes": [
+          "transfers:write"
+        ],
+        "description": "Depoziti bağlayır və vəsaiti mənbə hesaba qaytarır (çıxarışda `CREDIT`).\n\n* **Müddət bitibsə** — əsas məbləğ + tam faiz ödənilir.\n* **Vaxtından əvvəl** — yalnız əsas məbləğ qaytarılır, faiz ödənilmir (`earlyClosure: true`, `interestPaid: 0`).\n* Artıq bağlanmış depozit → `409 DEPOSIT_ALREADY_CLOSED`.\n\nBody göndərilmir.\n",
+        "x-db-impact": {
+          "reads": [
+            "deposits"
+          ],
+          "writes": [
+            "UPDATE deposits (status",
+            "closed_at",
+            "interest_paid_minor)",
+            "UPDATE accounts (balance_minor)",
+            "INSERT transactions (CREDIT)",
+            "INSERT audit_log"
+          ]
+        },
+        "parameters": [
+          {
+            "name": "depositId",
+            "in": "path",
+            "required": true,
+            "description": "Depozitin id-si",
+            "schema": {
+              "type": "string",
+              "pattern": "^dep_[a-f0-9]{12}$"
+            },
+            "example": "dep_5f2a9c1e7b30"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Depozit bağlandı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2DepositClosed"
+                },
+                "example": {
+                  "id": "dep_5f2a9c1e7b30",
+                  "object": "deposit",
+                  "status": "CLOSED",
+                  "currency": "AZN",
+                  "principal": 500,
+                  "annualRate": 8,
+                  "termMonths": 6,
+                  "interestPayout": "AT_MATURITY",
+                  "autoRenew": false,
+                  "sourceAccountId": "AZ21NABZ0001",
+                  "openedAt": "2026-09-20T10:00:00Z",
+                  "maturityDate": "2027-03-20",
+                  "daysElapsed": 40,
+                  "accruedInterest": 0,
+                  "expectedInterest": 19.78,
+                  "expectedPayout": 519.78,
+                  "closedAt": "2026-10-30T09:00:00Z",
+                  "interestPaid": 0,
+                  "earlyClosure": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenBola"
+          },
+          "404": {
+            "$ref": "#/components/responses/DepositNotFound"
+          },
+          "409": {
+            "description": "Artıq bağlanıb",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-30T09:00:00Z",
+                  "status": 409,
+                  "code": "DEPOSIT_ALREADY_CLOSED",
+                  "message": "Depozit artıq bağlanıb",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/currencies": {
+      "get": {
+        "tags": [
+          "Exchange Rates"
+        ],
+        "operationId": "v2ListCurrencies",
+        "summary": "Valyuta kodları (ISO 4217)",
+        "security": [],
+        "description": "Dəstəklənən bütün valyutalar — **ISO 4217** hərf kodu (`code`), rəqəm kodu (`numericCode`), simvol və onluq rəqəm sayı.\nAutentifikasiya tələb olunmur. `GET /api/v2/exchange-rates`-də istifadə edə biləcəyiniz kodlar bunlardır.\n",
+        "x-db-impact": {
+          "reads": [
+            "currencies"
+          ],
+          "writes": []
+        },
+        "responses": {
+          "200": {
+            "description": "Valyutalar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2CurrencyList"
+                },
+                "example": {
+                  "object": "list",
+                  "url": "/api/v2/currencies",
+                  "hasMore": false,
+                  "data": [
+                    {
+                      "code": "AZN",
+                      "object": "currency",
+                      "name": "Azərbaycan manatı",
+                      "symbol": "₼",
+                      "numericCode": "944",
+                      "minorUnits": 2
+                    },
+                    {
+                      "code": "EUR",
+                      "object": "currency",
+                      "name": "Avro",
+                      "symbol": "€",
+                      "numericCode": "978",
+                      "minorUnits": 2
+                    },
+                    {
+                      "code": "USD",
+                      "object": "currency",
+                      "name": "ABŞ dolları",
+                      "symbol": "$",
+                      "numericCode": "840",
+                      "minorUnits": 2
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/exchange-rates": {
+      "get": {
+        "tags": [
+          "Exchange Rates"
+        ],
+        "operationId": "v2GetExchangeRates",
+        "summary": "Valyuta məzənnəsi (və konvertasiya)",
+        "security": [],
+        "description": "Bir valyutanın (`from`) digər valyutalara nisbətən məzənnəsi. Autentifikasiya tələb olunmur.\n\n| Sorğu | Nəticə |\n|---|---|\n| `?from=USD&to=AZN` | 1 USD neçə AZN-dir (son tarix) |\n| `?from=USD&to=AZN&date=2026-10-20` | Həmin tarixin məzənnəsi |\n| `?from=USD&to=AZN&amount=250` | Əlavə olaraq `converted.AZN` = 250 USD-nin AZN qarşılığı |\n| `?from=EUR&to=USD,AZN,TRY` | Bir neçə valyuta (vergüllə) |\n| `?from=AZN` | `to` yoxdursa — bütün valyutalar |\n\n* `from` göndərilməsə **AZN** götürülür.\n* `date` göndərilməsə — **ən son** məzənnə. Həmin tarixdə məzənnə yoxdursa (həftəsonu / bayram), ondan əvvəlki ən yaxın\n  tarixin məzənnəsi qaytarılır: cavabda `date` (faktiki) və `requestedDate` (siz göndərən) fərqli olur.\n* Gələcək tarix → `422 INVALID_DATE`; naməlum valyuta → `422 UNSUPPORTED_CURRENCY`; tarixçədən əvvəlki tarix → `404 RATE_NOT_FOUND`.\n* Məzənnə 6, konvertasiya nəticəsi 2 onluq rəqəmlə yuvarlaqlaşdırılır.\n",
+        "x-db-impact": {
+          "reads": [
+            "currencies",
+            "exchange_rates"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "Əsas valyuta (ISO 4217)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "default": "AZN"
+            },
+            "example": "USD"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "Hədəf valyuta(lar), vergüllə: `AZN` və ya `AZN,EUR`",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}(,[A-Z]{3}){0,9}$"
+            },
+            "example": "AZN"
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "Tarix (YYYY-MM-DD); yoxdursa — son məzənnə",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2026-10-20"
+          },
+          {
+            "name": "amount",
+            "in": "query",
+            "required": false,
+            "description": "Konvertasiya ediləcək məbləğ",
+            "schema": {
+              "type": "number",
+              "minimum": 0.01,
+              "maximum": 1000000000
+            },
+            "example": 100
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Məzənnə",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2ExchangeRate"
+                },
+                "examples": {
+                  "single": {
+                    "summary": "from=USD&to=AZN&amount=100",
+                    "value": {
+                      "object": "exchange_rate",
+                      "base": "USD",
+                      "date": "2026-10-30",
+                      "requestedDate": null,
+                      "source": "CBAR (simulyasiya)",
+                      "rates": {
+                        "AZN": 1.7
+                      },
+                      "amount": 100,
+                      "converted": {
+                        "AZN": 170
+                      }
+                    }
+                  },
+                  "all": {
+                    "summary": "from=AZN (bütün valyutalar)",
+                    "value": {
+                      "object": "exchange_rate",
+                      "base": "AZN",
+                      "date": "2026-10-30",
+                      "requestedDate": null,
+                      "source": "CBAR (simulyasiya)",
+                      "rates": {
+                        "AED": 2.160294,
+                        "EUR": 0.506329,
+                        "GBP": 0.438596,
+                        "GEL": 1.589825,
+                        "TRY": 24.390244,
+                        "USD": 0.588235
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/RateNotFound"
+          },
+          "422": {
+            "description": "Validation xətası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "currency": {
+                    "summary": "Naməlum valyuta",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "UNSUPPORTED_CURRENCY",
+                      "message": "Dəstəklənməyən valyuta: XYZ",
+                      "details": [
+                        {
+                          "field": "to",
+                          "message": "GET /api/v2/currencies siyahısına baxın"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "future": {
+                    "summary": "Gələcək tarix",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "INVALID_DATE",
+                      "message": "Gələcək tarix üçün məzənnə yoxdur",
+                      "details": [
+                        {
+                          "field": "date",
+                          "message": "Gələcək tarix üçün məzənnə yoxdur"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/airports": {
+      "get": {
+        "tags": [
+          "Air Travel"
+        ],
+        "operationId": "v2ListAirports",
+        "summary": "Hava limanları (IATA kodları)",
+        "security": [],
+        "description": "Hava limanlarının siyahısı və onların 3 hərfli **IATA kodları** (`GYD` — Bakı, `IST` — İstanbul).\nReys axtarışında `origin` və `destination` bu kodlardır. `search` kod, şəhər və ad üzrə axtarır (böyük-kiçik hərf fərq etmir).\n",
+        "x-db-impact": {
+          "reads": [
+            "airports"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Kod, şəhər və ya ad üzrə axtarış",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            },
+            "example": "ist"
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "description": "Ölkə adı",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 50
+            },
+            "example": "Türkiyə"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Hava limanları",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2AirportList"
+                },
+                "example": {
+                  "object": "list",
+                  "url": "/api/v2/airports",
+                  "hasMore": false,
+                  "data": [
+                    {
+                      "iataCode": "IST",
+                      "object": "airport",
+                      "name": "İstanbul Hava Limanı",
+                      "city": "İstanbul",
+                      "country": "Türkiyə"
+                    },
+                    {
+                      "iataCode": "SAW",
+                      "object": "airport",
+                      "name": "Sabiha Gökçen Hava Limanı",
+                      "city": "İstanbul",
+                      "country": "Türkiyə"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/flights/search": {
+      "get": {
+        "tags": [
+          "Air Travel"
+        ],
+        "operationId": "v2SearchFlights",
+        "summary": "Reys axtarışı",
+        "security": [],
+        "description": "Verilən gün üçün birbaşa və aktarmalı reys təklifləri (`flight_offer`). Autentifikasiya tələb olunmur.\n\n* `origin`, `destination` — IATA kodları (`GET /api/v2/airports`); eyni ola bilməz → `422 SAME_AIRPORT`.\n* `departureDate` — uçuş günü (UTC), keçmiş tarix → `422 INVALID_DATE`. Reyslər **sabahdan 30 gün irəli** mövcuddur.\n* Yalnız `adults + children` qədər boş yeri olan reyslər qaytarılır.\n* Qiymət: uşaq (2–11 yaş) böyük biletinin **75%-i**. `price.total` = bütün sərnişinlərin cəmi.\n* Bron üçün təklifin `id`-sini `POST /api/v2/flights/bookings`-də `flightId` kimi göndərin.\n\nMəşhur marşrutlar: `GYD→IST`, `GYD→DXB`, `GYD→TBS`, `GYD→LHR`.\n",
+        "x-db-impact": {
+          "reads": [
+            "flights",
+            "airports"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "origin",
+            "in": "query",
+            "required": true,
+            "description": "Uçuş hava limanı (IATA)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            "example": "GYD"
+          },
+          {
+            "name": "destination",
+            "in": "query",
+            "required": true,
+            "description": "Eniş hava limanı (IATA)",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$"
+            },
+            "example": "IST"
+          },
+          {
+            "name": "departureDate",
+            "in": "query",
+            "required": true,
+            "description": "Uçuş tarixi (YYYY-MM-DD)",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2027-06-10"
+          },
+          {
+            "name": "adults",
+            "in": "query",
+            "required": false,
+            "description": "Böyük sərnişin sayı (12+ yaş)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9,
+              "default": 1
+            },
+            "example": 1
+          },
+          {
+            "name": "children",
+            "in": "query",
+            "required": false,
+            "description": "Uşaq sayı (2–11 yaş)",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8,
+              "default": 0
+            },
+            "example": 0
+          },
+          {
+            "name": "maxStops",
+            "in": "query",
+            "required": false,
+            "description": "Maksimum aktarma (0 — yalnız birbaşa)",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2
+            },
+            "example": 0
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sıralama",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "price",
+                "departure",
+                "duration"
+              ],
+              "default": "price"
+            },
+            "example": "price"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reys təklifləri",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FlightOfferList"
+                },
+                "example": {
+                  "object": "list",
+                  "url": "/api/v2/flights/search",
+                  "hasMore": false,
+                  "data": [
+                    {
+                      "id": 18,
+                      "object": "flight_offer",
+                      "flightNumber": "TK 337",
+                      "airline": {
+                        "iataCode": "TK",
+                        "name": "Turkish Airlines"
+                      },
+                      "origin": {
+                        "iataCode": "GYD",
+                        "city": "Bakı",
+                        "name": "Heydər Əliyev Beynəlxalq Hava Limanı"
+                      },
+                      "destination": {
+                        "iataCode": "IST",
+                        "city": "İstanbul",
+                        "name": "İstanbul Hava Limanı"
+                      },
+                      "departureTime": "2026-11-05T02:00:00Z",
+                      "arrivalTime": "2026-11-05T05:45:00Z",
+                      "durationMinutes": 225,
+                      "stops": 0,
+                      "seatsAvailable": 48,
+                      "price": {
+                        "currency": "AZN",
+                        "adult": 385,
+                        "child": 288.75,
+                        "total": 385
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation xətası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "same": {
+                    "summary": "Eyni hava limanı",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "SAME_AIRPORT",
+                      "message": "origin və destination eyni ola bilməz",
+                      "details": [
+                        {
+                          "field": "destination",
+                          "message": "origin və destination eyni ola bilməz"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "unknown": {
+                    "summary": "Naməlum IATA kodu",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "UNKNOWN_AIRPORT",
+                      "message": "Naməlum IATA kodu: XXX",
+                      "details": [
+                        {
+                          "field": "destination",
+                          "message": "GET /api/v2/airports siyahısına baxın"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "past": {
+                    "summary": "Keçmiş tarix",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "INVALID_DATE",
+                      "message": "departureDate keçmişdə ola bilməz",
+                      "details": [
+                        {
+                          "field": "departureDate",
+                          "message": "departureDate keçmişdə ola bilməz"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/flights/bookings": {
+      "post": {
+        "tags": [
+          "Air Travel"
+        ],
+        "operationId": "v2CreateFlightBooking",
+        "summary": "Aviabilet bronu",
+        "security": [],
+        "description": "Seçilmiş reysə bilet bron edir və elektron bilet nömrələri verir. Autentifikasiya tələb olunmur (qonaq bronu) —\nəlaqə məlumatı (`contact`) məcburidir.\n\nCavabda:\n* **`pnr`** — 6 simvollu bron kodu (Passenger Name Record), məs. `K7Q2LM`;\n* hər sərnişin üçün **`ticketNumber`** — aviaşirkət kodu + 10 rəqəm (`235-0000000120`);\n* pasport nömrəsi yalnız maskalı qaytarılır (`C****4821`).\n\n**Yoxlamalar**\n| Qayda | Xəta |\n|---|---|\n| Reys yoxdur | `404 FLIGHT_NOT_FOUND` |\n| Reys artıq uçub | `422 FLIGHT_DEPARTED` |\n| `ADULT` uçuş günü ≥ 12 yaş, `CHILD` 2–11 yaş | `422 PASSENGER_TYPE_MISMATCH` |\n| Ən azı 1 `ADULT` (uşaq tək uça bilməz) | `422 ADULT_REQUIRED` |\n| Pasport uçuş tarixindən sonra bitməlidir | `422 PASSPORT_EXPIRED` |\n| Eyni pasport iki dəfə | `422 DUPLICATE_PASSENGER` |\n| Boş yer çatmır | `409 SOLD_OUT` |\n\nYer sayı atomik azaldılır: eyni anda gələn iki bron reysi mənfi yerə sala bilməz.\n",
+        "x-db-impact": {
+          "reads": [
+            "flights",
+            "airports"
+          ],
+          "writes": [
+            "UPDATE flights (seats_left)",
+            "INSERT flight_bookings (pnr",
+            "user_id = NULL)",
+            "INSERT flight_passengers (ticket_number)"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2FlightBookingCreate"
+              },
+              "example": {
+                "flightId": 18,
+                "passengers": [
+                  {
+                    "type": "ADULT",
+                    "firstName": "Aysel",
+                    "lastName": "Mammadova",
+                    "dateOfBirth": "1998-04-12",
+                    "gender": "FEMALE",
+                    "nationality": "AZ",
+                    "passport": {
+                      "number": "C12344821",
+                      "expiryDate": "2031-05-01"
+                    }
+                  },
+                  {
+                    "type": "CHILD",
+                    "firstName": "Murad",
+                    "lastName": "Mammadov",
+                    "dateOfBirth": "2019-08-30",
+                    "gender": "MALE",
+                    "nationality": "AZ",
+                    "passport": {
+                      "number": "C55501234",
+                      "expiryDate": "2030-01-15"
+                    }
+                  }
+                ],
+                "contact": {
+                  "email": "aysel@example.com",
+                  "phone": "+994501234567"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bron təsdiqləndi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2FlightBooking"
+                },
+                "example": {
+                  "id": 12,
+                  "object": "flight_booking",
+                  "pnr": "K7Q2LM",
+                  "status": "CONFIRMED",
+                  "flight": {
+                    "id": 18,
+                    "object": "flight_offer",
+                    "flightNumber": "TK 337",
+                    "airline": {
+                      "iataCode": "TK",
+                      "name": "Turkish Airlines"
+                    },
+                    "origin": {
+                      "iataCode": "GYD",
+                      "city": "Bakı",
+                      "name": "Heydər Əliyev Beynəlxalq Hava Limanı"
+                    },
+                    "destination": {
+                      "iataCode": "IST",
+                      "city": "İstanbul",
+                      "name": "İstanbul Hava Limanı"
+                    },
+                    "departureTime": "2026-11-05T02:00:00Z",
+                    "arrivalTime": "2026-11-05T05:45:00Z",
+                    "durationMinutes": 225,
+                    "stops": 0,
+                    "seatsAvailable": 48,
+                    "price": {
+                      "currency": "AZN",
+                      "adult": 385,
+                      "child": 288.75,
+                      "total": 385
+                    }
+                  },
+                  "passengers": [
+                    {
+                      "type": "ADULT",
+                      "firstName": "Aysel",
+                      "lastName": "Mammadova",
+                      "passportNumberMasked": "C****4821",
+                      "ticketNumber": "235-0000000120"
+                    },
+                    {
+                      "type": "CHILD",
+                      "firstName": "Murad",
+                      "lastName": "Mammadov",
+                      "passportNumberMasked": "C****1234",
+                      "ticketNumber": "235-0000000121"
+                    }
+                  ],
+                  "contact": {
+                    "email": "aysel@example.com",
+                    "phone": "+994501234567"
+                  },
+                  "price": {
+                    "currency": "AZN",
+                    "total": 673.75
+                  },
+                  "createdAt": "2026-10-30T09:00:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/FlightNotFound"
+          },
+          "409": {
+            "description": "Yer yoxdur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-30T09:00:00Z",
+                  "status": 409,
+                  "code": "SOLD_OUT",
+                  "message": "Bu reysdə kifayət qədər boş yer yoxdur (qalıb: 1, lazımdır: 2)",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Validation və ya biznes qaydası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "passport": {
+                    "summary": "Pasportun müddəti bitir",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "PASSPORT_EXPIRED",
+                      "message": "Pasportun müddəti uçuş tarixinə qədər bitir",
+                      "details": [
+                        {
+                          "field": "passengers[0].passport.expiryDate",
+                          "message": "Pasportun müddəti uçuş tarixinə qədər bitir"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "type": {
+                    "summary": "Yaş tipə uyğun deyil",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "PASSENGER_TYPE_MISMATCH",
+                      "message": "CHILD sərnişin uçuş günü 2–11 yaşında olmalıdır",
+                      "details": [
+                        {
+                          "field": "passengers[1].type",
+                          "message": "Yaş: 14"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "departed": {
+                    "summary": "Reys uçub",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "FLIGHT_DEPARTED",
+                      "message": "Reys artıq uçub — bron mümkün deyil",
+                      "details": [
+                        {
+                          "field": "flightId",
+                          "message": "Reys artıq uçub — bron mümkün deyil"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/hotels/search": {
+      "get": {
+        "tags": [
+          "Hotel Booking"
+        ],
+        "operationId": "v2SearchHotels",
+        "summary": "Otel axtarışı (boş otaqlar)",
+        "security": [],
+        "description": "Şəhərdə verilən tarixlərdə **boş otağı olan** otellər və həmin otaqların qiyməti. Autentifikasiya tələb olunmur.\n\n* Şəhərlər: `Bakı`, `Qəbələ`, `Gəncə`, `İstanbul`, `Tbilisi`, `Dubay` (böyük-kiçik hərf fərq etmir).\n* `checkIn` bu gün və ya sonra, `checkOut` > `checkIn`, ən çox **30 gecə** → əks halda `422 INVALID_DATES`.\n* `rooms[].totalPrice` = gecəlik qiymət × gecə sayı. Yalnız `capacity ≥ adults` olan otaqlar göstərilir.\n* Bron üçün `hotel.id` və `rooms[].roomId`-ni `POST /api/v2/hotels/bookings`-ə göndərin.\n",
+        "x-db-impact": {
+          "reads": [
+            "hotels",
+            "hotel_rooms",
+            "hotel_amenities",
+            "hotel_bookings"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "city",
+            "in": "query",
+            "required": true,
+            "description": "Şəhər",
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 50
+            },
+            "example": "Bakı"
+          },
+          {
+            "name": "checkIn",
+            "in": "query",
+            "required": true,
+            "description": "Giriş tarixi",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2027-06-10"
+          },
+          {
+            "name": "checkOut",
+            "in": "query",
+            "required": true,
+            "description": "Çıxış tarixi",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            },
+            "example": "2027-06-13"
+          },
+          {
+            "name": "adults",
+            "in": "query",
+            "required": false,
+            "description": "Qonaq sayı",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8,
+              "default": 1
+            },
+            "example": 2
+          },
+          {
+            "name": "minStars",
+            "in": "query",
+            "required": false,
+            "description": "Minimum ulduz",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "example": 4
+          },
+          {
+            "name": "maxPrice",
+            "in": "query",
+            "required": false,
+            "description": "Gecəlik maksimum qiymət",
+            "schema": {
+              "type": "number",
+              "minimum": 1
+            },
+            "example": 400
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sıralama",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "price",
+                "rating",
+                "stars"
+              ],
+              "default": "price"
+            },
+            "example": "price"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Boş otaqlı otellər",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2HotelSearchList"
+                },
+                "example": {
+                  "object": "list",
+                  "url": "/api/v2/hotels/search",
+                  "hasMore": false,
+                  "data": [
+                    {
+                      "hotel": {
+                        "id": 1,
+                        "object": "hotel",
+                        "name": "Xəzər Sahil Hotel",
+                        "city": "Bakı",
+                        "stars": 5,
+                        "rating": 9.1,
+                        "description": "Bulvarın üzərində",
+                        "dəniz mənzərəli otaqlar və açıq hovuz.": null,
+                        "amenities": [
+                          "Fitness",
+                          "Hovuz",
+                          "Parkinq",
+                          "Spa",
+                          "Səhər yeməyi",
+                          "Wi-Fi"
+                        ]
+                      },
+                      "checkIn": "2027-06-10",
+                      "checkOut": "2027-06-13",
+                      "nights": 3,
+                      "lowestTotalPrice": 1134,
+                      "currency": "AZN",
+                      "rooms": [
+                        {
+                          "roomId": 2,
+                          "roomType": "DOUBLE",
+                          "capacity": 2,
+                          "pricePerNight": 378,
+                          "totalPrice": 1134,
+                          "currency": "AZN"
+                        },
+                        {
+                          "roomId": 4,
+                          "roomType": "SUITE",
+                          "capacity": 3,
+                          "pricePerNight": 672,
+                          "totalPrice": 2016,
+                          "currency": "AZN"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation xətası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-30T09:00:00Z",
+                  "status": 422,
+                  "code": "INVALID_DATES",
+                  "message": "checkOut checkIn-dən sonra olmalıdır",
+                  "details": [
+                    {
+                      "field": "checkOut",
+                      "message": "checkOut checkIn-dən sonra olmalıdır"
+                    }
+                  ],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/hotels/bookings": {
+      "post": {
+        "tags": [
+          "Hotel Booking"
+        ],
+        "operationId": "v2CreateHotelBooking",
+        "summary": "Otel bronu",
+        "security": [],
+        "description": "Otel otağını bron edir və **təsdiq nömrəsi** (`confirmationNumber`, məs. `CBX-7KQ2LM9P`) qaytarır.\nAutentifikasiya tələb olunmur (qonaq bronu) — `leadGuest` və `contact` məcburidir.\n\n| Qayda | Xəta |\n|---|---|\n| Otel yoxdur | `404 HOTEL_NOT_FOUND` |\n| Otaq bu otelə aid deyil | `404 ROOM_NOT_FOUND` |\n| `adults + children` > otağın tutumu | `422 ROOM_CAPACITY_EXCEEDED` |\n| Tarixlər səhvdir (keçmiş, checkOut ≤ checkIn, > 30 gecə) | `422 INVALID_DATES` |\n| Otaq həmin tarixlərdə tutulub | `409 ROOM_NOT_AVAILABLE` |\n\nQiymət: `perNight × nights`. Pulsuz ləğv — girişdən bir gün əvvəl saat 12:00-dək (`cancellationPolicy`).\nBron v1 bronları ilə eyni cədvəldə saxlanılır — tarixlər kəsişərsə, hər iki API \"otaq tutulub\" deyir.\n",
+        "x-db-impact": {
+          "reads": [
+            "hotels",
+            "hotel_rooms",
+            "hotel_bookings"
+          ],
+          "writes": [
+            "INSERT hotel_bookings (confirmation_code",
+            "user_id = NULL)"
+          ]
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V2HotelBookingCreate"
+              },
+              "example": {
+                "hotelId": 1,
+                "roomId": 4,
+                "checkIn": "2027-06-10",
+                "checkOut": "2027-06-13",
+                "adults": 2,
+                "children": 0,
+                "leadGuest": {
+                  "firstName": "Aysel",
+                  "lastName": "Mammadova"
+                },
+                "contact": {
+                  "email": "aysel@example.com",
+                  "phone": "+994501234567"
+                },
+                "specialRequests": "Gec giriş (23:00 civarı)"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bron təsdiqləndi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2HotelBooking"
+                },
+                "example": {
+                  "id": 9,
+                  "object": "hotel_booking",
+                  "confirmationNumber": "CBX-7KQ2LM9P",
+                  "status": "CONFIRMED",
+                  "hotel": {
+                    "id": 1,
+                    "name": "Xəzər Sahil Hotel",
+                    "city": "Bakı",
+                    "stars": 5
+                  },
+                  "room": {
+                    "id": 4,
+                    "roomType": "SUITE",
+                    "capacity": 3
+                  },
+                  "checkIn": "2027-06-10",
+                  "checkOut": "2027-06-13",
+                  "nights": 3,
+                  "guests": {
+                    "adults": 2,
+                    "children": 0
+                  },
+                  "leadGuest": {
+                    "firstName": "Aysel",
+                    "lastName": "Mammadova"
+                  },
+                  "contact": {
+                    "email": "aysel@example.com",
+                    "phone": "+994501234567"
+                  },
+                  "specialRequests": "Gec giriş (23:00 civarı)",
+                  "price": {
+                    "currency": "AZN",
+                    "perNight": 672,
+                    "total": 2016
+                  },
+                  "cancellationPolicy": {
+                    "freeCancellationUntil": "2027-06-09T12:00:00Z",
+                    "penaltyAfter": 672
+                  },
+                  "createdAt": "2026-10-30T09:00:00Z"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Otel və ya otaq tapılmadı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "hotel": {
+                    "summary": "Otel yoxdur",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 404,
+                      "code": "HOTEL_NOT_FOUND",
+                      "message": "Otel tapılmadı: 99",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "room": {
+                    "summary": "Otaq bu otelə aid deyil",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 404,
+                      "code": "ROOM_NOT_FOUND",
+                      "message": "Bu oteldə 7 nömrəli otaq yoxdur",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/RoomNotAvailable"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Validation və ya biznes qaydası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "capacity": {
+                    "summary": "Tutum aşılır",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "ROOM_CAPACITY_EXCEEDED",
+                      "message": "Otağın tutumu 2 nəfərdir",
+                      "details": [
+                        {
+                          "field": "adults",
+                          "message": "Göndərilən: 3"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "dates": {
+                    "summary": "Tarix səhvdir",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "INVALID_DATES",
+                      "message": "checkIn keçmişdə ola bilməz",
+                      "details": [
+                        {
+                          "field": "checkIn",
+                          "message": "checkIn keçmişdə ola bilməz"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/books/{bookId}": {
+      "get": {
+        "tags": [
+          "Book Catalog"
+        ],
+        "operationId": "v2GetBook",
+        "summary": "Kitab haqqında məlumat",
+        "security": [],
+        "description": "Kitabın kataloq məlumatı: ad, müəllif, janr, nəşr ili, səhifə sayı, təsvir, kataloq reytinqi (0–5) və\noxucu rəylərinin xülasəsi (`reviews.count`, `reviews.averageRating`). Rəylərin özü — `reviews.url`.\n",
+        "x-db-impact": {
+          "reads": [
+            "books",
+            "book_reviews"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "bookId",
+            "in": "path",
+            "required": true,
+            "description": "Kitabın id-si (1–40)",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 12
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Kitab",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Book"
+                },
+                "example": {
+                  "id": 12,
+                  "object": "book",
+                  "title": "Əli və Nino",
+                  "author": "Qurban Səid",
+                  "genre": "Roman",
+                  "publishedYear": 1937,
+                  "pages": 288,
+                  "description": "Bakılı Əli xan və gürcü Ninonun sevgi hekayəsi.",
+                  "rating": 4.7,
+                  "reviews": {
+                    "count": 2,
+                    "averageRating": 4.5,
+                    "url": "/api/v2/books/12/reviews"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/BookNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v2/books/{bookId}/reviews": {
+      "get": {
+        "tags": [
+          "Book Catalog"
+        ],
+        "operationId": "v2ListBookReviews",
+        "summary": "Kitab rəyləri",
+        "security": [],
+        "description": "Kitab haqqında oxucu rəyləri + xülasə (`summary`: say, orta reytinq, 1–5 ulduz paylanması).\n\n* `sort`: `newest` (default), `highest`, `lowest`; `minRating` — yalnız bu və daha yüksək reytinqlilər.\n* **Cursor pagination:** `hasMore: true`-dursa, son rəyin `id`-sini `startingAfter`-ə yazın.\n",
+        "x-db-impact": {
+          "reads": [
+            "books",
+            "book_reviews",
+            "users"
+          ],
+          "writes": []
+        },
+        "parameters": [
+          {
+            "name": "bookId",
+            "in": "path",
+            "required": true,
+            "description": "Kitabın id-si",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 12
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Səhifədə rəy sayı",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            },
+            "example": 10
+          },
+          {
+            "name": "startingAfter",
+            "in": "query",
+            "required": false,
+            "description": "Cursor: əvvəlki səhifənin son rəyinin id-si",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 6
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sıralama",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "newest",
+                "highest",
+                "lowest"
+              ],
+              "default": "newest"
+            },
+            "example": "newest"
+          },
+          {
+            "name": "minRating",
+            "in": "query",
+            "required": false,
+            "description": "Minimum reytinq",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            "example": 4
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rəylər",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2BookReviewList"
+                },
+                "example": {
+                  "object": "list",
+                  "url": "/api/v2/books/12/reviews",
+                  "hasMore": false,
+                  "data": [
+                    {
+                      "id": 6,
+                      "object": "book_review",
+                      "rating": 4,
+                      "comment": "Ağır",
+                      "amma çox dəyərli.": null,
+                      "author": {
+                        "username": "admin"
+                      },
+                      "createdAt": "2026-10-10T17:00:00Z"
+                    },
+                    {
+                      "id": 5,
+                      "object": "book_review",
+                      "rating": 5,
+                      "comment": "Mütləq oxunmalıdır.",
+                      "author": {
+                        "username": "student"
+                      },
+                      "createdAt": "2026-10-05T18:00:00Z"
+                    }
+                  ],
+                  "summary": {
+                    "count": 2,
+                    "averageRating": 4.5,
+                    "distribution": {
+                      "1": 0,
+                      "2": 0,
+                      "3": 0,
+                      "4": 1,
+                      "5": 1
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/BookNotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "tags": [
@@ -12242,6 +15018,24 @@
       }
     },
     "responses": {
+      "DepositNotFound": {
+        "description": "Depozit tapılmadı",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "timestamp": "2026-10-30T09:00:00Z",
+              "status": 404,
+              "code": "DEPOSIT_NOT_FOUND",
+              "message": "Depozit tapılmadı",
+              "details": [],
+              "traceId": "req_7f2c9a"
+            }
+          }
+        }
+      },
       "BadRequest": {
         "description": "Sorğu sintaktik olaraq səhvdir (məs. JSON parse olunmur)",
         "content": {
@@ -13181,7 +15975,1882 @@
         }
       }
     },
+    "examples": {
+      "V2CardVirtual": {
+        "summary": "Virtual kart",
+        "value": {
+          "id": 8,
+          "object": "card",
+          "accountId": "AZ21NABZ0001",
+          "type": "VIRTUAL",
+          "brand": "VISA",
+          "last4": "0427",
+          "maskedNumber": "4*** **** **** 0427",
+          "nameOnCard": "AYSEL MAMMADOVA",
+          "currency": "AZN",
+          "status": "ACTIVE",
+          "statusReason": null,
+          "dailyLimit": 500,
+          "expiry": {
+            "month": 10,
+            "year": 2029
+          },
+          "delivery": null,
+          "createdAt": "2026-10-30T09:00:00Z",
+          "updatedAt": "2026-10-30T09:00:00Z"
+        }
+      },
+      "V2CardPhysical": {
+        "summary": "Fiziki kart (filialdan götürmə)",
+        "value": {
+          "id": 1,
+          "object": "card",
+          "accountId": "AZ21NABZ0001",
+          "type": "PHYSICAL",
+          "brand": "VISA",
+          "last4": "4169",
+          "maskedNumber": "4*** **** **** 4169",
+          "nameOnCard": "AYSEL MAMMADOVA",
+          "currency": "AZN",
+          "status": "ACTIVE",
+          "statusReason": null,
+          "dailyLimit": 2000,
+          "expiry": {
+            "month": 10,
+            "year": 2029
+          },
+          "delivery": {
+            "method": "BRANCH",
+            "details": "BR-028",
+            "status": "DELIVERED",
+            "estimatedDate": "2025-10-20"
+          },
+          "createdAt": "2025-10-15T10:00:00Z",
+          "updatedAt": "2025-10-15T10:00:00Z"
+        }
+      },
+      "V2CardBlocked": {
+        "summary": "Bloklanmış kart",
+        "value": {
+          "id": 1,
+          "object": "card",
+          "accountId": "AZ21NABZ0001",
+          "type": "PHYSICAL",
+          "brand": "VISA",
+          "last4": "4169",
+          "maskedNumber": "4*** **** **** 4169",
+          "nameOnCard": null,
+          "currency": "AZN",
+          "status": "BLOCKED",
+          "statusReason": "LOST",
+          "dailyLimit": 2000,
+          "expiry": {
+            "month": 10,
+            "year": 2029
+          },
+          "delivery": null,
+          "createdAt": "2025-10-15T10:00:00Z",
+          "updatedAt": "2026-10-30T09:00:00Z"
+        }
+      },
+      "V2Deposit": {
+        "summary": "Aktiv depozit",
+        "value": {
+          "id": "dep_5f2a9c1e7b30",
+          "object": "deposit",
+          "status": "ACTIVE",
+          "currency": "AZN",
+          "principal": 500,
+          "annualRate": 8,
+          "termMonths": 6,
+          "interestPayout": "AT_MATURITY",
+          "autoRenew": false,
+          "sourceAccountId": "AZ21NABZ0001",
+          "openedAt": "2026-09-20T10:00:00Z",
+          "maturityDate": "2027-03-20",
+          "daysElapsed": 40,
+          "accruedInterest": 4.38,
+          "expectedInterest": 19.78,
+          "expectedPayout": 519.78,
+          "closedAt": null,
+          "interestPaid": null
+        }
+      }
+    },
     "schemas": {
+      "V2ListBase": {
+        "type": "object",
+        "required": [
+          "object",
+          "url",
+          "hasMore",
+          "data"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "list"
+            ],
+            "description": "Həmişə `list`"
+          },
+          "url": {
+            "type": "string",
+            "description": "Bu siyahının endpoint-i"
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "`true` — növbəti səhifə var (cursor: `startingAfter`)"
+          },
+          "data": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "V2TokenForm": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "grant_type",
+          "client_id"
+        ],
+        "properties": {
+          "grant_type": {
+            "type": "string",
+            "description": "`password` və ya `refresh_token`",
+            "example": "password"
+          },
+          "client_id": {
+            "type": "string",
+            "description": "Public client: `callbox-api`",
+            "example": "callbox-api"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "`password` grant üçün məcburi"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "`password` grant üçün məcburi"
+          },
+          "refresh_token": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "`refresh_token` grant üçün məcburi"
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Könüllü (nəzərə alınmır — istifadəçinin bütün scope-ları verilir)"
+          }
+        }
+      },
+      "V2TokenResponse": {
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in",
+          "refresh_expires_in",
+          "refresh_token",
+          "token_type",
+          "scope"
+        ],
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "JWT — `Authorization: Bearer <access_token>`"
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "access_token-in ömrü (saniyə)"
+          },
+          "refresh_expires_in": {
+            "type": "integer",
+            "description": "refresh_token-in ömrü (saniyə)"
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "Birdəfəlik (rotation)"
+          },
+          "token_type": {
+            "type": "string",
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "not-before-policy": {
+            "type": "integer"
+          },
+          "scope": {
+            "type": "string",
+            "description": "Boşluqla ayrılmış icazələr"
+          }
+        }
+      },
+      "V2Account": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "type",
+          "currency",
+          "balance",
+          "openedAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Hesab nömrəsi"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "account"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "CURRENT",
+              "SAVINGS"
+            ],
+            "description": "CURRENT — cari, SAVINGS — yığım"
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217"
+          },
+          "balance": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "V2AccountList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ListBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2Account"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2Transaction": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "type",
+          "amount",
+          "currency",
+          "description",
+          "transferId",
+          "depositId",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "transaction"
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "DEBIT",
+              "CREDIT"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "transferId": {
+            "type": "integer",
+            "nullable": true
+          },
+          "depositId": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "V2TransactionList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ListBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2Transaction"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2Card": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "accountId",
+          "type",
+          "brand",
+          "last4",
+          "maskedNumber",
+          "nameOnCard",
+          "currency",
+          "status",
+          "statusReason",
+          "dailyLimit",
+          "expiry",
+          "delivery",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "card"
+            ]
+          },
+          "accountId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PHYSICAL",
+              "VIRTUAL"
+            ]
+          },
+          "brand": {
+            "type": "string",
+            "enum": [
+              "VISA",
+              "MASTERCARD"
+            ]
+          },
+          "last4": {
+            "type": "string",
+            "pattern": "^[0-9]{4}$"
+          },
+          "maskedNumber": {
+            "type": "string",
+            "description": "Tam nömrə heç vaxt qaytarılmır (PCI DSS)"
+          },
+          "nameOnCard": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "description": "Bağlı hesabın valyutası"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "BLOCKED",
+              "EXPIRED"
+            ]
+          },
+          "statusReason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "LOST",
+              "STOLEN",
+              "SUSPECTED_FRAUD",
+              null
+            ]
+          },
+          "dailyLimit": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "expiry": {
+            "type": "object",
+            "required": [
+              "month",
+              "year"
+            ],
+            "properties": {
+              "month": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 12
+              },
+              "year": {
+                "type": "integer"
+              }
+            }
+          },
+          "delivery": {
+            "type": "object",
+            "nullable": true,
+            "description": "Yalnız fiziki kart üçün",
+            "required": [
+              "method",
+              "details",
+              "status",
+              "estimatedDate"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "BRANCH",
+                  "COURIER"
+                ]
+              },
+              "details": {
+                "type": "string",
+                "nullable": true,
+                "description": "Filial kodu və ya ünvan"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "IN_PRODUCTION",
+                  "DELIVERED"
+                ]
+              },
+              "estimatedDate": {
+                "type": "string",
+                "format": "date"
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "V2CardList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ListBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2Card"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2CardCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "accountId",
+          "type",
+          "brand",
+          "nameOnCard"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{8,34}$",
+            "description": "Kartın bağlanacağı öz hesabınız",
+            "example": "AZ21NABZ0001"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "PHYSICAL",
+              "VIRTUAL"
+            ],
+            "description": "Kart növü"
+          },
+          "brand": {
+            "type": "string",
+            "enum": [
+              "VISA",
+              "MASTERCARD"
+            ],
+            "description": "Ödəniş sistemi"
+          },
+          "nameOnCard": {
+            "type": "string",
+            "pattern": "^[A-Z][A-Z .'-]{1,25}$",
+            "description": "Kartdakı ad — böyük latın hərfləri, 2–26 simvol",
+            "example": "AYSEL MAMMADOVA"
+          },
+          "dailyLimit": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 10000,
+            "multipleOf": 0.01,
+            "default": 1000,
+            "description": "Gündəlik limit"
+          },
+          "delivery": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Yalnız PHYSICAL üçün (məcburi)",
+            "required": [
+              "method"
+            ],
+            "properties": {
+              "method": {
+                "type": "string",
+                "enum": [
+                  "BRANCH",
+                  "COURIER"
+                ]
+              },
+              "branchCode": {
+                "type": "string",
+                "pattern": "^BR-[0-9]{3}$",
+                "description": "BRANCH üçün, məs. BR-028"
+              },
+              "address": {
+                "type": "string",
+                "minLength": 10,
+                "maxLength": 200,
+                "description": "COURIER üçün tam ünvan"
+              }
+            }
+          }
+        }
+      },
+      "V2CardBlock": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "LOST",
+              "STOLEN",
+              "SUSPECTED_FRAUD"
+            ],
+            "description": "Bloklama səbəbi"
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Könüllü izah"
+          }
+        }
+      },
+      "V2DepositCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sourceAccountId",
+          "amount",
+          "termMonths"
+        ],
+        "properties": {
+          "sourceAccountId": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{8,34}$",
+            "description": "Vəsaitin çıxılacağı öz hesabınız (AZN/USD/EUR)",
+            "example": "AZ21NABZ0001"
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 10000000,
+            "multipleOf": 0.01,
+            "description": "Məbləğ (min. 100.00)",
+            "example": 1000
+          },
+          "termMonths": {
+            "type": "integer",
+            "enum": [
+              3,
+              6,
+              12,
+              24
+            ],
+            "description": "Müddət (ay)"
+          },
+          "interestPayout": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "AT_MATURITY"
+            ],
+            "default": "AT_MATURITY",
+            "description": "Faizin ödənmə qaydası"
+          },
+          "autoRenew": {
+            "type": "boolean",
+            "default": false,
+            "description": "Müddət bitəndə avtomatik yenilənsin"
+          }
+        }
+      },
+      "V2Deposit": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "status",
+          "currency",
+          "principal",
+          "annualRate",
+          "termMonths",
+          "interestPayout",
+          "autoRenew",
+          "sourceAccountId",
+          "openedAt",
+          "maturityDate",
+          "daysElapsed",
+          "accruedInterest",
+          "expectedInterest",
+          "expectedPayout",
+          "closedAt",
+          "interestPaid"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^dep_[a-f0-9]{12}$"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "deposit"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "CLOSED"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "principal": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "annualRate": {
+            "type": "number",
+            "description": "İllik faiz (%)"
+          },
+          "termMonths": {
+            "type": "integer",
+            "enum": [
+              3,
+              6,
+              12,
+              24
+            ]
+          },
+          "interestPayout": {
+            "type": "string",
+            "enum": [
+              "MONTHLY",
+              "AT_MATURITY"
+            ]
+          },
+          "autoRenew": {
+            "type": "boolean"
+          },
+          "sourceAccountId": {
+            "type": "string"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "maturityDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "daysElapsed": {
+            "type": "integer",
+            "description": "Açılışdan keçən gün"
+          },
+          "accruedInterest": {
+            "type": "number",
+            "description": "Bu günədək hesablanmış faiz"
+          },
+          "expectedInterest": {
+            "type": "number",
+            "description": "Müddətin sonunda faiz"
+          },
+          "expectedPayout": {
+            "type": "number",
+            "description": "Müddətin sonunda ümumi məbləğ"
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "interestPaid": {
+            "type": "number",
+            "nullable": true,
+            "description": "Bağlananda ödənilmiş faiz"
+          }
+        }
+      },
+      "V2DepositClosed": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2Deposit"
+          },
+          {
+            "type": "object",
+            "required": [
+              "earlyClosure"
+            ],
+            "properties": {
+              "earlyClosure": {
+                "type": "boolean",
+                "description": "`true` — vaxtından əvvəl bağlanıb (faiz ödənilməyib)"
+              }
+            }
+          }
+        ]
+      },
+      "V2DepositList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ListBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2Deposit"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2Currency": {
+        "type": "object",
+        "required": [
+          "code",
+          "object",
+          "name",
+          "symbol",
+          "numericCode",
+          "minorUnits"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 hərf kodu"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "currency"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": "string"
+          },
+          "numericCode": {
+            "type": "string",
+            "nullable": true,
+            "description": "ISO 4217 rəqəm kodu"
+          },
+          "minorUnits": {
+            "type": "integer",
+            "description": "Onluq rəqəm sayı"
+          }
+        }
+      },
+      "V2CurrencyList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ListBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2Currency"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2ExchangeRate": {
+        "type": "object",
+        "required": [
+          "object",
+          "base",
+          "date",
+          "requestedDate",
+          "source",
+          "rates"
+        ],
+        "properties": {
+          "object": {
+            "type": "string",
+            "enum": [
+              "exchange_rate"
+            ]
+          },
+          "base": {
+            "type": "string",
+            "description": "`from` valyutası"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "Məzənnənin faktiki tarixi"
+          },
+          "requestedDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Sorğudakı tarix"
+          },
+          "source": {
+            "type": "string"
+          },
+          "rates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "1 base = N valyuta"
+          },
+          "amount": {
+            "type": "number",
+            "description": "Yalnız `amount` göndərildikdə"
+          },
+          "converted": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "`amount × rate` (2 onluq)"
+          }
+        }
+      },
+      "V2Airport": {
+        "type": "object",
+        "required": [
+          "iataCode",
+          "object",
+          "name",
+          "city",
+          "country"
+        ],
+        "properties": {
+          "iataCode": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "airport"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          }
+        }
+      },
+      "V2AirportList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ListBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2Airport"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2AirportRef": {
+        "type": "object",
+        "required": [
+          "iataCode",
+          "city",
+          "name"
+        ],
+        "properties": {
+          "iataCode": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "V2FlightOffer": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "flightNumber",
+          "airline",
+          "origin",
+          "destination",
+          "departureTime",
+          "arrivalTime",
+          "durationMinutes",
+          "stops",
+          "seatsAvailable",
+          "price"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Bron üçün `flightId`"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "flight_offer"
+            ]
+          },
+          "flightNumber": {
+            "type": "string"
+          },
+          "airline": {
+            "type": "object",
+            "required": [
+              "iataCode",
+              "name"
+            ],
+            "properties": {
+              "iataCode": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "origin": {
+            "$ref": "#/components/schemas/V2AirportRef"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/V2AirportRef"
+          },
+          "departureTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "arrivalTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "durationMinutes": {
+            "type": "integer"
+          },
+          "stops": {
+            "type": "integer"
+          },
+          "seatsAvailable": {
+            "type": "integer"
+          },
+          "price": {
+            "type": "object",
+            "required": [
+              "currency",
+              "adult",
+              "child",
+              "total"
+            ],
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "adult": {
+                "type": "number",
+                "description": "Bir böyük üçün"
+              },
+              "child": {
+                "type": "number",
+                "description": "Bir uşaq üçün (75%)"
+              },
+              "total": {
+                "type": "number",
+                "description": "Bütün sərnişinlər"
+              }
+            }
+          }
+        }
+      },
+      "V2FlightOfferList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ListBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2FlightOffer"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2Contact": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "email",
+          "phone"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 120,
+            "example": "aysel@example.com"
+          },
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+[1-9][0-9]{7,14}$",
+            "description": "E.164 formatı",
+            "example": "+994501234567"
+          }
+        }
+      },
+      "V2FlightBookingCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "flightId",
+          "passengers",
+          "contact"
+        ],
+        "properties": {
+          "flightId": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "`GET /api/v2/flights/search` təklifinin id-si",
+            "example": 18
+          },
+          "passengers": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 9,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "type",
+                "firstName",
+                "lastName",
+                "dateOfBirth",
+                "gender",
+                "nationality",
+                "passport"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "ADULT",
+                    "CHILD"
+                  ],
+                  "description": "ADULT — 12+, CHILD — 2–11 yaş"
+                },
+                "firstName": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z '-]{0,49}$",
+                  "description": "Pasportdakı kimi (latın)"
+                },
+                "lastName": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z '-]{0,49}$"
+                },
+                "dateOfBirth": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "gender": {
+                  "type": "string",
+                  "enum": [
+                    "MALE",
+                    "FEMALE"
+                  ]
+                },
+                "nationality": {
+                  "type": "string",
+                  "pattern": "^[A-Z]{2}$",
+                  "description": "ISO 3166-1 alpha-2, məs. AZ"
+                },
+                "passport": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "number",
+                    "expiryDate"
+                  ],
+                  "properties": {
+                    "number": {
+                      "type": "string",
+                      "pattern": "^[A-Z0-9]{6,9}$"
+                    },
+                    "expiryDate": {
+                      "type": "string",
+                      "format": "date"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "contact": {
+            "$ref": "#/components/schemas/V2Contact"
+          }
+        }
+      },
+      "V2FlightBooking": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "pnr",
+          "status",
+          "flight",
+          "passengers",
+          "contact",
+          "price",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "flight_booking"
+            ]
+          },
+          "pnr": {
+            "type": "string",
+            "pattern": "^[A-Z0-9]{6}$",
+            "description": "Bron kodu"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED"
+            ]
+          },
+          "flight": {
+            "$ref": "#/components/schemas/V2FlightOffer"
+          },
+          "passengers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "type",
+                "firstName",
+                "lastName",
+                "passportNumberMasked",
+                "ticketNumber"
+              ],
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "ADULT",
+                    "CHILD"
+                  ]
+                },
+                "firstName": {
+                  "type": "string"
+                },
+                "lastName": {
+                  "type": "string"
+                },
+                "passportNumberMasked": {
+                  "type": "string"
+                },
+                "ticketNumber": {
+                  "type": "string",
+                  "pattern": "^[0-9]{3}-[0-9]{10}$"
+                }
+              }
+            }
+          },
+          "contact": {
+            "type": "object",
+            "required": [
+              "email",
+              "phone"
+            ],
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              }
+            }
+          },
+          "price": {
+            "type": "object",
+            "required": [
+              "currency",
+              "total"
+            ],
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "total": {
+                "type": "number"
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "V2HotelSearchResult": {
+        "type": "object",
+        "required": [
+          "hotel",
+          "checkIn",
+          "checkOut",
+          "nights",
+          "lowestTotalPrice",
+          "currency",
+          "rooms"
+        ],
+        "properties": {
+          "hotel": {
+            "type": "object",
+            "required": [
+              "id",
+              "object",
+              "name",
+              "city",
+              "stars",
+              "rating",
+              "description",
+              "amenities"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "object": {
+                "type": "string",
+                "enum": [
+                  "hotel"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              },
+              "stars": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "rating": {
+                "type": "number",
+                "description": "Qonaq reytinqi (0–10)"
+              },
+              "description": {
+                "type": "string"
+              },
+              "amenities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "checkIn": {
+            "type": "string",
+            "format": "date"
+          },
+          "checkOut": {
+            "type": "string",
+            "format": "date"
+          },
+          "nights": {
+            "type": "integer"
+          },
+          "lowestTotalPrice": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "rooms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "roomId",
+                "roomType",
+                "capacity",
+                "pricePerNight",
+                "totalPrice",
+                "currency"
+              ],
+              "properties": {
+                "roomId": {
+                  "type": "integer"
+                },
+                "roomType": {
+                  "type": "string",
+                  "enum": [
+                    "SINGLE",
+                    "DOUBLE",
+                    "SUITE",
+                    "FAMILY"
+                  ]
+                },
+                "capacity": {
+                  "type": "integer"
+                },
+                "pricePerNight": {
+                  "type": "number"
+                },
+                "totalPrice": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "V2HotelSearchList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ListBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2HotelSearchResult"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "V2HotelBookingCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "hotelId",
+          "roomId",
+          "checkIn",
+          "checkOut",
+          "adults",
+          "leadGuest",
+          "contact"
+        ],
+        "properties": {
+          "hotelId": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          },
+          "roomId": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Axtarış cavabındakı `rooms[].roomId`",
+            "example": 2
+          },
+          "checkIn": {
+            "type": "string",
+            "format": "date"
+          },
+          "checkOut": {
+            "type": "string",
+            "format": "date"
+          },
+          "adults": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 8
+          },
+          "children": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 6,
+            "default": 0
+          },
+          "leadGuest": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "firstName",
+              "lastName"
+            ],
+            "properties": {
+              "firstName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "lastName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 50
+              }
+            }
+          },
+          "contact": {
+            "$ref": "#/components/schemas/V2Contact"
+          },
+          "specialRequests": {
+            "type": "string",
+            "maxLength": 300
+          }
+        }
+      },
+      "V2HotelBooking": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "confirmationNumber",
+          "status",
+          "hotel",
+          "room",
+          "checkIn",
+          "checkOut",
+          "nights",
+          "guests",
+          "leadGuest",
+          "contact",
+          "specialRequests",
+          "price",
+          "cancellationPolicy",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "hotel_booking"
+            ]
+          },
+          "confirmationNumber": {
+            "type": "string",
+            "pattern": "^CBX-[A-Z0-9]{8}$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED"
+            ]
+          },
+          "hotel": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "city",
+              "stars"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              },
+              "stars": {
+                "type": "integer"
+              }
+            }
+          },
+          "room": {
+            "type": "object",
+            "required": [
+              "id",
+              "roomType",
+              "capacity"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer"
+              },
+              "roomType": {
+                "type": "string"
+              },
+              "capacity": {
+                "type": "integer"
+              }
+            }
+          },
+          "checkIn": {
+            "type": "string",
+            "format": "date"
+          },
+          "checkOut": {
+            "type": "string",
+            "format": "date"
+          },
+          "nights": {
+            "type": "integer"
+          },
+          "guests": {
+            "type": "object",
+            "required": [
+              "adults",
+              "children"
+            ],
+            "properties": {
+              "adults": {
+                "type": "integer"
+              },
+              "children": {
+                "type": "integer"
+              }
+            }
+          },
+          "leadGuest": {
+            "type": "object",
+            "required": [
+              "firstName",
+              "lastName"
+            ],
+            "properties": {
+              "firstName": {
+                "type": "string"
+              },
+              "lastName": {
+                "type": "string"
+              }
+            }
+          },
+          "contact": {
+            "type": "object",
+            "required": [
+              "email",
+              "phone"
+            ],
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "phone": {
+                "type": "string"
+              }
+            }
+          },
+          "specialRequests": {
+            "type": "string",
+            "nullable": true
+          },
+          "price": {
+            "type": "object",
+            "required": [
+              "currency",
+              "perNight",
+              "total"
+            ],
+            "properties": {
+              "currency": {
+                "type": "string"
+              },
+              "perNight": {
+                "type": "number"
+              },
+              "total": {
+                "type": "number"
+              }
+            }
+          },
+          "cancellationPolicy": {
+            "type": "object",
+            "required": [
+              "freeCancellationUntil",
+              "penaltyAfter"
+            ],
+            "properties": {
+              "freeCancellationUntil": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "penaltyAfter": {
+                "type": "number",
+                "description": "Bu tarixdən sonra ləğv cəriməsi (1 gecə)"
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "V2Book": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "title",
+          "author",
+          "genre",
+          "publishedYear",
+          "pages",
+          "description",
+          "rating",
+          "reviews"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "book"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "genre": {
+            "type": "string"
+          },
+          "publishedYear": {
+            "type": "integer",
+            "nullable": true
+          },
+          "pages": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "rating": {
+            "type": "number",
+            "description": "Kataloq reytinqi (0–5)"
+          },
+          "reviews": {
+            "type": "object",
+            "required": [
+              "count",
+              "averageRating",
+              "url"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "averageRating": {
+                "type": "number",
+                "nullable": true
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "V2BookReview": {
+        "type": "object",
+        "required": [
+          "id",
+          "object",
+          "rating",
+          "comment",
+          "author",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "object": {
+            "type": "string",
+            "enum": [
+              "book_review"
+            ]
+          },
+          "rating": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "comment": {
+            "type": "string",
+            "nullable": true
+          },
+          "author": {
+            "type": "object",
+            "required": [
+              "username"
+            ],
+            "properties": {
+              "username": {
+                "type": "string"
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "V2BookReviewList": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2ListBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "summary"
+            ],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/V2BookReview"
+                }
+              },
+              "summary": {
+                "type": "object",
+                "required": [
+                  "count",
+                  "averageRating",
+                  "distribution"
+                ],
+                "properties": {
+                  "count": {
+                    "type": "integer"
+                  },
+                  "averageRating": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "distribution": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
       "Error": {
         "type": "object",
         "description": "Vahid xəta formatı — bütün 4xx/5xx cavablar (OAuth token endpoint istisnadır).",
@@ -13493,6 +18162,23 @@
           "REDIS_ERROR",
           "MONGO_QUERY_NOT_ALLOWED",
           "MONGO_QUERY_ERROR",
+          "CARD_LIMIT_REACHED",
+          "DELIVERY_REQUIRED",
+          "DELIVERY_NOT_ALLOWED",
+          "DEPOSIT_NOT_FOUND",
+          "DEPOSIT_ALREADY_CLOSED",
+          "DEPOSIT_CURRENCY_NOT_SUPPORTED",
+          "AMOUNT_TOO_SMALL",
+          "UNSUPPORTED_CURRENCY",
+          "INVALID_DATE",
+          "INVALID_DATES",
+          "SAME_AIRPORT",
+          "UNKNOWN_AIRPORT",
+          "FLIGHT_DEPARTED",
+          "PASSENGER_TYPE_MISMATCH",
+          "PASSPORT_EXPIRED",
+          "DUPLICATE_PASSENGER",
+          "ADULT_REQUIRED",
           "TOO_MANY_REQUESTS",
           "INTERNAL_ERROR",
           "SIMULATED_ERROR",

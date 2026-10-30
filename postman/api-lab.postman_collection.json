@@ -6,6 +6,912 @@
   },
   "item": [
     {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "POST /realms/callbox/protocol/openid-connect/token — Access token al (OpenID Connect token endpoint)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/realms/callbox/protocol/openid-connect/token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "realms",
+                "callbox",
+                "protocol",
+                "openid-connect",
+                "token"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Keycloak / OpenID Connect standartında **token endpoint**-i. Bank API-lərini (10 endpoint) çağırmaq üçün əvvəlcə buradan\n`access_token` alırsınız və onu sorğunun başlığına yazırsınız:\n\n```\nAuthorization: Bearer <access_token>\n```\n\nBody **`application/x-www-form-urlencoded`** formatındadır (JSON yox — OAuth 2.0 standartı, RFC 6749 §4.3).\n\n### Dəstəklənən grant növləri\n| `grant_type` | Məcburi sahələr | Nə vaxt istifadə olunur |\n|---|---|---|\n| `password` | `client_id`, `username`, `password` | İlk dəfə token almaq (istifadəçi adı + parol) |\n| `refresh_token` | `client_id`, `refresh_token` | `access_token`-in vaxtı (15 dəq) bitəndə yenisini almaq |\n\n* `client_id` həmişə **`callbox-api`**-dir (public client — `client_secret` lazım deyil).\n* `access_token` — JWT, **900 saniyə** (15 dəq) etibarlıdır. Məzmununa [jwt.io](https://jwt.io)-da baxa bilərsiniz.\n* `refresh_token` — **7 gün** etibarlıdır və **birdəfəlikdir** (rotation): hər istifadədə yenisi verilir, köhnəsi ləğv olunur.\n  Ləğv olunmuş refresh token yenidən göndərilsə, təhlükəsizlik üçün istifadəçinin bütün refresh token-ləri ləğv edilir.\n* 5 uğursuz parol cəhdindən sonra istifadəçi 15 dəqiqəlik bloklanır (**429**).\n\nXətalar RFC 6749 formatındadır: `{ \"error\": \"...\", \"error_description\": \"...\" }`.\n\nCallbox GUI-də **Authorization → OAuth 2.0 → Get New Access Token** düyməsi bu endpoint-i çağırır və alınan token\nBearer token tələb edən bütün sorğulara avtomatik əlavə olunur.\n",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "callbox-api"
+                },
+                {
+                  "key": "username",
+                  "value": "student"
+                },
+                {
+                  "key": "password",
+                  "value": "student123"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bank Accounts",
+      "item": [
+        {
+          "name": "GET /api/v2/accounts — Hesabların siyahısı",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/accounts",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "accounts"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Token sahibinin bütün bank hesablarını qaytarır (cari və yığım). Kart sifarişi və depozit üçün lazım olan\n**`id`** (məs. `AZ21NABZ0001`) buradan götürülür.\n\nYalnız **öz** hesablarınız görünür — başqa istifadəçinin hesabı heç vaxt siyahıya düşmür.\n"
+          }
+        },
+        {
+          "name": "GET /api/v2/accounts/{accountId}/transactions — Hesab çıxarışı (əməliyyatlar)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/accounts/:accountId/transactions?fromDate=2026-10-01&toDate=2026-10-31&type=DEBIT&limit=20&startingAfter=812",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "accounts",
+                ":accountId",
+                "transactions"
+              ],
+              "query": [
+                {
+                  "key": "fromDate",
+                  "value": "2026-10-01",
+                  "disabled": false
+                },
+                {
+                  "key": "toDate",
+                  "value": "2026-10-31",
+                  "disabled": false
+                },
+                {
+                  "key": "type",
+                  "value": "DEBIT",
+                  "disabled": false
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                },
+                {
+                  "key": "startingAfter",
+                  "value": "812",
+                  "disabled": false
+                }
+              ],
+              "variable": [
+                {
+                  "key": "accountId",
+                  "value": "AZ21NABZ0001"
+                }
+              ]
+            },
+            "description": "Hesab üzrə əməliyyatlar — ən yenisi birinci. Depozit açılışı/bağlanışı da burada `depositId` ilə görünür.\n\n**Pagination (cursor):** cavabda `hasMore: true` varsa, növbəti səhifə üçün son elementin `id`-sini\n`startingAfter` parametrinə yazın: `?limit=10&startingAfter=812`.\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bank Cards",
+      "item": [
+        {
+          "name": "GET /api/v2/cards — Kartların siyahısı",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/cards?status=ACTIVE&accountId=AZ21NABZ0001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "cards"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": false
+                },
+                {
+                  "key": "accountId",
+                  "value": "AZ21NABZ0001",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Token sahibinin bütün kartları. `status` və `accountId` ilə filtrləmək olar."
+          }
+        },
+        {
+          "name": "POST /api/v2/cards — Kart sifarişi (kart rəsmiləşdirmə)",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "disabled": false
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/cards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "cards"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Mövcud hesaba yeni debet kart rəsmiləşdirir. Kart dərhal `ACTIVE` statusunda yaranır (sandbox), kartın valyutası\nbağlandığı hesabın valyutasıdır.\n\n| `type` | Nə deməkdir | `delivery` |\n|---|---|---|\n| `VIRTUAL` | Yalnız onlayn ödənişlər üçün, dərhal istifadəyə hazırdır | **göndərilmir** |\n| `PHYSICAL` | Plastik kart, 5 iş günü ərzində hazırlanır | **məcburidir**: `BRANCH` + `branchCode` və ya `COURIER` + `address` |\n\n**Biznes qaydaları**\n* `nameOnCard` — kartın üzərində yazılan ad: yalnız **böyük latın hərfləri**, boşluq, nöqtə, defis; 2–26 simvol (ISO/IEC 7813).\n* `dailyLimit` — gündəlik xərc limiti (default **1000.00**, maks. **10000.00**).\n* Bir istifadəçinin ən çox **10 aktiv** kartı ola bilər → `422 CARD_LIMIT_REACHED`.\n* Kartın müddəti — 3 il (ayın son günü).\n* Başqasının hesabına kart sifarişi → `403 FORBIDDEN`.\n* Şəbəkə xətasından sonra təkrar göndərmə üçün `Idempotency-Key` başlığı (könüllü) — eyni açar ikinci kart yaratmır.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"AZ21NABZ0001\",\n  \"type\": \"VIRTUAL\",\n  \"brand\": \"VISA\",\n  \"nameOnCard\": \"AYSEL MAMMADOVA\",\n  \"dailyLimit\": 500\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v2/cards/{cardId} — Kart haqqında məlumat",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/cards/:cardId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "cards",
+                ":cardId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "cardId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Kartın tam məlumatı: maskalı nömrə, status, limit, bitmə tarixi, çatdırılma vəziyyəti.\nTam kart nömrəsi və CVV **heç vaxt** qaytarılmır (PCI DSS).\n\nKart yoxdursa → `404 CARD_NOT_FOUND`, başqasınındırsa → `403 FORBIDDEN` (BOLA qorunması).\n"
+          }
+        },
+        {
+          "name": "POST /api/v2/cards/{cardId}/block — Kartı blokla",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/cards/:cardId/block",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "cards",
+                ":cardId",
+                "block"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "cardId",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Kartı dərhal bloklayır — bütün ödənişlər rədd olunur. Səbəb məcburidir:\n\n| `reason` | Nə vaxt |\n|---|---|\n| `LOST` | Kart itib |\n| `STOLEN` | Kart oğurlanıb (bu kart bir daha açılmır — yeni kart sifariş edin) |\n| `SUSPECTED_FRAUD` | Şübhəli əməliyyat görülüb |\n\nArtıq bloklanmış kart → `409 CARD_ALREADY_BLOCKED`, müddəti bitmiş kart → `409 CARD_EXPIRED`.\nUğurlu bloklama Kafka-ya `card.blocked` hadisəsi göndərir (Infra → Kafka-da görünür).\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"LOST\",\n  \"comment\": \"Metroda itirmişəm\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Deposits",
+      "item": [
+        {
+          "name": "GET /api/v2/deposits — Depozitlərin siyahısı",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/deposits?status=ACTIVE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "deposits"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "ACTIVE",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Token sahibinin bütün depozitləri (ən yenisi birinci), hər biri üçün bu günədək hesablanmış faiz (`accruedInterest`)."
+          }
+        },
+        {
+          "name": "POST /api/v2/deposits — Depozit rəsmiləşdirmə",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "disabled": false
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/deposits",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "deposits"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Müddətli depozit açır. Məbləğ `sourceAccountId` hesabından **dərhal çıxılır** (çıxarışda `DEBIT` əməliyyatı yaranır),\ndepozitin valyutası həmin hesabın valyutasıdır.\n\n### Faiz cədvəli (illik, %)\n| Valyuta | 3 ay | 6 ay | 12 ay | 24 ay |\n|---|---|---|---|---|\n| AZN | 7.0 | 8.0 | 10.0 | 11.0 |\n| USD | 1.0 | 1.5 | 2.5 | 3.0 |\n| EUR | 0.5 | 1.0 | 1.5 | 2.0 |\n\n* Minimum məbləğ: **100.00** (hər valyutada). Digər valyutalarda depozit açılmır → `422 DEPOSIT_CURRENCY_NOT_SUPPORTED`.\n* Faiz sadə üsulla hesablanır (ACT/365): `principal × rate / 100 × gün / 365`.\n  Məs. 1000 AZN, 12 ay, 10% → **100.00 AZN** faiz, müddətin sonunda **1100.00 AZN**.\n* `interestPayout`: `AT_MATURITY` (müddətin sonunda, default) və ya `MONTHLY` (məlumat üçün; məbləğ eynidir).\n* Hesabda kifayət qədər vəsait yoxdursa → `422 INSUFFICIENT_FUNDS` (balans dəyişmir).\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceAccountId\": \"AZ21NABZ0001\",\n  \"amount\": 1000,\n  \"termMonths\": 12,\n  \"interestPayout\": \"AT_MATURITY\",\n  \"autoRenew\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /api/v2/deposits/{depositId} — Depozit haqqında məlumat",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/deposits/:depositId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "deposits",
+                ":depositId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "depositId",
+                  "value": "dep_5f2a9c1e7b30"
+                }
+              ]
+            },
+            "description": "Depozitin tam vəziyyəti: əsas məbləğ, faiz dərəcəsi, bitmə tarixi, **bu günədək hesablanmış faiz** (`accruedInterest`),\nmüddətin sonunda gözlənilən faiz və ümumi məbləğ (`expectedInterest`, `expectedPayout`).\n"
+          }
+        },
+        {
+          "name": "POST /api/v2/deposits/{depositId}/close — Depoziti bağla",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/deposits/:depositId/close",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "deposits",
+                ":depositId",
+                "close"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "depositId",
+                  "value": "dep_5f2a9c1e7b30"
+                }
+              ]
+            },
+            "description": "Depoziti bağlayır və vəsaiti mənbə hesaba qaytarır (çıxarışda `CREDIT`).\n\n* **Müddət bitibsə** — əsas məbləğ + tam faiz ödənilir.\n* **Vaxtından əvvəl** — yalnız əsas məbləğ qaytarılır, faiz ödənilmir (`earlyClosure: true`, `interestPaid: 0`).\n* Artıq bağlanmış depozit → `409 DEPOSIT_ALREADY_CLOSED`.\n\nBody göndərilmir.\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Exchange Rates",
+      "item": [
+        {
+          "name": "GET /api/v2/currencies — Valyuta kodları (ISO 4217)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/currencies",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "currencies"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Dəstəklənən bütün valyutalar — **ISO 4217** hərf kodu (`code`), rəqəm kodu (`numericCode`), simvol və onluq rəqəm sayı.\nAutentifikasiya tələb olunmur. `GET /api/v2/exchange-rates`-də istifadə edə biləcəyiniz kodlar bunlardır.\n"
+          }
+        },
+        {
+          "name": "GET /api/v2/exchange-rates — Valyuta məzənnəsi (və konvertasiya)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/exchange-rates?from=USD&to=AZN&date=2026-10-20&amount=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "exchange-rates"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "USD",
+                  "disabled": false
+                },
+                {
+                  "key": "to",
+                  "value": "AZN",
+                  "disabled": false
+                },
+                {
+                  "key": "date",
+                  "value": "2026-10-20",
+                  "disabled": false
+                },
+                {
+                  "key": "amount",
+                  "value": "100",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Bir valyutanın (`from`) digər valyutalara nisbətən məzənnəsi. Autentifikasiya tələb olunmur.\n\n| Sorğu | Nəticə |\n|---|---|\n| `?from=USD&to=AZN` | 1 USD neçə AZN-dir (son tarix) |\n| `?from=USD&to=AZN&date=2026-10-20` | Həmin tarixin məzənnəsi |\n| `?from=USD&to=AZN&amount=250` | Əlavə olaraq `converted.AZN` = 250 USD-nin AZN qarşılığı |\n| `?from=EUR&to=USD,AZN,TRY` | Bir neçə valyuta (vergüllə) |\n| `?from=AZN` | `to` yoxdursa — bütün valyutalar |\n\n* `from` göndərilməsə **AZN** götürülür.\n* `date` göndərilməsə — **ən son** məzənnə. Həmin tarixdə məzənnə yoxdursa (həftəsonu / bayram), ondan əvvəlki ən yaxın\n  tarixin məzənnəsi qaytarılır: cavabda `date` (faktiki) və `requestedDate` (siz göndərən) fərqli olur.\n* Gələcək tarix → `422 INVALID_DATE`; naməlum valyuta → `422 UNSUPPORTED_CURRENCY`; tarixçədən əvvəlki tarix → `404 RATE_NOT_FOUND`.\n* Məzənnə 6, konvertasiya nəticəsi 2 onluq rəqəmlə yuvarlaqlaşdırılır.\n"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Air Travel",
+      "item": [
+        {
+          "name": "GET /api/v2/airports — Hava limanları (IATA kodları)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/airports?search=ist&country=Türkiyə",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "airports"
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "ist",
+                  "disabled": false
+                },
+                {
+                  "key": "country",
+                  "value": "Türkiyə",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Hava limanlarının siyahısı və onların 3 hərfli **IATA kodları** (`GYD` — Bakı, `IST` — İstanbul).\nReys axtarışında `origin` və `destination` bu kodlardır. `search` kod, şəhər və ad üzrə axtarır (böyük-kiçik hərf fərq etmir).\n"
+          }
+        },
+        {
+          "name": "GET /api/v2/flights/search — Reys axtarışı",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/flights/search?origin=GYD&destination=IST&departureDate=2027-06-10&adults=1&children=0&maxStops=0&sort=price",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "flights",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "origin",
+                  "value": "GYD",
+                  "disabled": false
+                },
+                {
+                  "key": "destination",
+                  "value": "IST",
+                  "disabled": false
+                },
+                {
+                  "key": "departureDate",
+                  "value": "2027-06-10",
+                  "disabled": false
+                },
+                {
+                  "key": "adults",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "children",
+                  "value": "0",
+                  "disabled": false
+                },
+                {
+                  "key": "maxStops",
+                  "value": "0",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "price",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Verilən gün üçün birbaşa və aktarmalı reys təklifləri (`flight_offer`). Autentifikasiya tələb olunmur.\n\n* `origin`, `destination` — IATA kodları (`GET /api/v2/airports`); eyni ola bilməz → `422 SAME_AIRPORT`.\n* `departureDate` — uçuş günü (UTC), keçmiş tarix → `422 INVALID_DATE`. Reyslər **sabahdan 30 gün irəli** mövcuddur.\n* Yalnız `adults + children` qədər boş yeri olan reyslər qaytarılır.\n* Qiymət: uşaq (2–11 yaş) böyük biletinin **75%-i**. `price.total` = bütün sərnişinlərin cəmi.\n* Bron üçün təklifin `id`-sini `POST /api/v2/flights/bookings`-də `flightId` kimi göndərin.\n\nMəşhur marşrutlar: `GYD→IST`, `GYD→DXB`, `GYD→TBS`, `GYD→LHR`.\n"
+          }
+        },
+        {
+          "name": "POST /api/v2/flights/bookings — Aviabilet bronu",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/flights/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "flights",
+                "bookings"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Seçilmiş reysə bilet bron edir və elektron bilet nömrələri verir. Autentifikasiya tələb olunmur (qonaq bronu) —\nəlaqə məlumatı (`contact`) məcburidir.\n\nCavabda:\n* **`pnr`** — 6 simvollu bron kodu (Passenger Name Record), məs. `K7Q2LM`;\n* hər sərnişin üçün **`ticketNumber`** — aviaşirkət kodu + 10 rəqəm (`235-0000000120`);\n* pasport nömrəsi yalnız maskalı qaytarılır (`C****4821`).\n\n**Yoxlamalar**\n| Qayda | Xəta |\n|---|---|\n| Reys yoxdur | `404 FLIGHT_NOT_FOUND` |\n| Reys artıq uçub | `422 FLIGHT_DEPARTED` |\n| `ADULT` uçuş günü ≥ 12 yaş, `CHILD` 2–11 yaş | `422 PASSENGER_TYPE_MISMATCH` |\n| Ən azı 1 `ADULT` (uşaq tək uça bilməz) | `422 ADULT_REQUIRED` |\n| Pasport uçuş tarixindən sonra bitməlidir | `422 PASSPORT_EXPIRED` |\n| Eyni pasport iki dəfə | `422 DUPLICATE_PASSENGER` |\n| Boş yer çatmır | `409 SOLD_OUT` |\n\nYer sayı atomik azaldılır: eyni anda gələn iki bron reysi mənfi yerə sala bilməz.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"flightId\": 18,\n  \"passengers\": [\n    {\n      \"type\": \"ADULT\",\n      \"firstName\": \"Aysel\",\n      \"lastName\": \"Mammadova\",\n      \"dateOfBirth\": \"1998-04-12\",\n      \"gender\": \"FEMALE\",\n      \"nationality\": \"AZ\",\n      \"passport\": {\n        \"number\": \"C12344821\",\n        \"expiryDate\": \"2031-05-01\"\n      }\n    },\n    {\n      \"type\": \"CHILD\",\n      \"firstName\": \"Murad\",\n      \"lastName\": \"Mammadov\",\n      \"dateOfBirth\": \"2019-08-30\",\n      \"gender\": \"MALE\",\n      \"nationality\": \"AZ\",\n      \"passport\": {\n        \"number\": \"C55501234\",\n        \"expiryDate\": \"2030-01-15\"\n      }\n    }\n  ],\n  \"contact\": {\n    \"email\": \"aysel@example.com\",\n    \"phone\": \"+994501234567\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Hotel Booking",
+      "item": [
+        {
+          "name": "GET /api/v2/hotels/search — Otel axtarışı (boş otaqlar)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/hotels/search?city=Bakı&checkIn=2027-06-10&checkOut=2027-06-13&adults=2&minStars=4&maxPrice=400&sort=price",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "hotels",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "city",
+                  "value": "Bakı",
+                  "disabled": false
+                },
+                {
+                  "key": "checkIn",
+                  "value": "2027-06-10",
+                  "disabled": false
+                },
+                {
+                  "key": "checkOut",
+                  "value": "2027-06-13",
+                  "disabled": false
+                },
+                {
+                  "key": "adults",
+                  "value": "2",
+                  "disabled": false
+                },
+                {
+                  "key": "minStars",
+                  "value": "4",
+                  "disabled": false
+                },
+                {
+                  "key": "maxPrice",
+                  "value": "400",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "price",
+                  "disabled": false
+                }
+              ],
+              "variable": []
+            },
+            "description": "Şəhərdə verilən tarixlərdə **boş otağı olan** otellər və həmin otaqların qiyməti. Autentifikasiya tələb olunmur.\n\n* Şəhərlər: `Bakı`, `Qəbələ`, `Gəncə`, `İstanbul`, `Tbilisi`, `Dubay` (böyük-kiçik hərf fərq etmir).\n* `checkIn` bu gün və ya sonra, `checkOut` > `checkIn`, ən çox **30 gecə** → əks halda `422 INVALID_DATES`.\n* `rooms[].totalPrice` = gecəlik qiymət × gecə sayı. Yalnız `capacity ≥ adults` olan otaqlar göstərilir.\n* Bron üçün `hotel.id` və `rooms[].roomId`-ni `POST /api/v2/hotels/bookings`-ə göndərin.\n"
+          }
+        },
+        {
+          "name": "POST /api/v2/hotels/bookings — Otel bronu",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/hotels/bookings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "hotels",
+                "bookings"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Otel otağını bron edir və **təsdiq nömrəsi** (`confirmationNumber`, məs. `CBX-7KQ2LM9P`) qaytarır.\nAutentifikasiya tələb olunmur (qonaq bronu) — `leadGuest` və `contact` məcburidir.\n\n| Qayda | Xəta |\n|---|---|\n| Otel yoxdur | `404 HOTEL_NOT_FOUND` |\n| Otaq bu otelə aid deyil | `404 ROOM_NOT_FOUND` |\n| `adults + children` > otağın tutumu | `422 ROOM_CAPACITY_EXCEEDED` |\n| Tarixlər səhvdir (keçmiş, checkOut ≤ checkIn, > 30 gecə) | `422 INVALID_DATES` |\n| Otaq həmin tarixlərdə tutulub | `409 ROOM_NOT_AVAILABLE` |\n\nQiymət: `perNight × nights`. Pulsuz ləğv — girişdən bir gün əvvəl saat 12:00-dək (`cancellationPolicy`).\nBron v1 bronları ilə eyni cədvəldə saxlanılır — tarixlər kəsişərsə, hər iki API \"otaq tutulub\" deyir.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hotelId\": 1,\n  \"roomId\": 4,\n  \"checkIn\": \"2027-06-10\",\n  \"checkOut\": \"2027-06-13\",\n  \"adults\": 2,\n  \"children\": 0,\n  \"leadGuest\": {\n    \"firstName\": \"Aysel\",\n    \"lastName\": \"Mammadova\"\n  },\n  \"contact\": {\n    \"email\": \"aysel@example.com\",\n    \"phone\": \"+994501234567\"\n  },\n  \"specialRequests\": \"Gec giriş (23:00 civarı)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Book Catalog",
+      "item": [
+        {
+          "name": "GET /api/v2/books/{bookId} — Kitab haqqında məlumat",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/books/:bookId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "books",
+                ":bookId"
+              ],
+              "query": [],
+              "variable": [
+                {
+                  "key": "bookId",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Kitabın kataloq məlumatı: ad, müəllif, janr, nəşr ili, səhifə sayı, təsvir, kataloq reytinqi (0–5) və\noxucu rəylərinin xülasəsi (`reviews.count`, `reviews.averageRating`). Rəylərin özü — `reviews.url`.\n"
+          }
+        },
+        {
+          "name": "GET /api/v2/books/{bookId}/reviews — Kitab rəyləri",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v2/books/:bookId/reviews?limit=10&startingAfter=6&sort=newest&minRating=4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "books",
+                ":bookId",
+                "reviews"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "disabled": false
+                },
+                {
+                  "key": "startingAfter",
+                  "value": "6",
+                  "disabled": false
+                },
+                {
+                  "key": "sort",
+                  "value": "newest",
+                  "disabled": false
+                },
+                {
+                  "key": "minRating",
+                  "value": "4",
+                  "disabled": false
+                }
+              ],
+              "variable": [
+                {
+                  "key": "bookId",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Kitab haqqında oxucu rəyləri + xülasə (`summary`: say, orta reytinq, 1–5 ulduz paylanması).\n\n* `sort`: `newest` (default), `highest`, `lowest`; `minRating` — yalnız bu və daha yüksək reytinqlilər.\n* **Cursor pagination:** `hasMore: true`-dursa, son rəyin `id`-sini `startingAfter`-ə yazın.\n"
+          }
+        }
+      ]
+    },
+    {
       "name": "Auth",
       "item": [
         {

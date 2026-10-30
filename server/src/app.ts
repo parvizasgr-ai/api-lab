@@ -39,6 +39,8 @@ import { uploadParser } from './middleware/upload.js';
 import { Infra } from './infra/index.js';
 import { infraHandlers } from './modules/infra/routes.js';
 import { notificationsHandlers } from './modules/notifications/routes.js';
+import { v2BankHandlers } from './modules/v2/bank.js';
+import { v2CatalogHandlers } from './modules/v2/catalog.js';
 
 export interface AppContext {
   db: DB;
@@ -49,7 +51,7 @@ export interface AppContext {
   infra: Infra; // Redis / Kafka / MongoDB simulyasiyaları
 }
 
-const API_PREFIXES = ['/api', '/oauth', '/bff', '/external'];
+const API_PREFIXES = ['/api', '/oauth', '/bff', '/external', '/realms'];
 
 // Runtime parametrlərinə görə spec-in nüsxəsi dəyişdirilir — /api/openapi.json və Swagger da bunu göstərir.
 function applyRuntimeOptions(spec: OpenApiDoc, config: Config): OpenApiDoc {
@@ -94,6 +96,8 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...tasksHandlers(ctx),
     ...infraHandlers(ctx),
     ...notificationsHandlers(ctx),
+    ...v2BankHandlers(ctx),
+    ...v2CatalogHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 

@@ -47,6 +47,7 @@ export const config = {
   jwtIssuer: 'api-lab',
   accessTokenTtlSec: 15 * 60,
   refreshTokenTtlSec: 7 * 24 * 60 * 60,
+  publicClientId: 'callbox-api', // POST /realms/callbox/protocol/openid-connect/token — public client (secret-siz)
   oauthCodeTtlSec: 60,
 
   // Dərs 2-də customers tokensiz işləyir; Dərs 3-də AUTH_CUSTOMERS=true → Bearer tələb olunur.

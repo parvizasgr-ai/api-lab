@@ -1,13 +1,13 @@
 -- 02_bank.sql — valyutalar, məzənnələr, hesablar, kartlar, köçürmələr, əməliyyatlar
 
-INSERT INTO currencies (code, name, symbol) VALUES
-  ('AZN', 'Azərbaycan manatı', '₼'),
-  ('USD', 'ABŞ dolları', '$'),
-  ('EUR', 'Avro', '€'),
-  ('TRY', 'Türk lirəsi', '₺'),
-  ('GBP', 'Britaniya funt sterlinqi', '£'),
-  ('GEL', 'Gürcüstan larisi', '₾'),
-  ('AED', 'BƏƏ dirhəmi', 'د.إ');
+INSERT INTO currencies (code, name, symbol, numeric_code, minor_units) VALUES
+  ('AZN', 'Azərbaycan manatı', '₼', '944', 2),
+  ('USD', 'ABŞ dolları', '$', '840', 2),
+  ('EUR', 'Avro', '€', '978', 2),
+  ('TRY', 'Türk lirəsi', '₺', '949', 2),
+  ('GBP', 'Britaniya funt sterlinqi', '£', '826', 2),
+  ('GEL', 'Gürcüstan larisi', '₾', '981', 2),
+  ('AED', 'BƏƏ dirhəmi', 'د.إ', '784', 2);
 
 -- Son 30 günün məzənnələri (base=AZN). Recursive CTE ilə gün ardıcıllığı yaradılır.
 -- Dəyişkənlik təsadüfi deyil, düsturla hesablanır → hər reset eyni rəqəmləri verir. USD manata bağlıdır (1.70).
@@ -111,6 +111,14 @@ SELECT tx.account_id, tx.type, tx.amount_minor, a.currency, tx.description, tx.t
        seed_ts('day', ('-' || tx.days_ago || ' days')::interval + ('+' || tx.minute_of_day || ' minutes')::interval)
 FROM tx JOIN accounts a ON a.id = tx.account_id
 ORDER BY tx.days_ago DESC, tx.minute_of_day, tx.account_id;
+
+-- Depozit (API v2): student-in 40 gün əvvəl açdığı 6 aylıq AZN depoziti; vəsait AZ21NABZ0001-dən çıxılıb (DEBIT, deposit_id ilə)
+INSERT INTO deposits (id, owner_id, source_account_id, currency, principal_minor, term_months, annual_rate, interest_payout, auto_renew, status, opened_at, maturity_date)
+VALUES ('dep_5f2a9c1e7b30', 1, 'AZ21NABZ0001', 'AZN', 50000, 6, 8.00, 'AT_MATURITY', false, 'ACTIVE',
+        seed_ts('day', ('-40 days')::interval + ('+10 hours')::interval), seed_date('day', ('-40 days')::interval + ('+6 months')::interval));
+INSERT INTO transactions (account_id, type, amount_minor, currency, description, deposit_id, created_at)
+VALUES ('AZ21NABZ0001', 'DEBIT', 50000, 'AZN', 'Depozit açılışı: dep_5f2a9c1e7b30 (6 ay, 8%)', 'dep_5f2a9c1e7b30',
+        seed_ts('day', ('-40 days')::interval + ('+10 hours')::interval));
 
 -- Balans = CREDIT-lərin cəmi − DEBIT-lərin cəmi (hesablar əməliyyatlarla həmişə uzlaşır).
 UPDATE accounts

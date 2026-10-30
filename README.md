@@ -555,7 +555,7 @@ Qeydiyyatdan sonra tələbə avtomatik daxil olur və **öz sandbox datasını**
 
 ## External APIs (RapidAPI)
 
-Portalın **External APIs** səhifəsi (`/external-apis`) və `/external/*` endpoint-ləri RapidAPI Hub-dakı 7 real API-ni Callbox proxy-si ilə çağırır:
+`/external/*` endpoint-ləri (portaldakı səhifə çıxarılıb — Callbox GUI-dən çağırmaq olar) RapidAPI Hub-dakı 7 real API-ni Callbox proxy-si ilə çağırır:
 JokeAPI, GeoDB Cities, WeatherAPI.com, OMDb (Movie Database Alternative), Numbers API, Deep Translate, QR Code Factory.
 
 **Standart rejim: hər tələbə öz açarı ilə işləyir.** Açar `X-RapidAPI-Key` başlığında göndərilir. Server onu yalnız RapidAPI-yə ötürür: DB-yə, loglara və `/_history`-ə yazmır, cavabda əks olunsa `***` ilə əvəz edir. Portal açarı yalnız vərəqənin yaddaşında saxlayır (localStorage yoxdur), səhifə yenilənəndə açar silinir.

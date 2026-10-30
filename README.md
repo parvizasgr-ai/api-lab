@@ -397,7 +397,7 @@ silmə), ortada chat; cavablar Markdown (kod bloku, cədvəl). Söhbətlər yaln
 ```bash
 GEMINI_API_KEY=...            # yalnız serverdə — portala, loga, request_log-a düşmür
 GEMINI_MODEL=gemini-2.5-flash # default
-GEMINI_FALLBACK_MODELS=gemini-3.5-flash,gemini-3.5-flash-lite,gemini-flash-lite-latest
+GEMINI_FALLBACK_MODELS=gemini-3.5-flash-lite,gemini-flash-lite-latest
 npm run ai:check -- "REST API nədir?"   # servis + HTTP (POST /api/v1/ai/chat) yoxlaması
 ```
 

@@ -95,7 +95,7 @@ export const config = {
   ai: {
     apiKey: env.GEMINI_API_KEY ?? '',
     model: env.GEMINI_MODEL ?? 'gemini-2.5-flash',
-    fallbackModels: (env.GEMINI_FALLBACK_MODELS ?? 'gemini-3.5-flash,gemini-3.5-flash-lite,gemini-flash-lite-latest').split(',').map((m) => m.trim()).filter(Boolean),
+    fallbackModels: (env.GEMINI_FALLBACK_MODELS ?? 'gemini-3.5-flash-lite,gemini-flash-lite-latest').split(',').map((m) => m.trim()).filter(Boolean),
     maxRetries: 3, // 429 / 503 → 3 əlavə cəhd (backoff: ~1s, ~2s, ~4s; Google retryDelay verirsə ona əməl olunur)
     baseDelayMs: 1000,
     maxDelayMs: 20_000,

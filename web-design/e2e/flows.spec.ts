@@ -194,7 +194,7 @@ const FAIL_500 = (route: import('@playwright/test').Route) =>
 const ERROR_SHOWN = /500|INTERNAL_ERROR|E2E simulyasiya/
 const errorScreens: { name: string; open: (page: Page) => Promise<void>; scope: string }[] = [
   { name: 'Bank', open: (page) => openApp(page, 'Bank'), scope: '.bank-summary' },
-  { name: 'SQL Playground (schema)', open: (page) => go(page, 'sql'), scope: 'main' },
+  { name: 'SQL Playground (schema)', open: (page) => go(page, 'sql'), scope: '.sql-tutorial' },
   { name: 'Materials', open: (page) => go(page, 'materials'), scope: 'main' },
   { name: 'Müştərilər', open: (page) => openApp(page, 'Müştərilər'), scope: '.customers-app' },
   { name: 'Kitablar', open: (page) => openApp(page, 'Kitablar'), scope: '.app-detail, main' },

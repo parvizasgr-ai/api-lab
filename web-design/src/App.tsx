@@ -21,14 +21,12 @@ import {
   hotels,
   learning,
   music,
-  sql,
   type Account,
   type Book,
   type LessonProgress,
   type Transaction,
   type Customer,
   type Dashboard,
-  type DbTable,
   type Endpoint,
   type EndpointGroup,
   type ExplorerResponse,
@@ -59,6 +57,7 @@ const InfraPage = lazy(() => import("./InfraPage")); // Redis / Kafka / MongoDB
 const ReferencePage = lazy(() => import("./ReferencePage")); // API Reference (developer portal)
 const AiChatPage = lazy(() => import("./AiChatPage")); // Callbox AI (Google Gemini)
 const DesignPage = lazy(() => import("./DesignPage")); // Design (Google Stitch)
+const SqlTutorialPage = lazy(() => import("./SqlTutorialPage")); // SQL dərsliyi (W3Schools üslubu) + redaktor
 
 type Language = "az" | "en";
 type Theme = "light" | "dark";
@@ -4095,88 +4094,6 @@ function AuthLabPage({ t }: { t: Translation }) {
   );
 }
 
-type SqlView = { columns: string[]; rows: string[][]; durationMs: number; truncated: boolean };
-
-function SqlPlaygroundPage({ t }: { t: Translation }) {
-  const [query, setQuery] = useState(() => handoffs.take().sql ?? "SELECT id, username, full_name, email, role\nFROM users\nORDER BY id;");
-  const [result, setResult] = useState<SqlView | null>(null);
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<{ code: string; message: string } | null>(null);
-  const [tables, setTables] = useState<DbTable[]>([]);
-  const [selectedTable, setSelectedTable] = useState("users");
-  const [schemaError, setSchemaError] = useState("");
-
-  // Sxem ağacı real DB-dən (GET /api/v1/_db/schema); gizli sütunlar (hash) işarələnir
-  const loadSchema = () => {
-    setSchemaError("");
-    sql
-      .schema()
-      .then(setTables)
-      .catch((caught) => {
-        setTables([]);
-        setSchemaError(errorText(caught)); // QA-M07: "0 cədvəl" əvəzinə xəta
-      });
-  };
-  useEffect(loadSchema, []);
-
-  const execute = async (nextQuery = query) => {
-    setQuery(nextQuery);
-    setError(null);
-    setRunning(true);
-    try {
-      const r = await sql.query(nextQuery);
-      setResult({
-        columns: r.columns,
-        rows: r.rows.map((row) => r.columns.map((column) => (row[column] === null ? "NULL" : String(row[column])))),
-        durationMs: r.durationMs,
-        truncated: r.truncated,
-      });
-    } catch (caught) {
-      setResult(null);
-      setError(caught instanceof AuthClientError ? { code: caught.code, message: caught.details[0]?.message ?? caught.message } : { code: "ERROR", message: String(caught) });
-    } finally {
-      setRunning(false);
-    }
-  };
-
-  const quickQueries = [
-    [t.allUsers, "SELECT id, username, full_name, email, role\nFROM users\nORDER BY id;"],
-    [t.activeCards, "SELECT id, owner_id, brand, last4, status\nFROM cards\nWHERE status = 'ACTIVE';"],
-    [t.recentBookings, "SELECT b.id, f.flight_no, b.status, b.passengers, b.created_at\nFROM flight_bookings b\nJOIN flights f ON f.id = b.flight_id\nORDER BY b.created_at DESC\nLIMIT 10;"],
-  ];
-  const lineCount = Math.max(6, query.split("\n").length);
-  const tableCount = tables.filter((table) => table.type === "table").length;
-
-  return (
-    <main className="sql-page" id="main-content">
-      <div className="sql-titlebar"><div><span className="section-kicker"><Icon name="code" size={16} />{t.dataLab}</span><h1>{t.sqlPlayground}</h1><p>{t.sqlSubtitle}</p></div><div className="select-only-badge"><Icon name="lock" size={15} /><span><strong>{t.selectOnly}</strong><small>{t.selectOnlyNotice}</small></span></div></div>
-      {schemaError && <LoadError error={schemaError} onRetry={loadSchema} t={t} />}
-      <div className="quick-query-row"><span>{t.quickQueries}</span>{quickQueries.map(([label, text]) => <button key={label} onClick={() => void execute(text)} type="button"><Icon name="play" size={12} />{label}</button>)}</div>
-      <div className="sql-workspace">
-        <aside className="schema-panel">
-          <div className="sql-panel-head"><span>{t.schemaTree}</span><code>main</code></div>
-          <div className="schema-title"><Icon name="chevron" size={13} /><span>{t.tables}</span><b>{tableCount}</b></div>
-          {tables.map((table) => (
-            <div className={selectedTable === table.name ? "schema-table active" : "schema-table"} key={table.name}>
-              <button onClick={() => setSelectedTable(table.name)} type="button"><Icon name="chevron" size={13} /><span>{table.name}{table.type === "view" ? " (view)" : ""}</span></button>
-              {selectedTable === table.name && <div>{table.columns.map((column) => <code key={column.name}>{column.name} · {column.type || "—"}{column.primaryKey ? " · PK" : ""}{column.hidden ? " · hidden" : ""}</code>)}</div>}
-            </div>
-          ))}
-        </aside>
-        <section className="sql-editor-panel">
-          <div className="sql-panel-head"><span>{t.sqlEditor}</span><div><button onClick={() => setQuery(query.replace(/\s+/g, " ").replace(/ (FROM|WHERE|JOIN|LEFT JOIN|GROUP BY|ORDER BY|HAVING|LIMIT) /gi, "\n$1 ").trim())} type="button">{t.formatQuery}</button><button disabled={running} onClick={() => void execute()} type="button">{running ? <span className="button-spinner" /> : <Icon name="play" size={14} />}{running ? t.runningQuery : t.runQuery}</button></div></div>
-          <div className="sql-code-editor"><div className="line-numbers">{Array.from({ length: lineCount }, (_, i) => <span key={i}>{i + 1}<br /></span>)}</div><textarea aria-label={t.sqlEditor} onChange={(event) => setQuery(event.target.value)} spellCheck="false" value={query} /></div>
-          {error && <div className="sql-error"><span>!</span><strong>{error.message}</strong><code>{error.code}</code></div>}
-          <div className="sql-results">
-            <div className="results-head"><span>{t.queryResults}</span>{result && <small>{result.rows.length}{result.truncated ? "+" : ""} {t.rowsReturned} · {t.queryTime}: {result.durationMs} ms</small>}</div>
-            {running ? <div className="sql-result-skeleton"><i /><i /><i /></div> : result ? <div aria-label={t.queryResults} className="table-scroll" role="region" tabIndex={0}><table><thead><tr>{result.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{result.rows.map((row, rowIndex) => <tr key={rowIndex}>{row.map((cell, cellIndex) => <td key={cellIndex}><code>{cell}</code></td>)}</tr>)}</tbody></table></div> : <div className="sql-empty"><span><Icon name="code" size={24} /></span><h3>{t.sqlEmptyTitle}</h3><p>{t.sqlEmptyText}</p></div>}
-          </div>
-        </section>
-      </div>
-    </main>
-  );
-}
-
 const KIND_ICON: Record<string, "compass" | "network" | "lock" | "code"> = { SLIDES: "compass", DOCUMENT: "network", TASKSHEET: "code", OTHER: "lock" };
 const MATERIAL_KINDS: MaterialKind[] = ["SLIDES", "DOCUMENT", "TASKSHEET", "OTHER"];
 const fileExt = (name: string) => (name.split(".").pop() ?? "").toUpperCase();
@@ -5084,7 +5001,9 @@ function App() {
       ) : currentPage === "auth" ? (
         <AuthLabPage t={t} />
       ) : currentPage === "sql" ? (
-        <SqlPlaygroundPage t={t} />
+        <Suspense fallback={<main className="sql-tutorial" id="main-content" aria-busy="true" />}>
+          <SqlTutorialPage language={language} />
+        </Suspense>
       ) : (
         currentPage === "design" ? (
           <Suspense fallback={<main className="design-page" id="main-content" aria-busy="true" />}>

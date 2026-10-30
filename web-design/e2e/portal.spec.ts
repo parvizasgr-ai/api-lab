@@ -206,6 +206,7 @@ test('smoke: bütün Apps və səhifələr real datanı JS xətası olmadan gös
 
   await nav(page, 'SQL')
   await expect(page.locator('.schema-panel')).toContainText('card_status_history')
+  await page.locator('.sql-nav-list a', { hasText: /SQL Editor/ }).click()
   await page.locator('.quick-query-row button').first().click()
   // users: 3 seed + e2e müəllimi + digər testlərin qeydiyyatları — say qaçış sırasından asılıdır
   await expect(page.locator('.sql-results tbody')).toContainText('student')

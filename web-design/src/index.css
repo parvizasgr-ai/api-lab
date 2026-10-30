@@ -10417,3 +10417,500 @@ footer {
   margin: 4px 0 0;
   font-size: 13.5px;
 }
+
+/* ======================================================================
+   SQL dərsliyi (/sql) — W3Schools üslubu: dərslər | dərs | verilənlər bazası
+   ====================================================================== */
+.sql-tutorial {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 270px;
+  min-height: calc(100vh - 68px);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.sql-lesson-nav {
+  position: sticky;
+  top: 68px;
+  height: calc(100vh - 68px);
+  overflow-y: auto;
+  padding: 18px 0 28px;
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--border);
+}
+
+.sql-nav-head {
+  display: grid;
+  gap: 2px;
+  padding: 0 18px 12px;
+}
+
+.sql-nav-head strong {
+  font-size: 20px;
+}
+
+.sql-nav-head small {
+  color: var(--text-secondary);
+}
+
+.sql-lesson-select {
+  display: none;
+}
+
+.sql-nav-group {
+  display: block;
+  margin: 14px 18px 4px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sql-nav-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 18px;
+  color: var(--text-primary);
+  font-size: 14.5px;
+  text-decoration: none;
+}
+
+.sql-nav-list a:hover {
+  background: var(--accent-soft);
+}
+
+/* W3Schools-da aktiv dərs dolğun rəngli zolaqdır */
+.sql-nav-list a.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.sql-nav-done {
+  color: var(--success-text);
+  font-weight: 700;
+}
+
+.sql-nav-list a.active .sql-nav-done {
+  color: var(--on-accent);
+}
+
+.sql-lesson {
+  min-width: 0;
+  padding: 28px 40px 48px;
+}
+
+.sql-lesson article {
+  max-width: 900px;
+}
+
+.sql-lesson h1 {
+  margin: 0 0 14px;
+  font-size: 40px;
+}
+
+.sql-lesson h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.sql-lesson hr {
+  margin: 22px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.sql-lesson .md p,
+.sql-lesson .md-list {
+  font-size: 15.5px;
+}
+
+.sql-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sql-btn-primary,
+.sql-btn {
+  padding: 9px 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.sql-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.sql-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sql-btn {
+  border-color: var(--border);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.sql-section {
+  margin-top: 26px;
+}
+
+/* Sintaksis: W3Schools "w3-code" — açıq fon, sol rəngli xətt */
+.sql-syntax {
+  margin: 0;
+  overflow-x: auto;
+  padding: 14px 18px;
+  border-left: 4px solid var(--accent);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font: 14px/1.65 "JetBrains Mono", monospace;
+}
+
+/* Nümunə: boz qutu (W3Schools "w3-example") */
+.sql-example {
+  padding: 16px 18px 18px;
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+}
+
+.sql-example h2 {
+  font-size: 19px;
+}
+
+.sql-example > p {
+  margin: 0 0 10px;
+}
+
+.tryit {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-surface);
+}
+
+.sql-tutorial .sql-panel-head {
+  min-height: 46px;
+}
+
+.sql-tutorial .sql-panel-head > span {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.sql-tutorial .sql-panel-head button {
+  font-size: 13.5px;
+}
+
+.sql-tutorial .sql-code-editor {
+  min-height: 0;
+}
+
+.sql-tutorial .line-numbers,
+.sql-tutorial .sql-code-editor textarea {
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.sql-tutorial .line-numbers {
+  padding: 12px 10px;
+}
+
+.sql-tutorial .sql-code-editor textarea {
+  padding: 12px 14px;
+}
+
+.tryit.big .sql-code-editor {
+  min-height: 240px;
+}
+
+.tryit-empty {
+  margin: 0;
+  padding: 18px;
+  color: var(--text-secondary);
+}
+
+.sql-tutorial .sql-results {
+  max-height: 360px;
+  overflow: auto;
+}
+
+.sql-tutorial .results-head {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.sql-tutorial .sql-results th {
+  position: sticky;
+  top: 0;
+  padding: 9px 14px;
+  font-size: 11.5px;
+}
+
+.sql-tutorial .sql-results td {
+  display: table-cell;
+  height: auto;
+  padding: 7px 14px;
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+.sql-tutorial .sql-results td code {
+  font-weight: 500;
+}
+
+.sql-tutorial td.null-cell code {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.sql-tutorial .sql-error {
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.sql-exercise {
+  margin-top: 30px;
+  padding: 18px 20px 20px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-lg);
+}
+
+.sql-exercise.solved {
+  border-color: var(--success);
+}
+
+.sql-exercise h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sql-done-badge {
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success-text);
+  font-size: 13px;
+}
+
+.sql-exercise-input {
+  width: 100%;
+  margin: 6px 0 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  color: var(--code-text);
+  font: 14px/1.6 "JetBrains Mono", monospace;
+  resize: vertical;
+}
+
+.sql-exercise-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sql-hint {
+  margin: 0 0 10px;
+}
+
+.sql-verdict {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+.sql-verdict.ok {
+  background: color-mix(in srgb, var(--success) 12%, var(--bg-surface));
+  color: var(--success-text);
+}
+
+.sql-verdict.bad {
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg-surface));
+  color: var(--danger);
+}
+
+.sql-exercise .sql-results {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sql-allowed {
+  padding: 10px 14px;
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+  font-size: 14px;
+}
+
+.sql-editor-page .quick-query-row > span {
+  font-size: 11.5px;
+}
+
+.sql-editor-page .quick-query-row button {
+  font-size: 13px;
+}
+
+.sql-editor-page .tryit {
+  margin-bottom: 20px;
+}
+
+/* Sağ panel: verilənlər bazası (W3Schools "Your Database") */
+.sql-db-panel {
+  position: sticky;
+  top: 68px;
+  height: calc(100vh - 68px);
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.sql-db-panel ul {
+  margin: 0;
+  padding: 6px 0 24px;
+  list-style: none;
+}
+
+.sql-db-table {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  padding: 7px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: 13.5px "JetBrains Mono", monospace;
+  cursor: pointer;
+}
+
+.sql-db-table:hover,
+.sql-db-table[aria-expanded="true"] {
+  background: var(--accent-soft);
+}
+
+.sql-db-table small {
+  color: var(--text-secondary);
+}
+
+.sql-db-columns {
+  display: grid;
+  gap: 3px;
+  padding: 6px 16px 12px 26px;
+  font: 12.5px "JetBrains Mono", monospace;
+}
+
+.sql-db-columns em {
+  color: var(--text-secondary);
+  font-style: normal;
+}
+
+.sql-db-columns .hidden-col {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+
+.sql-db-columns button {
+  justify-self: start;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 1200px) {
+  .sql-tutorial {
+    grid-template-columns: 230px minmax(0, 1fr);
+  }
+
+  .sql-db-panel {
+    position: static;
+    grid-column: 1 / -1;
+    height: auto;
+    max-height: 420px;
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 820px) {
+  .sql-tutorial {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sql-lesson-nav {
+    position: static;
+    height: auto;
+    padding: 14px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sql-nav-head {
+    padding: 0 0 8px;
+  }
+
+  .sql-nav-list {
+    display: none;
+  }
+
+  .sql-lesson-select {
+    display: block;
+  }
+
+  .sql-lesson-select select {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    font: inherit;
+  }
+
+  .sql-lesson {
+    padding: 20px 16px 36px;
+  }
+
+  .sql-lesson h1 {
+    font-size: 30px;
+  }
+
+  .sql-example {
+    padding: 12px;
+  }
+}
+
+.sql-tutorial .results-head small {
+  font-size: 12.5px;
+}
+
+/* SQL-də sütun adı dəqiq görünməlidir (uppercase "city" → "CİTY" olmasın) */
+.sql-tutorial .sql-results th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.sql-db-error {
+  flex-wrap: wrap;
+  margin: 10px 12px;
+  font-size: 13px;
+}

@@ -1,7 +1,7 @@
 // E2E ümumi köməkçilər: giriş, naviqasiya (desktop nav və ya mobil menyu), problem toplayıcı
 import { expect, type Page } from '@playwright/test'
 
-export const PAGES = ['home', 'reference', 'explorer', 'apps', 'auth', 'sql', 'materials', 'external', 'infra'] as const
+export const PAGES = ['home', 'reference', 'explorer', 'apps', 'auth', 'sql', 'materials', 'external', 'infra', 'ai'] as const
 
 export type Issue = { where: string; kind: string; detail: string }
 

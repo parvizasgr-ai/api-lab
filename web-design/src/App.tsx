@@ -58,6 +58,7 @@ import { normalizeRegistration, serverFieldErrors, validateRegistration, type Re
 const AdminPage = lazy(() => import("./AdminPage"));
 const InfraPage = lazy(() => import("./InfraPage")); // Redis / Kafka / MongoDB
 const ReferencePage = lazy(() => import("./ReferencePage")); // API Reference (developer portal)
+const AiChatPage = lazy(() => import("./AiChatPage")); // Callbox AI (Google Gemini)
 
 type Language = "az" | "en";
 type Theme = "light" | "dark";
@@ -1546,6 +1547,7 @@ function Header({
     { label: t.materials, page: "materials" },
     { label: t.externalApis, page: "external" },
     { label: t.infra, page: "infra" },
+    { label: "Callbox AI", page: "ai" },
     ...(session?.user.role === "superadmin" ? [{ label: t.teacherPanel, page: "admin" as Page }] : []),
   ];
 
@@ -5341,6 +5343,10 @@ function App() {
       ) : (
         currentPage === "external" ? (
           <ExternalApisPage language={language} onNavigate={navigateTo} session={session} t={t} />
+        ) : currentPage === "ai" ? (
+          <Suspense fallback={<main className="ai-page" id="main-content" aria-busy="true" />}>
+            <AiChatPage fullName={session?.user.name ?? ""} language={language} username={session?.user.username ?? "guest"} />
+          </Suspense>
         ) : currentPage === "infra" ? (
           <Suspense fallback={<main className="infra-page" id="main-content" aria-busy="true" />}>
             <InfraPage language={language} username={session?.user.username ?? ""} />

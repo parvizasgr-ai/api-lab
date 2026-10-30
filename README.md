@@ -207,7 +207,7 @@ erDiagram
 
 ---
 
-## Endpoint-lər (139)
+## Endpoint-lər (141)
 
 Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/docs**.
 
@@ -386,6 +386,25 @@ SELECT pnr, contact_email, passengers, total_minor FROM flight_bookings WHERE pn
 SELECT p.first_name, p.passenger_type, p.ticket_number FROM flight_passengers p WHERE p.ticket_number IS NOT NULL;
 SELECT confirmation_code, guest_name, check_in, check_out FROM hotel_bookings WHERE confirmation_code IS NOT NULL;
 ```
+
+## Callbox AI (Google Gemini)
+
+Portalda **Callbox AI** (`/ai`) — tələbə köməkçisi chat (DeepSeek / ChatGPT üslubu): solda söhbətlər (aylara görə, axtarış,
+silmə), ortada chat; cavablar Markdown (kod bloku, cədvəl). Söhbətlər yalnız tələbənin brauzerində saxlanılır.
+
+**Qoşmaq:** `.env` faylına açarı yazın (https://aistudio.google.com/apikey), serveri yenidən başladın:
+
+```bash
+GEMINI_API_KEY=...            # yalnız serverdə — portala, loga, request_log-a düşmür
+GEMINI_MODEL=gemini-2.5-flash # default
+GEMINI_FALLBACK_MODELS=gemini-3.5-flash,gemini-3.5-flash-lite,gemini-flash-lite-latest
+npm run ai:check -- "REST API nədir?"   # servis + HTTP (POST /api/v1/ai/chat) yoxlaması
+```
+
+* Backend: `server/src/modules/ai/gemini.ts` (`@google/genai` SDK) və `routes.ts`; endpoint-lər `GET /api/v1/ai/status`, `POST /api/v1/ai/chat` (Bearer, 10 sorğu/dəq).
+* **429 / 503** → exponential backoff + jitter ilə 3 təkrar cəhd (Google `retryDelay` verirsə ona əməl olunur); alınmasa növbəti modelə keçir,
+  sonda `429 AI_RATE_LIMITED` + `Retry-After`. Model **404** verirsə (məs. `gemini-2.5-flash` yeni hesablar üçün bağlanıb) fallback modelə keçir və bunu yadda saxlayır.
+* Testlərdə real Google-a sorğu getmir (`tests/helpers.ts` → `fakeGemini`); `tests/ai.test.ts`, `web-design/e2e/ai.spec.ts`.
 
 ## API konsepsiyaları — harada görmək olar
 

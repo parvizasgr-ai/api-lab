@@ -4577,6 +4577,88 @@
       ]
     },
     {
+      "name": "Callbox AI",
+      "item": [
+        {
+          "name": "GET /api/v1/ai/status — Callbox AI vəziyyəti (qoşulub-qoşulmayıb, model)",
+          "request": {
+            "method": "GET",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "status"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Portal chat səhifəsini açanda yoxlayır — serverdə `GEMINI_API_KEY` varmı və hansı model istifadə olunur. Açarın özü heç vaxt qaytarılmır."
+          }
+        },
+        {
+          "name": "POST /api/v1/ai/chat — Callbox AI — mesaj göndər, Gemini cavabını al",
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "disabled": false
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/chat",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "chat"
+              ],
+              "query": [],
+              "variable": []
+            },
+            "description": "Tələbənin mesajını (və söhbətin əvvəlki mesajlarını — kontekst üçün) Google Gemini-yə göndərir və cavabı qaytarır.\nSöhbət tarixçəsi serverdə saxlanılmır — portal onu brauzerdə saxlayır və hər sorğuda `messages` massivində göndərir\n(Gemini API-si də \"stateless\"-dir: `contents` = bütün söhbət).\n\n* `messages` — xronoloji sıra ilə, **son element `role: user`** olmalıdır; `role: model` — AI-ın əvvəlki cavabları.\n* Bir mesaj ən çox 4000 simvol, ən çox 30 mesaj (server son 30-u göndərir).\n* İstifadəçi başına **10 sorğu/dəqiqə** (free tier kvotasını qorumaq üçün).\n* Gemini **429** (kvota) və ya **503** (model yüklüdür) qaytaranda server **3 dəfəyə qədər** exponential backoff ilə\n  təkrar cəhd edir (~1s, ~2s, ~4s, Google `retryDelay` verirsə ona əməl edir). Alınmasa → `429 AI_RATE_LIMITED` + `Retry-After`.\n* `GEMINI_API_KEY` yoxdursa → `503 AI_NOT_CONFIGURED`.\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"text\": \"REST API-də PUT və PATCH fərqi nədir?\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "Notifications",
       "item": [
         {

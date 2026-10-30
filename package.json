@@ -31,9 +31,11 @@
     "postman:export": "tsx scripts/postman-export.ts",
     "rates:refresh": "tsx scripts/rates-refresh.ts",
     "external:verify": "tsx scripts/external-verify.ts",
+    "ai:check": "tsx scripts/ai-check.ts",
     "classroom:check": "tsx scripts/classroom-check.ts"
   },
   "dependencies": {
+    "@google/genai": "^2.32.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "cors": "^2.8.6",

@@ -91,6 +91,20 @@ export const config = {
     catalog: EXTERNAL_CATALOG as ExternalApi[], // testlərdə əvəz olunur (verified:true + mock upstream)
   },
 
+  // Callbox AI (Google Gemini). Açar yalnız serverdə. gemini-2.5-flash yeni hesablar üçün bağlanıbsa (404) fallback modelə keçilir.
+  ai: {
+    apiKey: env.GEMINI_API_KEY ?? '',
+    model: env.GEMINI_MODEL ?? 'gemini-2.5-flash',
+    fallbackModels: (env.GEMINI_FALLBACK_MODELS ?? 'gemini-3.5-flash,gemini-3.5-flash-lite,gemini-flash-lite-latest').split(',').map((m) => m.trim()).filter(Boolean),
+    maxRetries: 3, // 429 / 503 → 3 əlavə cəhd (backoff: ~1s, ~2s, ~4s; Google retryDelay verirsə ona əməl olunur)
+    baseDelayMs: 1000,
+    maxDelayMs: 20_000,
+    timeoutMs: 45_000,
+    maxMessages: 30, // tarixçədən göndərilən son mesajlar (kontekst)
+    maxChars: 4000, // bir mesajın uzunluğu
+    rateLimitPerMin: 10, // istifadəçi başına (free tier kvotasını qorumaq üçün)
+  },
+
   // SQL Playground: icra limiti, maks. sətir və nəticə ölçüsü
   sqlPlayground: { timeoutMs: 2000, maxRows: 200, maxBytes: 1_000_000 },
 

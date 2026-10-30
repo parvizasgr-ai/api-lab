@@ -41,6 +41,8 @@ import { infraHandlers } from './modules/infra/routes.js';
 import { notificationsHandlers } from './modules/notifications/routes.js';
 import { v2BankHandlers } from './modules/v2/bank.js';
 import { v2CatalogHandlers } from './modules/v2/catalog.js';
+import { aiHandlers, SYSTEM_INSTRUCTION } from './modules/ai/routes.js';
+import { GeminiService, type GenerateFn } from './modules/ai/gemini.js';
 
 export interface AppContext {
   db: DB;
@@ -49,6 +51,7 @@ export interface AppContext {
   auth: AuthService;
   materials: MaterialsService;
   infra: Infra; // Redis / Kafka / MongoDB simulyasiyaları
+  ai: GeminiService; // Callbox AI (Google Gemini)
 }
 
 const API_PREFIXES = ['/api', '/oauth', '/bff', '/external', '/realms'];
@@ -65,7 +68,8 @@ function applyRuntimeOptions(spec: OpenApiDoc, config: Config): OpenApiDoc {
   return copy;
 }
 
-export function createApp(options: { db: DB; config?: Partial<Config>; handlers?: Handlers }) {
+// aiGenerator — testlər üçün saxta Gemini (real Google-a sorğu getmir); verilməsə SDK istifadə olunur
+export function createApp(options: { db: DB; config?: Partial<Config>; handlers?: Handlers; aiGenerator?: GenerateFn | null }) {
   const config: Config = { ...defaultConfig, ...options.config };
   const spec = applyRuntimeOptions(loadOpenApi(), config);
   const ctx: AppContext = {
@@ -75,6 +79,10 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     auth: new AuthService(options.db, config),
     materials: new MaterialsService({ db: options.db, config }),
     infra: new Infra(options.db, config),
+    ai: new GeminiService(
+      { ...config.ai, systemInstruction: SYSTEM_INSTRUCTION },
+      options.aiGenerator !== undefined ? options.aiGenerator : undefined,
+    ),
   };
 
   const handlers: Handlers = {
@@ -98,6 +106,7 @@ export function createApp(options: { db: DB; config?: Partial<Config>; handlers?
     ...notificationsHandlers(ctx),
     ...v2BankHandlers(ctx),
     ...v2CatalogHandlers(ctx),
+    ...aiHandlers(ctx),
     ...options.handlers, // testlər üçün əvəzləmə
   };
 

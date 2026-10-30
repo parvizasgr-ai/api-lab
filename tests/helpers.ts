@@ -1,5 +1,6 @@
 // Test köməkçiləri: hər test app-i öz təmiz PostgreSQL DB-si (şablondan) və "dondurulmuş" saatı ilə yaranır.
 import fs from 'node:fs';
+import type { GenerateFn } from '../server/src/modules/ai/gemini.js';
 import os from 'node:os';
 import path from 'node:path';
 import request from 'supertest';
@@ -25,7 +26,13 @@ export interface TestClock {
   advance(seconds: number): void;
 }
 
-export function createTestApp(options: { config?: Partial<Config>; handlers?: Handlers } = {}) {
+// Testlərdə real Gemini-yə sorğu getmir: default saxta generator son mesajı əks etdirir
+export const fakeGemini: GenerateFn = async ({ model, messages }) => ({
+  text: `Test cavabı (${model}): ${messages[messages.length - 1].text}`,
+  usage: { promptTokenCount: 10, candidatesTokenCount: 5, totalTokenCount: 15 },
+});
+
+export function createTestApp(options: { config?: Partial<Config>; handlers?: Handlers; aiGenerator?: GenerateFn | null } = {}) {
   const db: DB = createTestDb(); // şablondan təmiz PostgreSQL DB (sorğular DB hazır olana qədər gözləyir)
   // Saat dəqiqənin əvvəlinə dondurulur → rate limit pəncərəsi test ortasında dəyişmir.
   const start = new Date();
@@ -57,7 +64,7 @@ export function createTestApp(options: { config?: Partial<Config>; handlers?: Ha
   // Müəllim (SUPERADMIN) hesabı ilk login('muellim1') zamanı yaradılır — digər testlərin datasına təsir etmir
   config.superadmin = { username: 'muellim1', password: SUPERADMIN_PASSWORD, name: 'Test Müəllim' };
   let superadminReady: Promise<unknown> | undefined;
-  const app = createApp({ db, config, handlers: options.handlers });
+  const app = createApp({ db, config, handlers: options.handlers, aiGenerator: options.aiGenerator === undefined ? fakeGemini : options.aiGenerator });
   const infra = app.locals.infra as import('../server/src/infra/index.js').Infra;
   const auth = new AuthService(db, config);
   const view = testView(db); // testlər DB-ni bu görünüşlə oxuyur (log yazıları tamamlanmış olur)

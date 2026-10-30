@@ -109,6 +109,10 @@
       "description": "Tələbələrin DB-ni yalnız SELECT ilə yoxlaması"
     },
     {
+      "name": "Callbox AI",
+      "description": "Google Gemini ilə tələbə köməkçisi (chat) — açar yalnız serverdə, 429 üçün retry/backoff"
+    },
+    {
       "name": "Notifications",
       "description": "Bildirişlər — Kafka hadisələrindən consumer yaradır, MongoDB-də saxlanılır (eventual consistency)"
     },
@@ -11105,6 +11109,265 @@
         }
       }
     },
+    "/api/v1/ai/status": {
+      "get": {
+        "tags": [
+          "Callbox AI"
+        ],
+        "operationId": "aiStatus",
+        "summary": "Callbox AI vəziyyəti (qoşulub-qoşulmayıb, model)",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "description": "Portal chat səhifəsini açanda yoxlayır — serverdə `GEMINI_API_KEY` varmı və hansı model istifadə olunur. Açarın özü heç vaxt qaytarılmır.",
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "responses": {
+          "200": {
+            "description": "Vəziyyət",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiStatus"
+                },
+                "example": {
+                  "configured": true,
+                  "model": "gemini-2.5-flash",
+                  "maxChars": 4000
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/v1/ai/chat": {
+      "post": {
+        "tags": [
+          "Callbox AI"
+        ],
+        "operationId": "aiChat",
+        "summary": "Callbox AI — mesaj göndər, Gemini cavabını al",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-rate-limit": 10,
+        "description": "Tələbənin mesajını (və söhbətin əvvəlki mesajlarını — kontekst üçün) Google Gemini-yə göndərir və cavabı qaytarır.\nSöhbət tarixçəsi serverdə saxlanılmır — portal onu brauzerdə saxlayır və hər sorğuda `messages` massivində göndərir\n(Gemini API-si də \"stateless\"-dir: `contents` = bütün söhbət).\n\n* `messages` — xronoloji sıra ilə, **son element `role: user`** olmalıdır; `role: model` — AI-ın əvvəlki cavabları.\n* Bir mesaj ən çox 4000 simvol, ən çox 30 mesaj (server son 30-u göndərir).\n* İstifadəçi başına **10 sorğu/dəqiqə** (free tier kvotasını qorumaq üçün).\n* Gemini **429** (kvota) və ya **503** (model yüklüdür) qaytaranda server **3 dəfəyə qədər** exponential backoff ilə\n  təkrar cəhd edir (~1s, ~2s, ~4s, Google `retryDelay` verirsə ona əməl edir). Alınmasa → `429 AI_RATE_LIMITED` + `Retry-After`.\n* `GEMINI_API_KEY` yoxdursa → `503 AI_NOT_CONFIGURED`.\n",
+        "x-db-impact": {
+          "reads": [],
+          "writes": []
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiChatRequest"
+              },
+              "example": {
+                "messages": [
+                  {
+                    "role": "user",
+                    "text": "REST API-də PUT və PATCH fərqi nədir?"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI cavabı",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiChatResponse"
+                },
+                "example": {
+                  "reply": {
+                    "role": "model",
+                    "text": "**PUT** resursu tam əvəz edir, **PATCH** isə yalnız göndərilən sahələri dəyişir. PUT idempotentdir…"
+                  },
+                  "model": "gemini-2.5-flash",
+                  "attempts": 1,
+                  "usage": {
+                    "promptTokens": 214,
+                    "outputTokens": 156,
+                    "totalTokens": 370
+                  },
+                  "durationMs": 1840
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "413": {
+            "$ref": "#/components/responses/BodyTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "description": "Validation xətası və ya təhlükəsizlik filtri",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "lastNotUser": {
+                    "summary": "Son mesaj user deyil",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "VALIDATION_ERROR",
+                      "message": "Son mesaj tələbənin (role user) olmalıdır",
+                      "details": [
+                        {
+                          "field": "messages",
+                          "message": "Son element role=user olmalıdır"
+                        }
+                      ],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "blocked": {
+                    "summary": "Təhlükəsizlik filtri",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 422,
+                      "code": "AI_BLOCKED",
+                      "message": "Sorğu təhlükəsizlik filtri ilə bloklandı",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Callbox limiti (10/dəq) və ya Gemini kvotası (təkrar cəhdlərdən sonra)",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "example": 30
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "examples": {
+                  "gemini": {
+                    "summary": "Gemini kvotası dolub",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 429,
+                      "code": "AI_RATE_LIMITED",
+                      "message": "Gemini limiti dolub (free tier) — 30 saniyə sonra yenidən yazın",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  },
+                  "local": {
+                    "summary": "Callbox limiti",
+                    "value": {
+                      "timestamp": "2026-10-30T09:00:00Z",
+                      "status": 429,
+                      "code": "TOO_MANY_REQUESTS",
+                      "message": "Çox sayda sorğu — 42 saniyə sonra yenidən cəhd edin",
+                      "details": [],
+                      "traceId": "req_7f2c9a"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "description": "Gemini xətası",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-30T09:00:00Z",
+                  "status": 502,
+                  "code": "AI_UPSTREAM_ERROR",
+                  "message": "Gemini xətası (500) — bir az sonra yenidən cəhd edin",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "AI qoşulmayıb (GEMINI_API_KEY yoxdur / etibarsızdır)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-30T09:00:00Z",
+                  "status": 503,
+                  "code": "AI_NOT_CONFIGURED",
+                  "message": "Callbox AI qoşulmayıb: serverin .env faylında GEMINI_API_KEY yoxdur",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "Gemini vaxtında cavab vermədi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "timestamp": "2026-10-30T09:00:00Z",
+                  "status": 504,
+                  "code": "AI_TIMEOUT",
+                  "message": "Gemini vaxtında cavab vermədi — yenidən cəhd edin",
+                  "details": [],
+                  "traceId": "req_7f2c9a"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [
@@ -16078,6 +16341,125 @@
       }
     },
     "schemas": {
+      "AiStatus": {
+        "type": "object",
+        "required": [
+          "configured",
+          "model",
+          "maxChars"
+        ],
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "description": "Serverdə GEMINI_API_KEY varmı"
+          },
+          "model": {
+            "type": "string"
+          },
+          "maxChars": {
+            "type": "integer"
+          }
+        }
+      },
+      "AiChatRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 60,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "role",
+                "text"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "model"
+                  ],
+                  "description": "user — tələbə, model — AI-ın əvvəlki cavabı"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4000
+                }
+              }
+            }
+          }
+        }
+      },
+      "AiChatResponse": {
+        "type": "object",
+        "required": [
+          "reply",
+          "model",
+          "attempts",
+          "usage",
+          "durationMs"
+        ],
+        "properties": {
+          "reply": {
+            "type": "object",
+            "required": [
+              "role",
+              "text"
+            ],
+            "properties": {
+              "role": {
+                "type": "string",
+                "enum": [
+                  "model"
+                ]
+              },
+              "text": {
+                "type": "string",
+                "description": "Markdown"
+              }
+            }
+          },
+          "model": {
+            "type": "string",
+            "description": "Faktiki cavab verən model (fallback ola bilər)"
+          },
+          "attempts": {
+            "type": "integer",
+            "description": "Gemini-yə edilən cəhd sayı (429/503 retry daxil)"
+          },
+          "usage": {
+            "type": "object",
+            "nullable": true,
+            "required": [
+              "promptTokens",
+              "outputTokens",
+              "totalTokens"
+            ],
+            "properties": {
+              "promptTokens": {
+                "type": "integer"
+              },
+              "outputTokens": {
+                "type": "integer"
+              },
+              "totalTokens": {
+                "type": "integer"
+              }
+            }
+          },
+          "durationMs": {
+            "type": "integer"
+          }
+        }
+      },
       "V2ListBase": {
         "type": "object",
         "required": [
@@ -18179,12 +18561,17 @@
           "PASSPORT_EXPIRED",
           "DUPLICATE_PASSENGER",
           "ADULT_REQUIRED",
+          "AI_BLOCKED",
+          "AI_RATE_LIMITED",
           "TOO_MANY_REQUESTS",
           "INTERNAL_ERROR",
           "SIMULATED_ERROR",
           "BAD_GATEWAY",
           "SERVICE_UNAVAILABLE",
           "GATEWAY_TIMEOUT",
+          "AI_NOT_CONFIGURED",
+          "AI_UPSTREAM_ERROR",
+          "AI_TIMEOUT",
           "EXTERNAL_NOT_SUBSCRIBED",
           "EXTERNAL_KEY_INVALID",
           "EXTERNAL_RATE_LIMITED",

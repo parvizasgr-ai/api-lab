@@ -390,7 +390,7 @@ SELECT confirmation_code, guest_name, check_in, check_out FROM hotel_bookings WH
 ## SQL dərsliyi (/sql)
 
 W3Schools üslubunda: solda dərslər (SELECT, DISTINCT, WHERE, ORDER BY ASC/DESC, AND/OR/NOT, BETWEEN, IN, LIKE, NULL,
-LIMIT/OFFSET, alias, COUNT/SUM/AVG/MIN/MAX, GROUP BY, HAVING, JOIN, CASE), ortada izah + sintaksis + **"Özün sına »"**
+LIMIT/OFFSET, alias, COUNT/SUM/AVG/MIN/MAX, GROUP BY, HAVING), ortada izah + sintaksis + **"Özün sına »"**
 redaktorları + avtomatik yoxlanan **tapşırıq**, sağda verilənlər bazası (cədvəllər, sütunlar, sətir sayı), sonda sərbəst SQL Editor.
 Dərs URL-dədir (`/sql?lesson=group-by`). Dərslər: `web-design/src/sql/lessons.ts` (yeni dərs = massivə obyekt).
 Tapşırıq yoxlaması (`sql/compare.ts`): tələbənin nəticəsi həll sorğusunun nəticəsi ilə müqayisə olunur — sütun sayı, sətir sayı,

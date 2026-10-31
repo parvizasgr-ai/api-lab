@@ -13,7 +13,7 @@ export type Exercise = {
 export type Lesson = {
   id: string;
   title: string;
-  group: "Əsaslar" | "Süzgəc" | "Qruplaşdırma" | "Birləşmə" | "Alət";
+  group: "Əsaslar" | "Süzgəc" | "Qruplaşdırma" | "Alət";
   body: string; // Markdown
   syntax?: string;
   examples: Example[];
@@ -326,48 +326,6 @@ Fərqli bazalarda: SQL Server — \`SELECT TOP 5\`, Oracle / standart — \`FETC
       task: "**5-dən çox** reysi olan istiqamətləri (`to_code`) və reys sayını göstərin.",
       solution: "SELECT to_code, COUNT(*) FROM flights GROUP BY to_code HAVING COUNT(*) > 5;",
       hint: "GROUP BY to_code HAVING COUNT(*) > 5",
-    },
-  },
-  {
-    id: "joins",
-    title: "JOIN",
-    group: "Birləşmə",
-    body: `\`JOIN\` iki cədvəli **əlaqəli sütun** (adətən foreign key) üzrə birləşdirir.
-
-| Növ | Nə qaytarır |
-|---|---|
-| \`INNER JOIN\` | yalnız hər iki cədvəldə uyğunluğu olan sətirlər |
-| \`LEFT JOIN\` | sol cədvəlin **bütün** sətirləri + uyğun gələnlər (yoxdursa NULL) |
-| \`RIGHT JOIN\` | sağ cədvəlin bütün sətirləri |
-| \`FULL JOIN\` | hər ikisinin bütün sətirləri |
-
-Callbox-da: \`cards.account_id → accounts.id\`, \`book_reviews.book_id → books.id\`, \`hotel_rooms.hotel_id → hotels.id\`.`,
-    syntax: "SELECT a.sütun, b.sütun\nFROM cədvəl_a a\nJOIN cədvəl_b b ON b.a_id = a.id;",
-    examples: [
-      { title: "INNER JOIN", text: "Kartlar və onların hesabının valyutası:", sql: "SELECT c.id, c.last4, c.status, a.currency\nFROM cards c\nJOIN accounts a ON a.id = c.account_id;" },
-      { title: "LEFT JOIN + GROUP BY", text: "Hər kitabın rəy sayı (rəyi olmayanlar da 0 ilə):", sql: "SELECT b.title, COUNT(r.id) AS rey_sayi\nFROM books b\nLEFT JOIN book_reviews r ON r.book_id = b.id\nGROUP BY b.title\nORDER BY rey_sayi DESC, b.title\nLIMIT 10;" },
-    ],
-    exercise: {
-      task: "Hər otel otağı üçün **otelin adı** (`hotels.name`) və **otaq tipini** (`hotel_rooms.room_type`) göstərin.",
-      solution: "SELECT h.name, r.room_type FROM hotel_rooms r JOIN hotels h ON h.id = r.hotel_id;",
-      hint: "FROM hotel_rooms r JOIN hotels h ON h.id = r.hotel_id",
-    },
-  },
-  {
-    id: "case",
-    title: "CASE",
-    group: "Birləşmə",
-    body: `\`CASE\` — SQL-in **if / else**-i. Şərtə görə dəyər qaytarır, hesabatda kateqoriya yaratmaq üçün çox istifadə olunur.
-İlk doğru \`WHEN\` işləyir; heç biri doğru deyilsə \`ELSE\` (yoxdursa NULL).`,
-    syntax: "SELECT sütun,\n  CASE\n    WHEN şərt1 THEN 'nəticə1'\n    WHEN şərt2 THEN 'nəticə2'\n    ELSE 'nəticə3'\n  END AS ad\nFROM cədvəl;",
-    examples: [
-      { title: "Kateqoriya", text: "Reysləri müddətə görə qruplaşdır:", sql: "SELECT flight_no, duration_min,\n  CASE\n    WHEN duration_min < 120 THEN 'Qısa'\n    WHEN duration_min < 300 THEN 'Orta'\n    ELSE 'Uzun'\n  END AS muddet\nFROM flights\nLIMIT 10;" },
-      { title: "CASE + GROUP BY", text: "Birbaşa və aktarmalı reysların sayı:", sql: "SELECT CASE WHEN stops = 0 THEN 'Birbaşa' ELSE 'Aktarmalı' END AS nov,\n       COUNT(*) AS say\nFROM flights\nGROUP BY 1;" },
-    ],
-    exercise: {
-      task: "Kitabların adını və `CASE` ilə səviyyəsini göstərin: `pages > 400` → `'Qalın'`, əks halda `'Nazik'`.",
-      solution: "SELECT title, CASE WHEN pages > 400 THEN 'Qalın' ELSE 'Nazik' END FROM books;",
-      hint: "CASE WHEN pages > 400 THEN 'Qalın' ELSE 'Nazik' END",
     },
   },
 ];

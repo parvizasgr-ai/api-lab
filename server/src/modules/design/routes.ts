@@ -34,7 +34,7 @@ export function designHandlers({ design, config }: AppContext): Handlers {
     designGetJob: async (req, res) => {
       res.set('Cache-Control', 'no-store').json(await design.getJob(req.auth!.userId, req.valid.params.jobId as string));
     },
-    // HTML + imzalı preview URL. Portal iframe-ə srcdoc YOX, bu URL-i verir: srcdoc sənədi Callbox səhifəsinin CSP-sini miras alır
+    // HTML + imzalı preview URL. Portal iframe-ə srcdoc YOX, bu URL-i verir: srcdoc sənədi Relayo səhifəsinin CSP-sini miras alır
     // və Tailwind CDN-i bloklayırdı; ayrıca URL-in öz CSP-si var (Tailwind + Google Fonts, sandbox direktivi).
     designGetJobHtml: async (req, res) => {
       const result = (await design.getJob(req.auth!.userId, req.valid.params.jobId as string, true)) as { jobId: string; screenId: string | null; html: string };
@@ -51,7 +51,7 @@ export function designHandlers({ design, config }: AppContext): Handlers {
       res
         .status(200)
         .set({
-          // Sənəd həmişə sandbox-dadır (opaque origin) — birbaşa açılsa belə Callbox-un cookie/storage-inə çıxışı yoxdur
+          // Sənəd həmişə sandbox-dadır (opaque origin) — birbaşa açılsa belə Relayo-nun cookie/storage-inə çıxışı yoxdur
           'Content-Security-Policy': `${DESIGN_CSP}; frame-ancestors 'self'; sandbox allow-scripts`,
           'Cache-Control': 'private, max-age=600',
           'Referrer-Policy': 'no-referrer',

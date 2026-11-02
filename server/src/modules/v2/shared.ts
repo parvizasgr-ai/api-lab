@@ -1,4 +1,4 @@
-// Callbox API v2 — ümumi köməkçilər (Stripe üslubu: obyektdə `object` sahəsi, siyahıda {object:'list', data, hasMore, url}).
+// Relayo API v2 — ümumi köməkçilər (Stripe üslubu: obyektdə `object` sahəsi, siyahıda {object:'list', data, hasMore, url}).
 import crypto from 'node:crypto';
 import { ApiError } from '../../errors.js';
 

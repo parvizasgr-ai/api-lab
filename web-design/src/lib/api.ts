@@ -1,4 +1,4 @@
-// Portalın API client-i — hamısı real backend-ə (Callbox server) gedir, mock data yoxdur.
+// Portalın API client-i — hamısı real backend-ə (Relayo server) gedir, mock data yoxdur.
 // Endpoint-lərin tam siyahısı: /api/openapi.json (Swagger: /docs).
 import { AuthClientError, SERVER_URL, api, type NetworkCall } from "./http";
 
@@ -142,7 +142,7 @@ export type EndpointGroup = { label: string; endpoints: Endpoint[] };
 type SpecParam = { name: string; in: string; required?: boolean; description?: string; example?: unknown; schema?: { example?: unknown; default?: unknown } };
 
 // Endpoint kitabxanası OpenAPI-dən (tag → qrup). Path parametrləri spec nümunələri ilə doldurulur;
-// query parametrləri (məcburi olanlar nümunə dəyəri ilə), auth növü və body formatı Callbox GUI-ni avtomatik doldurur.
+// query parametrləri (məcburi olanlar nümunə dəyəri ilə), auth növü və body formatı Relayo GUI-ni avtomatik doldurur.
 async function getEndpointGroups(): Promise<EndpointGroup[]> {
   const spec = await getSpec();
   const groups = new Map<string, EndpointGroup>();

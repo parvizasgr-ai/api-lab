@@ -1,4 +1,4 @@
-// Callbox AI (/ai) — tələbə köməkçisi (Google Gemini). DeepSeek / ChatGPT üslubu: solda söhbətlər (aylara görə), ortada chat.
+// Relayo AI (/ai) — tələbə köməkçisi (Google Gemini). DeepSeek / ChatGPT üslubu: solda söhbətlər (aylara görə), ortada chat.
 // Söhbətlər yalnız bu brauzerdə saxlanılır (istifadəçiyə görə ayrıca); hər sorğuda tarixçə serverə göndərilir — server
 // onu Gemini-yə ötürür, heç yerdə saxlamır. API key yalnız serverdədir.
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
@@ -12,12 +12,12 @@ type Status = { configured: boolean; model: string; maxChars: number };
 
 const TEXT = {
   az: {
-    brand: "Callbox AI",
+    brand: "Relayo AI",
     newChat: "Yeni söhbət",
     search: "Söhbətlərdə axtar",
     ready: "Hazır olanda yaz",
     subtitle: "API, SQL, autentifikasiya, biznes analiz — istənilən sualı ver.",
-    placeholder: "Callbox AI-a yaz…",
+    placeholder: "Relayo AI-a yaz…",
     send: "Göndər",
     thinking: "Düşünür…",
     copy: "Kopyala",
@@ -25,7 +25,7 @@ const TEXT = {
     retry: "Yenidən cəhd et",
     delete: "Söhbəti sil",
     noChats: "Hələ söhbət yoxdur",
-    notConfigured: "Callbox AI hələ qoşulmayıb: müəllim serverin .env faylına GEMINI_API_KEY əlavə etməlidir.",
+    notConfigured: "Relayo AI hələ qoşulmayıb: müəllim serverin .env faylına GEMINI_API_KEY əlavə etməlidir.",
     rateLimited: (s: number) => `Limit dolub — ${s} saniyə sonra yenidən yaz.`,
     hint: "Enter — göndər, Shift+Enter — yeni sətir",
     disclaimer: "AI səhv edə bilər — vacib məlumatı API Reference və dərs materiallarında yoxla.",
@@ -33,12 +33,12 @@ const TEXT = {
     sidebar: "Söhbətlər",
   },
   en: {
-    brand: "Callbox AI",
+    brand: "Relayo AI",
     newChat: "New chat",
     search: "Search chats",
     ready: "Whenever you're ready",
     subtitle: "APIs, SQL, authentication, business analysis — ask anything.",
-    placeholder: "Message Callbox AI…",
+    placeholder: "Message Relayo AI…",
     send: "Send",
     thinking: "Thinking…",
     copy: "Copy",
@@ -46,7 +46,7 @@ const TEXT = {
     retry: "Retry",
     delete: "Delete chat",
     noChats: "No chats yet",
-    notConfigured: "Callbox AI is not connected yet: the teacher must add GEMINI_API_KEY to the server .env file.",
+    notConfigured: "Relayo AI is not connected yet: the teacher must add GEMINI_API_KEY to the server .env file.",
     rateLimited: (s: number) => `Rate limit reached — try again in ${s} seconds.`,
     hint: "Enter to send, Shift+Enter for a new line",
     disclaimer: "AI can make mistakes — check important details in the API Reference and course materials.",
@@ -55,7 +55,7 @@ const TEXT = {
   },
 };
 
-const storageKey = (username: string) => `callbox.ai.chats.${username}`;
+const storageKey = (username: string) => `relayo.ai.chats.${username}`;
 
 function loadChats(username: string): Chat[] {
   try {

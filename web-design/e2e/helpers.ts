@@ -28,7 +28,7 @@ export async function signIn(page: Page, username: string, password: string) {
   await expect(page.locator('.user-chip')).toBeVisible()
 }
 
-export const pathOf = (target: string) => (target === 'home' ? '/' : target === 'explorer' ? '/callbox' : `/${target}`)
+export const pathOf = (target: string) => (target === 'home' ? '/' : target === 'explorer' ? '/relayo' : `/${target}`)
 
 export async function go(page: Page, target: string) {
   // Apps və Auth Lab menyuda yoxdur — API Reference-in "Laboratoriyalar" bölməsindən açılır

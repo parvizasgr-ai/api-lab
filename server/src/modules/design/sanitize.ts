@@ -3,7 +3,7 @@
 //      on* hadisə atributları, javascript: URL-ləri, iframe/object/embed/base/meta refresh silinir; linklər səhifədən
 //      çıxarmır (href → #), formlar heç yerə göndərilmir. Content-Security-Policy <meta> əlavə olunur (fetch/XHR qadağan).
 //   2. Portal HTML-i `<iframe sandbox="allow-scripts" srcdoc>` daxilində göstərir — allow-same-origin YOXDUR:
-//      skript Callbox-un cookie/localStorage/token-lərinə çata bilmir, yuxarı pəncərəni yönləndirə bilmir, popup aça bilmir.
+//      skript Relayo-nun cookie/localStorage/token-lərinə çata bilmir, yuxarı pəncərəni yönləndirə bilmir, popup aça bilmir.
 import sanitizeHtml from 'sanitize-html';
 
 const TAILWIND_CDN = /^https:\/\/cdn\.tailwindcss\.com(\/|\?|$)/;

@@ -1,4 +1,4 @@
-# Callbox — verilənlər bazası
+# Relayo — verilənlər bazası
 
 SQLite (`data/apilab.db`), raw SQL, ORM yoxdur.
 

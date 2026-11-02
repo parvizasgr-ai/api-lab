@@ -1,4 +1,4 @@
-// Callbox API v2 — Banking (10 endpoint, hamısı Bearer token tələb edir).
+// Relayo API v2 — Banking (10 endpoint, hamısı Bearer token tələb edir).
 //   Hesablar və çıxarış, kart sifarişi / məlumatı / bloklama, depozit rəsmiləşdirmə / məlumatı / bağlama.
 //   Pul yazan əməliyyatlar (depozit açma/bağlama, kart sifarişi) .immediate() tranzaksiyasındadır: balans yoxlaması
 //   ilə UPDATE arasında başqa sorğu araya girə bilməz; istənilən xəta → ROLLBACK.

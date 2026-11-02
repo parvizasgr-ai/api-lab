@@ -1,7 +1,7 @@
 // API Reference (/reference) — developer portal, Stripe API Reference üslubunda:
 //   solda naviqasiya (bölmələr + endpoint-lər), ortada sənəd (təsvir, parametrlər, body atributları, cavab, xətalar),
 //   sağda kod nümunələri (cURL / JavaScript / Python) və cavab nümunəsi. Hər şey OpenAPI spec-dən yaranır.
-// "Callbox GUI-də sına" — sorğu hazır vəziyyətdə Callbox GUI-də açılır (token avtomatik Authorization-a düşür).
+// "Relayo GUI-də sına" — sorğu hazır vəziyyətdə Relayo GUI-də açılır (token avtomatik Authorization-a düşür).
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { handoffs } from "./lib/api";
 import { apiToken, codeSample, encodeForm, exampleRequest, getReferenceModel, PUBLIC_CLIENT_ID, requestToken, TOKEN_PATH, type CodeLang, type RefAttribute, type RefModel, type RefOperation } from "./lib/reference";
@@ -36,7 +36,7 @@ const TEXT = {
     oneOf: "Mümkün dəyərlər",
     children: "Daxili atributları göstər",
     hideChildren: "Daxili atributları gizlət",
-    tryIt: "Callbox GUI-də sına",
+    tryIt: "Relayo GUI-də sına",
     copy: "Kopyala",
     copied: "Kopyalandı",
     response: "Cavab",
@@ -48,7 +48,7 @@ const TEXT = {
     loadError: "Spec yüklənmədi",
     retry: "Yenidən cəhd et",
     noResults: "Heç nə tapılmadı",
-    tokenReady: (u: string, m: number) => `Token hazırdır (${u}) — ${m} dəq etibarlıdır. Callbox GUI onu Bearer sorğulara avtomatik qoyur.`,
+    tokenReady: (u: string, m: number) => `Token hazırdır (${u}) — ${m} dəq etibarlıdır. Relayo GUI onu Bearer sorğulara avtomatik qoyur.`,
     tokenNone: "Hələ token yoxdur. Bank API-ləri üçün əvvəlcə token alın:",
     getToken: "student hesabı ilə token al",
     clearToken: "Tokeni sil",
@@ -80,7 +80,7 @@ const TEXT = {
     oneOf: "Possible values",
     children: "Show child attributes",
     hideChildren: "Hide child attributes",
-    tryIt: "Try in Callbox GUI",
+    tryIt: "Try in Relayo GUI",
     copy: "Copy",
     copied: "Copied",
     response: "Response",
@@ -92,7 +92,7 @@ const TEXT = {
     loadError: "Could not load the spec",
     retry: "Retry",
     noResults: "Nothing found",
-    tokenReady: (u: string, m: number) => `Token ready (${u}) — valid for ${m} min. Callbox GUI adds it to Bearer requests automatically.`,
+    tokenReady: (u: string, m: number) => `Token ready (${u}) — valid for ${m} min. Relayo GUI adds it to Bearer requests automatically.`,
     tokenNone: "No token yet. Get one before calling the banking APIs:",
     getToken: "Get a token as student",
     clearToken: "Clear token",
@@ -326,13 +326,13 @@ function Intro({ model, origin, t }: { model: RefModel; origin: string; t: Text 
           <span className="section-kicker">{t.kicker}</span>
           <h1>{t.title}</h1>
           <Markdown
-            text={`**Callbox API v2** — REST API: resurs yönümlü URL-lər, JSON request və response, standart HTTP status kodları və vahid xəta formatı.
+            text={`**Relayo API v2** — REST API: resurs yönümlü URL-lər, JSON request və response, standart HTTP status kodları və vahid xəta formatı.
 Valyuta, aviareys, otel və kitab API-ləri **açıqdır** (token lazım deyil). **Bank** API-ləri (${bank.length} endpoint) üçün OAuth 2.0 / OpenID Connect token lazımdır.
 
 ### Başlamaq üçün 3 addım
 - **Token alın:** \`POST ${TOKEN_PATH}\` (aşağıda — Autentifikasiya).
 - **Token-i başlığa yazın:** \`Authorization: Bearer <access_token>\`.
-- **Sorğu göndərin:** hər endpoint-in sağında hazır cURL / JavaScript / Python nümunəsi və **Callbox GUI-də sına** düyməsi var.
+- **Sorğu göndərin:** hər endpoint-in sağında hazır cURL / JavaScript / Python nümunəsi və **Relayo GUI-də sına** düyməsi var.
 
 | Mövzu | Qayda |
 |---|---|

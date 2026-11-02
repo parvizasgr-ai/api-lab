@@ -1,4 +1,4 @@
-// Callbox AI (Gemini): retry/backoff (429, 503), model fallback (404), xəta xəritəsi, endpoint davranışı.
+// Relayo AI (Gemini): retry/backoff (429, 503), model fallback (404), xəta xəritəsi, endpoint davranışı.
 // Real Google-a sorğu getmir — GenerateFn saxtadır, gözləmə (sleep) qeyd olunur.
 import { describe, expect, it } from 'vitest';
 import { config as baseConfig } from '../server/src/config.js';

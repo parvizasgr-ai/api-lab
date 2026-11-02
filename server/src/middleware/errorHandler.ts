@@ -19,7 +19,7 @@ export function errorHandler(config: Config): ErrorRequestHandler {
 
     if (err instanceof OAuthError) {
       res.status(err.status).type('application/json').set('Cache-Control', 'no-store');
-      if (err.status === 401) res.set('WWW-Authenticate', 'Basic realm="Callbox OAuth"');
+      if (err.status === 401) res.set('WWW-Authenticate', 'Basic realm="Relayo OAuth"');
       res.json({ error: err.error, error_description: err.description });
       return;
     }

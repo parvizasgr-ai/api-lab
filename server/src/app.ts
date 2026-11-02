@@ -54,7 +54,7 @@ export interface AppContext {
   auth: AuthService;
   materials: MaterialsService;
   infra: Infra; // Redis / Kafka / MongoDB simulyasiyaları
-  ai: GeminiService; // Callbox AI (Google Gemini)
+  ai: GeminiService; // Relayo AI (Google Gemini)
   design: DesignService; // Design bölməsi (Google Stitch)
 }
 

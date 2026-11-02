@@ -1,15 +1,15 @@
 openapi: 3.0.3
 info:
-  title: Callbox
+  title: Relayo
   version: 1.0.0
   contact:
-    name: Callbox — Div Academy / UNEC
+    name: Relayo — Div Academy / UNEC
     email: parviz.asgr@gmail.com
   license:
     name: MIT (yalnız tədris məqsədli)
     url: https://opensource.org/licenses/MIT
   description: |
-    **Callbox** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.
+    **Relayo** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.
     Bu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.
 
     ## Konvensiyalar
@@ -92,7 +92,7 @@ tags:
     description: Tələbələrin DB-ni yalnız SELECT ilə yoxlaması
   - name: Design
     description: Google Stitch — mətndən UI ekranı (asinxron generasiya, polling), redaktə; ortaq günlük kredit hovuzu
-  - name: Callbox AI
+  - name: Relayo AI
     description: Google Gemini ilə tələbə köməkçisi (chat) — açar yalnız serverdə, 429 üçün retry/backoff
   - name: Notifications
     description: Bildirişlər — Kafka hadisələrindən consumer yaradır, MongoDB-də saxlanılır (eventual consistency)
@@ -112,15 +112,15 @@ tags:
     description: Health, OpenAPI sənədi, Postman collection
 
 x-tagGroups:
-  - name: Callbox API v2
+  - name: Relayo API v2
     tags: [Authentication, Bank Accounts, Bank Cards, Deposits, Exchange Rates, Air Travel, Hotel Booking, Book Catalog]
 
 paths:
   # ==========================================================================
-  # CALLBOX API v2 — Developer Portal (API Reference). 21 endpoint:
+  # RELAYO API v2 — Developer Portal (API Reference). 21 endpoint:
   #   1 token (OpenID Connect) + 10 banking (Bearer) + 2 currency + 3 flight + 2 hotel + 2 book (hamısı açıq)
   # ==========================================================================
-  /realms/callbox/protocol/openid-connect/token:
+  /realms/relayo/protocol/openid-connect/token:
     post:
       tags: [Authentication]
       operationId: v2Token
@@ -143,7 +143,7 @@ paths:
         | `password` | `client_id`, `username`, `password` | İlk dəfə token almaq (istifadəçi adı + parol) |
         | `refresh_token` | `client_id`, `refresh_token` | `access_token`-in vaxtı (15 dəq) bitəndə yenisini almaq |
 
-        * `client_id` həmişə **`callbox-api`**-dir (public client — `client_secret` lazım deyil).
+        * `client_id` həmişə **`relayo-api`**-dir (public client — `client_secret` lazım deyil).
         * `access_token` — JWT, **900 saniyə** (15 dəq) etibarlıdır. Məzmununa [jwt.io](https://jwt.io)-da baxa bilərsiniz.
         * `refresh_token` — **7 gün** etibarlıdır və **birdəfəlikdir** (rotation): hər istifadədə yenisi verilir, köhnəsi ləğv olunur.
           Ləğv olunmuş refresh token yenidən göndərilsə, təhlükəsizlik üçün istifadəçinin bütün refresh token-ləri ləğv edilir.
@@ -151,7 +151,7 @@ paths:
 
         Xətalar RFC 6749 formatındadır: `{ "error": "...", "error_description": "..." }`.
 
-        Callbox GUI-də **Authorization → OAuth 2.0 → Get New Access Token** düyməsi bu endpoint-i çağırır və alınan token
+        Relayo GUI-də **Authorization → OAuth 2.0 → Get New Access Token** düyməsi bu endpoint-i çağırır və alınan token
         Bearer token tələb edən bütün sorğulara avtomatik əlavə olunur.
       x-db-impact:
         reads: [users, user_scopes, refresh_tokens, rate_limit_counters]
@@ -162,8 +162,8 @@ paths:
           application/x-www-form-urlencoded:
             schema: { $ref: '#/components/schemas/V2TokenForm' }
             examples:
-              password: { summary: 'grant_type=password — ilk token', value: { grant_type: password, client_id: callbox-api, username: student, password: student123 } }
-              refresh: { summary: 'grant_type=refresh_token — tokeni yenilə', value: { grant_type: refresh_token, client_id: callbox-api, refresh_token: rt_4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f } }
+              password: { summary: 'grant_type=password — ilk token', value: { grant_type: password, client_id: relayo-api, username: student, password: student123 } }
+              refresh: { summary: 'grant_type=refresh_token — tokeni yenilə', value: { grant_type: refresh_token, client_id: relayo-api, refresh_token: rt_4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f } }
       responses:
         '200':
           description: Token cütü
@@ -1251,7 +1251,7 @@ paths:
           headers:
             WWW-Authenticate:
               schema: { type: string }
-              example: Basic realm="Callbox"
+              example: Basic realm="Relayo"
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1290,7 +1290,7 @@ paths:
               example: '<!doctype html><html><body><h1>Google ilə daxil ol</h1>...</body></html>'
             application/json:
               schema: { $ref: '#/components/schemas/OAuthConsentInfo' }
-              example: { client: { clientId: apilab-portal, name: Callbox Portal }, redirectUri: 'http://localhost:5173/oauth/callback', scope: openid profile email, state: xyz-12345678, accounts: [{ username: student, fullName: Aysel Məmmədova, email: student@apilab.az }] }
+              example: { client: { clientId: apilab-portal, name: Relayo Portal }, redirectUri: 'http://localhost:5173/oauth/callback', scope: openid profile email, state: xyz-12345678, accounts: [{ username: student, fullName: Aysel Məmmədova, email: student@apilab.az }] }
         '400':
           description: client_id və ya redirect_uri qeydiyyatda yoxdur (redirect edilmir — açıq redirect hücumunun qarşısı alınır)
           content:
@@ -4082,9 +4082,9 @@ paths:
   # ==========================================================================
   /api/v1/ai/status:
     get:
-      tags: [Callbox AI]
+      tags: [Relayo AI]
       operationId: aiStatus
-      summary: Callbox AI vəziyyəti (qoşulub-qoşulmayıb, model)
+      summary: Relayo AI vəziyyəti (qoşulub-qoşulmayıb, model)
       security: [{ bearerAuth: [] }]
       description: Portal chat səhifəsini açanda yoxlayır — serverdə `GEMINI_API_KEY` varmı və hansı model istifadə olunur. Açarın özü heç vaxt qaytarılmır.
       x-db-impact: { reads: [], writes: [] }
@@ -4102,9 +4102,9 @@ paths:
 
   /api/v1/ai/chat:
     post:
-      tags: [Callbox AI]
+      tags: [Relayo AI]
       operationId: aiChat
-      summary: Callbox AI — mesaj göndər, Gemini cavabını al
+      summary: Relayo AI — mesaj göndər, Gemini cavabını al
       security: [{ bearerAuth: [] }]
       x-rate-limit: 10
       description: |
@@ -4151,7 +4151,7 @@ paths:
                 lastNotUser: { summary: Son mesaj user deyil, value: { timestamp: '2026-10-30T09:00:00Z', status: 422, code: VALIDATION_ERROR, message: Son mesaj tələbənin (role user) olmalıdır, details: [{ field: messages, message: Son element role=user olmalıdır }], traceId: req_7f2c9a } }
                 blocked: { summary: Təhlükəsizlik filtri, value: { timestamp: '2026-10-30T09:00:00Z', status: 422, code: AI_BLOCKED, message: Sorğu təhlükəsizlik filtri ilə bloklandı, details: [], traceId: req_7f2c9a } }
         '429':
-          description: Callbox limiti (10/dəq) və ya Gemini kvotası (təkrar cəhdlərdən sonra)
+          description: Relayo limiti (10/dəq) və ya Gemini kvotası (təkrar cəhdlərdən sonra)
           headers:
             Retry-After:
               schema: { type: integer }
@@ -4161,7 +4161,7 @@ paths:
               schema: { $ref: '#/components/schemas/Error' }
               examples:
                 gemini: { summary: Gemini kvotası dolub, value: { timestamp: '2026-10-30T09:00:00Z', status: 429, code: AI_RATE_LIMITED, message: Gemini limiti dolub (free tier) — 30 saniyə sonra yenidən yazın, details: [], traceId: req_7f2c9a } }
-                local: { summary: Callbox limiti, value: { timestamp: '2026-10-30T09:00:00Z', status: 429, code: TOO_MANY_REQUESTS, message: Çox sayda sorğu — 42 saniyə sonra yenidən cəhd edin, details: [], traceId: req_7f2c9a } }
+                local: { summary: Relayo limiti, value: { timestamp: '2026-10-30T09:00:00Z', status: 429, code: TOO_MANY_REQUESTS, message: Çox sayda sorğu — 42 saniyə sonra yenidən cəhd edin, details: [], traceId: req_7f2c9a } }
         '500': { $ref: '#/components/responses/InternalError' }
         '502':
           description: Gemini xətası
@@ -4174,7 +4174,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
-              example: { timestamp: '2026-10-30T09:00:00Z', status: 503, code: AI_NOT_CONFIGURED, message: 'Callbox AI qoşulmayıb: serverin .env faylında GEMINI_API_KEY yoxdur', details: [], traceId: req_7f2c9a }
+              example: { timestamp: '2026-10-30T09:00:00Z', status: 503, code: AI_NOT_CONFIGURED, message: 'Relayo AI qoşulmayıb: serverin .env faylında GEMINI_API_KEY yoxdur', details: [], traceId: req_7f2c9a }
         '504':
           description: Gemini vaxtında cavab vermədi
           content:
@@ -4256,7 +4256,7 @@ paths:
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429':
-          description: Callbox rate limit və ya Stitch kvotası
+          description: Relayo rate limit və ya Stitch kvotası
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -4292,7 +4292,7 @@ paths:
       operationId: designDeleteSession
       summary: Sessiyanı sil
       security: [{ bearerAuth: [] }]
-      description: Sessiya və onun işləri Callbox-dan silinir (kredit sayğacına təsir etmir — günlük limit dəyişmir). Generasiya gedirsə → 409.
+      description: Sessiya və onun işləri Relayo-dan silinir (kredit sayğacına təsir etmir — günlük limit dəyişmir). Generasiya gedirsə → 409.
       x-db-impact: { reads: [design_sessions, design_jobs], writes: [DELETE design_sessions, DELETE design_jobs (CASCADE)] }
       responses:
         '204': { description: Silindi }
@@ -4393,7 +4393,7 @@ paths:
       description: |
         Stitch-in HTML-i serverdə təmizlənib: yalnız Tailwind CDN skripti və onun konfiqurasiyası qalır, `on*` atributları,
         `javascript:` URL-ləri, iframe/object/embed silinir, linklər heç yerə aparmır, `Content-Security-Policy` əlavə olunur.
-        Portal onu `<iframe sandbox="allow-scripts" srcdoc>` daxilində göstərir (Callbox-un token və cookie-lərinə çıxışı yoxdur).
+        Portal onu `<iframe sandbox="allow-scripts" srcdoc>` daxilində göstərir (Relayo-nun token və cookie-lərinə çıxışı yoxdur).
       x-db-impact: { reads: [design_jobs], writes: [] }
       parameters:
         - { name: jobId, in: path, required: true, description: İşin id-si, schema: { type: string, pattern: '^dj_[a-f0-9]{16}$' }, example: dj_9a8b7c6d5e4f3a2b }
@@ -4429,7 +4429,7 @@ paths:
         `<iframe sandbox="allow-scripts" src>` üçün. iframe `Authorization` başlığı göndərə bilmədiyi üçün URL imzalıdır
         (`exp` + HMAC `sig`, 1 saat) — `GET /api/v1/design/jobs/{jobId}/html` cavabındakı `previewUrl`.
         Cavabın öz `Content-Security-Policy`-si var: yalnız Tailwind CDN və Google Fonts, `connect-src 'none'`,
-        `frame-ancestors 'self'` və `sandbox allow-scripts` (sənəd opaque origin-dədir — Callbox-un token/cookie-lərinə çıxışı yoxdur).
+        `frame-ancestors 'self'` və `sandbox allow-scripts` (sənəd opaque origin-dədir — Relayo-nun token/cookie-lərinə çıxışı yoxdur).
       x-db-impact: { reads: [design_jobs], writes: [] }
       parameters:
         - { name: jobId, in: path, required: true, description: İşin id-si, schema: { type: string, pattern: '^dj_[a-f0-9]{16}$' }, example: dj_9a8b7c6d5e4f3a2b }
@@ -5853,7 +5853,7 @@ paths:
           content:
             application/json:
               schema: { type: object }
-              example: { openapi: 3.0.3, info: { title: Callbox, version: 1.0.0 } }
+              example: { openapi: 3.0.3, info: { title: Relayo, version: 1.0.0 } }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
@@ -5872,7 +5872,7 @@ paths:
           content:
             application/json:
               schema: { type: object }
-              example: { info: { name: Callbox, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' }, item: [] }
+              example: { info: { name: Relayo, schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json' }, item: [] }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
@@ -5890,7 +5890,7 @@ paths:
           content:
             application/json:
               schema: { type: object }
-              example: { name: Callbox — Local, values: [{ key: baseUrl, value: 'http://localhost:3000', enabled: true }] }
+              example: { name: Relayo — Local, values: [{ key: baseUrl, value: 'http://localhost:3000', enabled: true }] }
         '422': { $ref: '#/components/responses/ValidationError' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
@@ -6191,7 +6191,7 @@ components:
       headers:
         WWW-Authenticate:
           schema: { type: string }
-          example: Bearer realm="Callbox"
+          example: Bearer realm="Relayo"
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
@@ -6604,7 +6604,7 @@ components:
       required: [grant_type, client_id]
       properties:
         grant_type: { type: string, description: '`password` və ya `refresh_token`', example: password }
-        client_id: { type: string, description: 'Public client: `callbox-api`', example: callbox-api }
+        client_id: { type: string, description: 'Public client: `relayo-api`', example: relayo-api }
         username: { type: string, maxLength: 64, description: '`password` grant üçün məcburi' }
         password: { type: string, maxLength: 128, description: '`password` grant üçün məcburi' }
         refresh_token: { type: string, maxLength: 200, description: '`refresh_token` grant üçün məcburi' }

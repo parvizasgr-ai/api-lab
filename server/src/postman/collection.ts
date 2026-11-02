@@ -105,7 +105,7 @@ export function buildCollection(spec: OpenApiDoc) {
 
 export function buildEnvironment(baseUrl: string) {
   return {
-    name: 'Callbox — Local',
+    name: 'Relayo — Local',
     values: [
       { key: 'baseUrl', value: baseUrl, type: 'default', enabled: true },
       { key: 'token', value: '', type: 'secret', enabled: true },

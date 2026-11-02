@@ -247,7 +247,7 @@ export class DesignService {
     const title = input.title?.trim() || 'Yeni dizayn';
     let projectId: string;
     try {
-      projectId = await stitch.createProject(`callbox-${username}-${title}`.slice(0, 80));
+      projectId = await stitch.createProject(`relayo-${username}-${title}`.slice(0, 80));
     } catch (err) {
       const d = describe(err);
       throw new ApiError(d.code === 'DESIGN_RATE_LIMITED' ? 429 : d.code === 'DESIGN_AUTH_FAILED' ? 503 : 502, d.code, d.message);
@@ -348,7 +348,7 @@ export class DesignService {
     const session = (await this.db.prepare(`SELECT * FROM design_sessions WHERE id = ?`).get(job.session_id)) as SessionRow;
     await this.db.prepare(`UPDATE design_jobs SET status = 'RUNNING', started_at = ? WHERE id = ?`).run(isoNow(this.now()), jobId);
     try {
-      const projectId = session.stitch_project_id ?? (await stitch.createProject(`callbox-${session.id}`));
+      const projectId = session.stitch_project_id ?? (await stitch.createProject(`relayo-${session.id}`));
       const result =
         job.kind === 'EDIT' && session.current_screen_id
           ? await stitch.edit(projectId, session.current_screen_id, job.prompt, job.device_type)

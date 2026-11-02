@@ -1,17 +1,17 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Callbox",
+    "title": "Relayo",
     "version": "1.0.0",
     "contact": {
-      "name": "Callbox — Div Academy / UNEC",
+      "name": "Relayo — Div Academy / UNEC",
       "email": "parviz.asgr@gmail.com"
     },
     "license": {
       "name": "MIT (yalnız tədris məqsədli)",
       "url": "https://opensource.org/licenses/MIT"
     },
-    "description": "**Callbox** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.\nBu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.\n\n## Konvensiyalar\n| Mövzu | Qayda |\n|---|---|\n| **Pul** | API-də **JSON number**, maksimum 2 onluq rəqəm (`multipleOf: 0.01`), məs. `125.50`. DB-də `*_minor INTEGER` (qəpik): `12550`. Çevirmə yalnız serverdə olur. |\n| **Vaxt** | ISO-8601 UTC: `2026-10-13T09:30:00Z`. Tarix: `2026-10-13`. |\n| **Sahə adları** | JSON-da `camelCase`. İstisna: OAuth2 token cavabları (`access_token`) — RFC 6749 standartına görə `snake_case`. |\n| **Validation** | Hər request body/query/path/header bu sxemə qarşı yoxlanılır (ajv). Bilinməyən sahə, səhv tip, enum xaricində dəyər → **422 VALIDATION_ERROR**. JSON parse olunmursa → **400 MALFORMED_JSON**. |\n| **Xəta formatı** | Bütün xətalar `Error` sxemindədir: `{timestamp, status, code, message, details[], traceId}`. Stack trace heç vaxt qaytarılmır. İstisna: `POST /oauth/token` RFC 6749 formatı (`{error, error_description}`). |\n| **Pagination** | `page` (1-dən) və `size` (1–100, default 20). Cavab: `{items, page, size, total, totalPages}`. Kitablar üçün əlavə **cursor** nümunəsi: `GET /api/v1/books`. |\n| **Rate limit** | Subyekt (token / API key / IP) başına **60 sorğu/dəqiqə**. Hər cavabda `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; limit keçiləndə **429** + `Retry-After`. |\n| **Request ID** | Hər cavabda `X-Request-Id`. Xətada `traceId` ilə eynidir. Sorğuda `X-Request-Id` göndərsəniz, server onu istifadə edir. |\n| **Versioning** | `/api/v1`. `/api/v2/customers` — breaking change nümunəsi (`firstName`+`lastName` → `fullName`). v1 customers cavablarında `Deprecation`, `Sunset`, `Link` başlıqları. |\n\n## Tədris simulyatorları\nİstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):\n`500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.\nBFF-də simulyatoru bir bölməyə yönəltmək olar: `X-Simulate: hotels:503` → yalnız otel bölməsi xəta verir (207 Multi-Status).\n\n## Extension-lar\n* `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).\n* `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.\n* `x-rate-limit` — endpoint-ə xas, ümumidən sərt limit (sorğu/dəqiqə), məs. SQL Playground: 20.\n* `x-error-format: oauth2` — həmin endpoint-in xətaları RFC 6749 formatındadır (`{error, error_description}`), validation xətası → 400 `invalid_request`.\n* `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).\n\n## Demo istifadəçilər\n`student/student123` (bütün scope-lar), `rauf/rauf123` (`cards:write` yoxdur), `admin/admin123` (ADMIN). API Key: `apilab-demo-key-2026`.\n"
+    "description": "**Relayo** — tələbələrin Postman/curl ilə real sorğu göndərdiyi və nəticəni SQL ilə yoxladığı təlim platforması.\nBu fayl **single source of truth**-dur: server route-ları, request validation, Swagger UI (`/docs`) və Postman collection buradan yaranır.\n\n## Konvensiyalar\n| Mövzu | Qayda |\n|---|---|\n| **Pul** | API-də **JSON number**, maksimum 2 onluq rəqəm (`multipleOf: 0.01`), məs. `125.50`. DB-də `*_minor INTEGER` (qəpik): `12550`. Çevirmə yalnız serverdə olur. |\n| **Vaxt** | ISO-8601 UTC: `2026-10-13T09:30:00Z`. Tarix: `2026-10-13`. |\n| **Sahə adları** | JSON-da `camelCase`. İstisna: OAuth2 token cavabları (`access_token`) — RFC 6749 standartına görə `snake_case`. |\n| **Validation** | Hər request body/query/path/header bu sxemə qarşı yoxlanılır (ajv). Bilinməyən sahə, səhv tip, enum xaricində dəyər → **422 VALIDATION_ERROR**. JSON parse olunmursa → **400 MALFORMED_JSON**. |\n| **Xəta formatı** | Bütün xətalar `Error` sxemindədir: `{timestamp, status, code, message, details[], traceId}`. Stack trace heç vaxt qaytarılmır. İstisna: `POST /oauth/token` RFC 6749 formatı (`{error, error_description}`). |\n| **Pagination** | `page` (1-dən) və `size` (1–100, default 20). Cavab: `{items, page, size, total, totalPages}`. Kitablar üçün əlavə **cursor** nümunəsi: `GET /api/v1/books`. |\n| **Rate limit** | Subyekt (token / API key / IP) başına **60 sorğu/dəqiqə**. Hər cavabda `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`; limit keçiləndə **429** + `Retry-After`. |\n| **Request ID** | Hər cavabda `X-Request-Id`. Xətada `traceId` ilə eynidir. Sorğuda `X-Request-Id` göndərsəniz, server onu istifadə edir. |\n| **Versioning** | `/api/v1`. `/api/v2/customers` — breaking change nümunəsi (`firstName`+`lastName` → `fullName`). v1 customers cavablarında `Deprecation`, `Sunset`, `Link` başlıqları. |\n\n## Tədris simulyatorları\nİstənilən sorğuya `X-Simulate` başlığı əlavə edin (retry/timeout dərsi üçün):\n`500` → 500 INTERNAL_ERROR, `503` → 503 SERVICE_UNAVAILABLE + `Retry-After: 5`, `slow` → 3 san gecikmə, sonra normal cavab, `timeout` → 5 san sonra 504 GATEWAY_TIMEOUT.\nBFF-də simulyatoru bir bölməyə yönəltmək olar: `X-Simulate: hotels:503` → yalnız otel bölməsi xəta verir (207 Multi-Status).\n\n## Extension-lar\n* `x-db-impact` — endpoint-in DB təsiri: `reads` (SELECT edilən cədvəllər) və `writes` (INSERT/UPDATE/DELETE). Bütün sorğular əlavə olaraq `request_log` və `rate_limit_counters`-ə yazır (orada göstərilmir).\n* `x-required-scopes` — JWT `scope` claim-ində olmalı scope-lar. Yoxdursa **403 INSUFFICIENT_SCOPE**.\n* `x-rate-limit` — endpoint-ə xas, ümumidən sərt limit (sorğu/dəqiqə), məs. SQL Playground: 20.\n* `x-error-format: oauth2` — həmin endpoint-in xətaları RFC 6749 formatındadır (`{error, error_description}`), validation xətası → 400 `invalid_request`.\n* `x-error-code` (schema daxilində) — həmin sahənin validation xətası ümumi `VALIDATION_ERROR` əvəzinə bu kodla qaytarılır (məs. `INVALID_REASON`).\n\n## Demo istifadəçilər\n`student/student123` (bütün scope-lar), `rauf/rauf123` (`cards:write` yoxdur), `admin/admin123` (ADMIN). API Key: `apilab-demo-key-2026`.\n"
   },
   "servers": [
     {
@@ -113,7 +113,7 @@
       "description": "Google Stitch — mətndən UI ekranı (asinxron generasiya, polling), redaktə; ortaq günlük kredit hovuzu"
     },
     {
-      "name": "Callbox AI",
+      "name": "Relayo AI",
       "description": "Google Gemini ilə tələbə köməkçisi (chat) — açar yalnız serverdə, 429 üçün retry/backoff"
     },
     {
@@ -151,7 +151,7 @@
   ],
   "x-tagGroups": [
     {
-      "name": "Callbox API v2",
+      "name": "Relayo API v2",
       "tags": [
         "Authentication",
         "Bank Accounts",
@@ -165,7 +165,7 @@
     }
   ],
   "paths": {
-    "/realms/callbox/protocol/openid-connect/token": {
+    "/realms/relayo/protocol/openid-connect/token": {
       "post": {
         "tags": [
           "Authentication"
@@ -174,7 +174,7 @@
         "summary": "Access token al (OpenID Connect token endpoint)",
         "security": [],
         "x-error-format": "oauth2",
-        "description": "Keycloak / OpenID Connect standartında **token endpoint**-i. Bank API-lərini (10 endpoint) çağırmaq üçün əvvəlcə buradan\n`access_token` alırsınız və onu sorğunun başlığına yazırsınız:\n\n```\nAuthorization: Bearer <access_token>\n```\n\nBody **`application/x-www-form-urlencoded`** formatındadır (JSON yox — OAuth 2.0 standartı, RFC 6749 §4.3).\n\n### Dəstəklənən grant növləri\n| `grant_type` | Məcburi sahələr | Nə vaxt istifadə olunur |\n|---|---|---|\n| `password` | `client_id`, `username`, `password` | İlk dəfə token almaq (istifadəçi adı + parol) |\n| `refresh_token` | `client_id`, `refresh_token` | `access_token`-in vaxtı (15 dəq) bitəndə yenisini almaq |\n\n* `client_id` həmişə **`callbox-api`**-dir (public client — `client_secret` lazım deyil).\n* `access_token` — JWT, **900 saniyə** (15 dəq) etibarlıdır. Məzmununa [jwt.io](https://jwt.io)-da baxa bilərsiniz.\n* `refresh_token` — **7 gün** etibarlıdır və **birdəfəlikdir** (rotation): hər istifadədə yenisi verilir, köhnəsi ləğv olunur.\n  Ləğv olunmuş refresh token yenidən göndərilsə, təhlükəsizlik üçün istifadəçinin bütün refresh token-ləri ləğv edilir.\n* 5 uğursuz parol cəhdindən sonra istifadəçi 15 dəqiqəlik bloklanır (**429**).\n\nXətalar RFC 6749 formatındadır: `{ \"error\": \"...\", \"error_description\": \"...\" }`.\n\nCallbox GUI-də **Authorization → OAuth 2.0 → Get New Access Token** düyməsi bu endpoint-i çağırır və alınan token\nBearer token tələb edən bütün sorğulara avtomatik əlavə olunur.\n",
+        "description": "Keycloak / OpenID Connect standartında **token endpoint**-i. Bank API-lərini (10 endpoint) çağırmaq üçün əvvəlcə buradan\n`access_token` alırsınız və onu sorğunun başlığına yazırsınız:\n\n```\nAuthorization: Bearer <access_token>\n```\n\nBody **`application/x-www-form-urlencoded`** formatındadır (JSON yox — OAuth 2.0 standartı, RFC 6749 §4.3).\n\n### Dəstəklənən grant növləri\n| `grant_type` | Məcburi sahələr | Nə vaxt istifadə olunur |\n|---|---|---|\n| `password` | `client_id`, `username`, `password` | İlk dəfə token almaq (istifadəçi adı + parol) |\n| `refresh_token` | `client_id`, `refresh_token` | `access_token`-in vaxtı (15 dəq) bitəndə yenisini almaq |\n\n* `client_id` həmişə **`relayo-api`**-dir (public client — `client_secret` lazım deyil).\n* `access_token` — JWT, **900 saniyə** (15 dəq) etibarlıdır. Məzmununa [jwt.io](https://jwt.io)-da baxa bilərsiniz.\n* `refresh_token` — **7 gün** etibarlıdır və **birdəfəlikdir** (rotation): hər istifadədə yenisi verilir, köhnəsi ləğv olunur.\n  Ləğv olunmuş refresh token yenidən göndərilsə, təhlükəsizlik üçün istifadəçinin bütün refresh token-ləri ləğv edilir.\n* 5 uğursuz parol cəhdindən sonra istifadəçi 15 dəqiqəlik bloklanır (**429**).\n\nXətalar RFC 6749 formatındadır: `{ \"error\": \"...\", \"error_description\": \"...\" }`.\n\nRelayo GUI-də **Authorization → OAuth 2.0 → Get New Access Token** düyməsi bu endpoint-i çağırır və alınan token\nBearer token tələb edən bütün sorğulara avtomatik əlavə olunur.\n",
         "x-db-impact": {
           "reads": [
             "users",
@@ -200,7 +200,7 @@
                   "summary": "grant_type=password — ilk token",
                   "value": {
                     "grant_type": "password",
-                    "client_id": "callbox-api",
+                    "client_id": "relayo-api",
                     "username": "student",
                     "password": "student123"
                   }
@@ -209,7 +209,7 @@
                   "summary": "grant_type=refresh_token — tokeni yenilə",
                   "value": {
                     "grant_type": "refresh_token",
-                    "client_id": "callbox-api",
+                    "client_id": "relayo-api",
                     "refresh_token": "rt_4c3b2a1f0e9d8c7b6a5f4e3d2c1b0a9f"
                   }
                 }
@@ -3391,7 +3391,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "example": "Basic realm=\"Callbox\""
+                "example": "Basic realm=\"Relayo\""
               }
             },
             "content": {
@@ -3471,7 +3471,7 @@
                 "example": {
                   "client": {
                     "clientId": "apilab-portal",
-                    "name": "Callbox Portal"
+                    "name": "Relayo Portal"
                   },
                   "redirectUri": "http://localhost:5173/oauth/callback",
                   "scope": "openid profile email",
@@ -11116,10 +11116,10 @@
     "/api/v1/ai/status": {
       "get": {
         "tags": [
-          "Callbox AI"
+          "Relayo AI"
         ],
         "operationId": "aiStatus",
-        "summary": "Callbox AI vəziyyəti (qoşulub-qoşulmayıb, model)",
+        "summary": "Relayo AI vəziyyəti (qoşulub-qoşulmayıb, model)",
         "security": [
           {
             "bearerAuth": []
@@ -11164,10 +11164,10 @@
     "/api/v1/ai/chat": {
       "post": {
         "tags": [
-          "Callbox AI"
+          "Relayo AI"
         ],
         "operationId": "aiChat",
-        "summary": "Callbox AI — mesaj göndər, Gemini cavabını al",
+        "summary": "Relayo AI — mesaj göndər, Gemini cavabını al",
         "security": [
           {
             "bearerAuth": []
@@ -11271,7 +11271,7 @@
             }
           },
           "429": {
-            "description": "Callbox limiti (10/dəq) və ya Gemini kvotası (təkrar cəhdlərdən sonra)",
+            "description": "Relayo limiti (10/dəq) və ya Gemini kvotası (təkrar cəhdlərdən sonra)",
             "headers": {
               "Retry-After": {
                 "schema": {
@@ -11298,7 +11298,7 @@
                     }
                   },
                   "local": {
-                    "summary": "Callbox limiti",
+                    "summary": "Relayo limiti",
                     "value": {
                       "timestamp": "2026-10-30T09:00:00Z",
                       "status": 429,
@@ -11344,7 +11344,7 @@
                   "timestamp": "2026-10-30T09:00:00Z",
                   "status": 503,
                   "code": "AI_NOT_CONFIGURED",
-                  "message": "Callbox AI qoşulmayıb: serverin .env faylında GEMINI_API_KEY yoxdur",
+                  "message": "Relayo AI qoşulmayıb: serverin .env faylında GEMINI_API_KEY yoxdur",
                   "details": [],
                   "traceId": "req_7f2c9a"
                 }
@@ -11590,7 +11590,7 @@
             "$ref": "#/components/responses/ValidationError"
           },
           "429": {
-            "description": "Callbox rate limit və ya Stitch kvotası",
+            "description": "Relayo rate limit və ya Stitch kvotası",
             "content": {
               "application/json": {
                 "schema": {
@@ -11719,7 +11719,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Sessiya və onun işləri Callbox-dan silinir (kredit sayğacına təsir etmir — günlük limit dəyişmir). Generasiya gedirsə → 409.",
+        "description": "Sessiya və onun işləri Relayo-dan silinir (kredit sayğacına təsir etmir — günlük limit dəyişmir). Generasiya gedirsə → 409.",
         "x-db-impact": {
           "reads": [
             "design_sessions",
@@ -12030,7 +12030,7 @@
             "bearerAuth": []
           }
         ],
-        "description": "Stitch-in HTML-i serverdə təmizlənib: yalnız Tailwind CDN skripti və onun konfiqurasiyası qalır, `on*` atributları,\n`javascript:` URL-ləri, iframe/object/embed silinir, linklər heç yerə aparmır, `Content-Security-Policy` əlavə olunur.\nPortal onu `<iframe sandbox=\"allow-scripts\" srcdoc>` daxilində göstərir (Callbox-un token və cookie-lərinə çıxışı yoxdur).\n",
+        "description": "Stitch-in HTML-i serverdə təmizlənib: yalnız Tailwind CDN skripti və onun konfiqurasiyası qalır, `on*` atributları,\n`javascript:` URL-ləri, iframe/object/embed silinir, linklər heç yerə aparmır, `Content-Security-Policy` əlavə olunur.\nPortal onu `<iframe sandbox=\"allow-scripts\" srcdoc>` daxilində göstərir (Relayo-nun token və cookie-lərinə çıxışı yoxdur).\n",
         "x-db-impact": {
           "reads": [
             "design_jobs"
@@ -12133,7 +12133,7 @@
         "operationId": "designPreview",
         "summary": "Dizaynın HTML önizləməsi (iframe src, imzalı URL)",
         "security": [],
-        "description": "`<iframe sandbox=\"allow-scripts\" src>` üçün. iframe `Authorization` başlığı göndərə bilmədiyi üçün URL imzalıdır\n(`exp` + HMAC `sig`, 1 saat) — `GET /api/v1/design/jobs/{jobId}/html` cavabındakı `previewUrl`.\nCavabın öz `Content-Security-Policy`-si var: yalnız Tailwind CDN və Google Fonts, `connect-src 'none'`,\n`frame-ancestors 'self'` və `sandbox allow-scripts` (sənəd opaque origin-dədir — Callbox-un token/cookie-lərinə çıxışı yoxdur).\n",
+        "description": "`<iframe sandbox=\"allow-scripts\" src>` üçün. iframe `Authorization` başlığı göndərə bilmədiyi üçün URL imzalıdır\n(`exp` + HMAC `sig`, 1 saat) — `GET /api/v1/design/jobs/{jobId}/html` cavabındakı `previewUrl`.\nCavabın öz `Content-Security-Policy`-si var: yalnız Tailwind CDN və Google Fonts, `connect-src 'none'`,\n`frame-ancestors 'self'` və `sandbox allow-scripts` (sənəd opaque origin-dədir — Relayo-nun token/cookie-lərinə çıxışı yoxdur).\n",
         "x-db-impact": {
           "reads": [
             "design_jobs"
@@ -15704,7 +15704,7 @@
                 "example": {
                   "openapi": "3.0.3",
                   "info": {
-                    "title": "Callbox",
+                    "title": "Relayo",
                     "version": "1.0.0"
                   }
                 }
@@ -15742,7 +15742,7 @@
                 },
                 "example": {
                   "info": {
-                    "name": "Callbox",
+                    "name": "Relayo",
                     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
                   },
                   "item": []
@@ -15779,7 +15779,7 @@
                   "type": "object"
                 },
                 "example": {
-                  "name": "Callbox — Local",
+                  "name": "Relayo — Local",
                   "values": [
                     {
                       "key": "baseUrl",
@@ -16353,7 +16353,7 @@
             "schema": {
               "type": "string"
             },
-            "example": "Bearer realm=\"Callbox\""
+            "example": "Bearer realm=\"Relayo\""
           }
         },
         "content": {
@@ -17948,8 +17948,8 @@
           },
           "client_id": {
             "type": "string",
-            "description": "Public client: `callbox-api`",
-            "example": "callbox-api"
+            "description": "Public client: `relayo-api`",
+            "example": "relayo-api"
           },
           "username": {
             "type": "string",

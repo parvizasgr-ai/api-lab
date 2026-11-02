@@ -1,12 +1,12 @@
-// API Reference (developer portal) və Callbox GUI üçün OpenAPI modeli: endpoint-lər, parametrlər, body atributları,
+// API Reference (developer portal) və Relayo GUI üçün OpenAPI modeli: endpoint-lər, parametrlər, body atributları,
 // cavab nümunələri, kod nümunələri (cURL / JavaScript / Python) və API token yaddaşı (token endpoint-indən alınan).
 import { getSpec } from "./api";
 import { SERVER_URL } from "./http";
 
 type Json = Record<string, any>; // OpenAPI sənədi sərbəst JSON-dur
 
-export const TOKEN_PATH = "/realms/callbox/protocol/openid-connect/token";
-export const PUBLIC_CLIENT_ID = "callbox-api";
+export const TOKEN_PATH = "/realms/relayo/protocol/openid-connect/token";
+export const PUBLIC_CLIENT_ID = "relayo-api";
 
 export type AuthKind = "bearer" | "apiKey" | "basic" | "none";
 
@@ -268,9 +268,9 @@ export function codeSample(op: RefOperation, lang: CodeLang, origin: string): st
 export const encodeForm = formEncode;
 
 // ---------------------------------------------------------------- API token (token endpoint-indən alınan)
-// sessionStorage: brauzer bağlananda silinir. Callbox GUI Bearer tələb edən sorğulara bunu avtomatik qoyur.
+// sessionStorage: brauzer bağlananda silinir. Relayo GUI Bearer tələb edən sorğulara bunu avtomatik qoyur.
 export type ApiToken = { accessToken: string; refreshToken: string; expiresAt: number; scope: string; username?: string };
-const TOKEN_KEY = "callbox.apiToken";
+const TOKEN_KEY = "relayo.apiToken";
 const listeners = new Set<() => void>();
 
 export const apiToken = {

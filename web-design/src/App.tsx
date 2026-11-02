@@ -55,7 +55,7 @@ import { normalizeRegistration, serverFieldErrors, validateRegistration, type Re
 const AdminPage = lazy(() => import("./AdminPage"));
 const InfraPage = lazy(() => import("./InfraPage")); // Redis / Kafka / MongoDB
 const ReferencePage = lazy(() => import("./ReferencePage")); // API Reference (developer portal)
-const AiChatPage = lazy(() => import("./AiChatPage")); // Callbox AI (Google Gemini)
+const AiChatPage = lazy(() => import("./AiChatPage")); // Relayo AI (Google Gemini)
 const DesignPage = lazy(() => import("./DesignPage")); // Design (Google Stitch)
 const SqlTutorialPage = lazy(() => import("./SqlTutorialPage")); // SQL dərsliyi (W3Schools üslubu) + redaktor
 
@@ -76,7 +76,7 @@ const translations = {
     skipToContent: "Əsas məzmuna keç",
     navLabel: "Əsas naviqasiya",
     home: "Home",
-    explorer: "Callbox GUI",
+    explorer: "Relayo GUI",
     apiReference: "API Reference",
     apps: "Apps",
     authLab: "Auth Lab",
@@ -115,7 +115,7 @@ const translations = {
     heroDescription:
       "Real endpoint-lərə request göndər, response-ları araşdır və müasir API-lərin necə işlədiyini təcrübə ilə öyrən.",
     startLearning: "Öyrənməyə başla",
-    openExplorer: "Callbox GUI-ni aç",
+    openExplorer: "Relayo GUI-ni aç",
     learningPath: "3 mərhələli öyrənmə yolu",
     practiceLabel: "Canlı təcrübə",
     practiceValue: "Real request, təhlükəsiz sandbox",
@@ -211,8 +211,8 @@ const translations = {
     accounts: "3 HESAB",
     quickStartKicker: "SÜRƏTLİ BAŞLANĞIC",
     terminal: "Terminal",
-    copyright: `© ${new Date().getFullYear()} Callbox`,
-    explorerTitle: "Callbox GUI",
+    copyright: `© ${new Date().getFullYear()} Relayo`,
+    explorerTitle: "Relayo GUI",
     explorerSubtitle:
       "Postman kimi API klienti: endpoint seç — Params, Authorization, Headers və Body avtomatik dolur. Göndər və cavabı araşdır.",
     endpointLibrary: "Endpoint kitabxanası",
@@ -317,7 +317,7 @@ const translations = {
     collapseNetwork: "Network panel-i bağla",
     expandNetwork: "Network panel-i aç",
     noNetworkCalls: "Hələ API call edilməyib.",
-    openInExplorer: "Callbox GUI-də aç",
+    openInExplorer: "Relayo GUI-də aç",
     internalCalls: "Daxili call-lar",
     overview: "Ümumi baxış",
     totalBalance: "Ümumi balans",
@@ -477,15 +477,15 @@ const translations = {
     customerUpdated: "Customer yeniləndi",
     googleConsent: "Google ilə davam et",
     googleConsentSubtitle:
-      "Callbox hesabına daxil olmaq üçün mock OAuth flow-unu izlə.",
+      "Relayo hesabına daxil olmaq üçün mock OAuth flow-unu izlə.",
     oauthFlow: "OAuth flow",
     authorizationRequest: "Authorization request",
     userConsent: "İstifadəçi icazəsi",
     authorizationCode: "Authorization code",
     tokenExchange: "Token exchange",
-    consentTitle: "Callbox bu məlumatlara giriş istəyir",
+    consentTitle: "Relayo bu məlumatlara giriş istəyir",
     consentAccount: "Daxil olunan hesab",
-    consentPermissions: "Callbox aşağıdakılara giriş əldə edəcək:",
+    consentPermissions: "Relayo aşağıdakılara giriş əldə edəcək:",
     viewProfile: "Ad və profile şəklini görmək",
     viewEmail: "Email ünvanını görmək",
     allow: "İcazə ver",
@@ -557,7 +557,7 @@ const translations = {
     lessonMaterials: "Dərs materialları",
     practicalTasks: "Praktik task-lar",
     markComplete: "Tamamlandı kimi işarələ",
-    openInExplorerTask: "Callbox GUI-də aç",
+    openInExplorerTask: "Relayo GUI-də aç",
     checkWithSql: "SQL ilə yoxla",
     taskSendRequest: "GET /users endpoint-inə request göndər",
     taskInspectHeaders: "Response headers və status code-u yoxla",
@@ -585,7 +585,7 @@ const translations = {
     signInToContinue: "Davam etmək üçün daxil ol",
     signInHeroTitle: "Real API-ləri çağırmaq üçün daxil ol",
     signInHeroSubtitle:
-      "Callbox-də real request göndər, data-nı SQL ilə yoxla və Auth flow-larını təhlükəsiz mühitdə öyrən.",
+      "Relayo-da real request göndər, data-nı SQL ilə yoxla və Auth flow-larını təhlükəsiz mühitdə öyrən.",
     benefitEndpoints: "Real endpoint-lər və SQL ilə yoxlanılan data",
     benefitSandbox: "Təhlükəsiz təlim sandbox-u",
     benefitTools: "Postman və curl ilə işləyir",
@@ -608,7 +608,7 @@ const translations = {
     consent: "İcazə",
     tokenExchangeStep: "Token exchange",
     useAnotherAccount: "Başqa hesab istifadə et",
-    googleAccessTitle: "Callbox Google Account-na giriş istəyir",
+    googleAccessTitle: "Relayo Google Account-na giriş istəyir",
     permissionIdentity: "Adını və e-poçtunu görmək",
     permissionSandbox: "Sandbox profile yaratmaq",
     mockGoogleNotice:
@@ -645,7 +645,7 @@ const translations = {
     skipToContent: "Skip to main content",
     navLabel: "Main navigation",
     home: "Home",
-    explorer: "Callbox GUI",
+    explorer: "Relayo GUI",
     apiReference: "API Reference",
     apps: "Apps",
     authLab: "Auth Lab",
@@ -684,7 +684,7 @@ const translations = {
     heroDescription:
       "Send requests to real endpoints, inspect responses, and learn how modern APIs work through hands-on practice.",
     startLearning: "Start learning",
-    openExplorer: "Open Callbox GUI",
+    openExplorer: "Open Relayo GUI",
     learningPath: "3-step learning path",
     practiceLabel: "Live practice",
     practiceValue: "Real requests, safe sandbox",
@@ -780,8 +780,8 @@ const translations = {
     accounts: "3 ACCOUNTS",
     quickStartKicker: "QUICK START",
     terminal: "Terminal",
-    copyright: `© ${new Date().getFullYear()} Callbox`,
-    explorerTitle: "Callbox GUI",
+    copyright: `© ${new Date().getFullYear()} Relayo`,
+    explorerTitle: "Relayo GUI",
     explorerSubtitle:
       "A Postman-style API client: pick an endpoint — Params, Authorization, Headers and Body are pre-filled. Send it and inspect the response.",
     endpointLibrary: "Endpoint library",
@@ -886,7 +886,7 @@ const translations = {
     collapseNetwork: "Collapse Network panel",
     expandNetwork: "Expand Network panel",
     noNetworkCalls: "No API calls yet.",
-    openInExplorer: "Open in Callbox GUI",
+    openInExplorer: "Open in Relayo GUI",
     internalCalls: "Internal calls",
     overview: "Overview",
     totalBalance: "Total balance",
@@ -1046,15 +1046,15 @@ const translations = {
     customerUpdated: "Customer updated",
     googleConsent: "Continue with Google",
     googleConsentSubtitle:
-      "Follow a mock OAuth flow to sign in to your Callbox account.",
+      "Follow a mock OAuth flow to sign in to your Relayo account.",
     oauthFlow: "OAuth flow",
     authorizationRequest: "Authorization request",
     userConsent: "User consent",
     authorizationCode: "Authorization code",
     tokenExchange: "Token exchange",
-    consentTitle: "Callbox wants access to your information",
+    consentTitle: "Relayo wants access to your information",
     consentAccount: "Signed-in account",
-    consentPermissions: "Callbox will be able to:",
+    consentPermissions: "Relayo will be able to:",
     viewProfile: "View your name and profile picture",
     viewEmail: "View your email address",
     allow: "Allow",
@@ -1126,7 +1126,7 @@ const translations = {
     lessonMaterials: "Lesson materials",
     practicalTasks: "Practical tasks",
     markComplete: "Mark as complete",
-    openInExplorerTask: "Open in Callbox GUI",
+    openInExplorerTask: "Open in Relayo GUI",
     checkWithSql: "Check with SQL",
     taskSendRequest: "Send a request to the GET /users endpoint",
     taskInspectHeaders: "Inspect response headers and status code",
@@ -1177,7 +1177,7 @@ const translations = {
     consent: "Consent",
     tokenExchangeStep: "Token exchange",
     useAnotherAccount: "Use another account",
-    googleAccessTitle: "Callbox wants to access your Google Account",
+    googleAccessTitle: "Relayo wants to access your Google Account",
     permissionIdentity: "View your name and email",
     permissionSandbox: "Create a sandbox profile",
     mockGoogleNotice:
@@ -1480,7 +1480,7 @@ function Header({
     { label: t.materials, page: "materials" },
     { label: t.infra, page: "infra" },
     { label: "Design", page: "design" },
-    { label: "Callbox AI", page: "ai" },
+    { label: "Relayo AI", page: "ai" },
     ...(session?.user.role === "superadmin" ? [{ label: t.teacherPanel, page: "admin" as Page }] : []),
   ];
 
@@ -1511,11 +1511,11 @@ function Header({
   return (
     <header className="site-header">
       <div className="header-inner">
-        <a className="brand" href="/" aria-label="Callbox Home" onClick={(event) => { event.preventDefault(); navigate("home"); }}>
+        <a className="brand" href="/" aria-label="Relayo Home" onClick={(event) => { event.preventDefault(); navigate("home"); }}>
           <span className="brand-mark">
             <Icon name="code" size={21} />
           </span>
-          <span>Callbox</span>
+          <span>Relayo</span>
           <span className="brand-badge">{t.beta}</span>
         </a>
 
@@ -2916,7 +2916,7 @@ function FlightsApp({ t }: { t: Translation }) {
     setBookingError(null);
     const [firstName, ...rest] = passenger.trim().split(/\s+/);
     const count = Math.max(1, query.adults);
-    const passengers = Array.from({ length: count }, (_, i) => ({ firstName: firstName || "Sərnişin", lastName: (rest.join(" ") || "Callbox") + (i ? ` ${i + 1}` : "") }));
+    const passengers = Array.from({ length: count }, (_, i) => ({ firstName: firstName || "Sərnişin", lastName: (rest.join(" ") || "Relayo") + (i ? ` ${i + 1}` : "") }));
     try {
       setBooking(await flights.book(selectedFlight.id, passengers));
       void runSearch();
@@ -4798,7 +4798,7 @@ function App() {
                   <i />
                   <i />
                 </div>
-                <span>callbox / explorer</span>
+                <span>relayo / explorer</span>
                 <span className="live-pill">
                   <i />
                   {t.live}
@@ -5032,9 +5032,9 @@ function App() {
 
       <footer>
         <div className="footer-inner">
-          <a aria-label="Callbox" className="brand brand--footer" href="/" onClick={(event) => { event.preventDefault(); navigateTo("home"); window.scrollTo({ top: 0 }); }}>
+          <a aria-label="Relayo" className="brand brand--footer" href="/" onClick={(event) => { event.preventDefault(); navigateTo("home"); window.scrollTo({ top: 0 }); }}>
             <span className="brand-mark"><Icon name="code" size={18} /></span>
-            <span>Callbox</span>
+            <span>Relayo</span>
           </a>
           <p>{t.footerText}</p>
           <span>{t.copyright}</span>

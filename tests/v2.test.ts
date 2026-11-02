@@ -1,13 +1,13 @@
-// Callbox API v2 (developer portal): token endpoint, banking (Bearer), valyuta, reys, otel, kitab — biznes qaydaları.
+// Relayo API v2 (developer portal): token endpoint, banking (Bearer), valyuta, reys, otel, kitab — biznes qaydaları.
 // Contract (sxem, nümunələr, 401/422/413) contract.test.ts-də avtomatik yoxlanır; burada davranış yoxlanır.
 import { describe, expect, it } from 'vitest';
 import { createTestApp, expectMatchesSpec } from './helpers.js';
 
-const TOKEN_URL = '/realms/callbox/protocol/openid-connect/token';
+const TOKEN_URL = '/realms/relayo/protocol/openid-connect/token';
 const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 
 async function token(t: ReturnType<typeof createTestApp>, username = 'student', password = `${username}123`) {
-  const res = await t.api().post(TOKEN_URL).type('form').send({ grant_type: 'password', client_id: 'callbox-api', username, password });
+  const res = await t.api().post(TOKEN_URL).type('form').send({ grant_type: 'password', client_id: 'relayo-api', username, password });
   expect(res.status, JSON.stringify(res.body)).toBe(200);
   return res.body as { access_token: string; refresh_token: string };
 }
@@ -16,17 +16,17 @@ const auth = (tok: { access_token: string }) => ({ Authorization: `Bearer ${tok.
 describe('v2 token endpoint (OpenID Connect)', () => {
   it('password grant → Keycloak formatı; token bank API-də işləyir; refresh rotation (köhnə refresh → invalid_grant)', async () => {
     const t = createTestApp();
-    const res = await t.api().post(TOKEN_URL).type('form').send({ grant_type: 'password', client_id: 'callbox-api', username: 'student', password: 'student123' });
+    const res = await t.api().post(TOKEN_URL).type('form').send({ grant_type: 'password', client_id: 'relayo-api', username: 'student', password: 'student123' });
     expect(res.status).toBe(200);
     expectMatchesSpec(res, 'v2Token');
     expect(res.headers['cache-control']).toBe('no-store');
     expect(res.body).toMatchObject({ token_type: 'Bearer', expires_in: 900, refresh_expires_in: 604800 });
     expect((await t.api().get('/api/v2/accounts').set(auth(res.body))).status).toBe(200);
 
-    const refreshed = await t.api().post(TOKEN_URL).type('form').send({ grant_type: 'refresh_token', client_id: 'callbox-api', refresh_token: res.body.refresh_token });
+    const refreshed = await t.api().post(TOKEN_URL).type('form').send({ grant_type: 'refresh_token', client_id: 'relayo-api', refresh_token: res.body.refresh_token });
     expect(refreshed.status).toBe(200);
     expect(refreshed.body.refresh_token).not.toBe(res.body.refresh_token);
-    const reused = await t.api().post(TOKEN_URL).type('form').send({ grant_type: 'refresh_token', client_id: 'callbox-api', refresh_token: res.body.refresh_token });
+    const reused = await t.api().post(TOKEN_URL).type('form').send({ grant_type: 'refresh_token', client_id: 'relayo-api', refresh_token: res.body.refresh_token });
     expect(reused.status).toBe(400);
     expect(reused.body.error).toBe('invalid_grant');
   });
@@ -34,11 +34,11 @@ describe('v2 token endpoint (OpenID Connect)', () => {
   it('səhv parol → 400 invalid_grant; səhv client → 401 invalid_client; naməlum grant → unsupported_grant_type; JSON body → 400/415', async () => {
     const t = createTestApp();
     const form = (body: Record<string, string>) => t.api().post(TOKEN_URL).type('form').send(body);
-    const bad = await form({ grant_type: 'password', client_id: 'callbox-api', username: 'student', password: 'nope' });
+    const bad = await form({ grant_type: 'password', client_id: 'relayo-api', username: 'student', password: 'nope' });
     expect([bad.status, bad.body]).toEqual([400, { error: 'invalid_grant', error_description: 'Invalid user credentials' }]);
     expect((await form({ grant_type: 'password', client_id: 'other', username: 'student', password: 'student123' })).body.error).toBe('invalid_client');
-    expect((await form({ grant_type: 'client_credentials', client_id: 'callbox-api' })).body.error).toBe('unsupported_grant_type');
-    expect((await form({ grant_type: 'password', client_id: 'callbox-api' })).body.error).toBe('invalid_request');
+    expect((await form({ grant_type: 'client_credentials', client_id: 'relayo-api' })).body.error).toBe('unsupported_grant_type');
+    expect((await form({ grant_type: 'password', client_id: 'relayo-api' })).body.error).toBe('invalid_request');
     const json = await t.api().post(TOKEN_URL).send({ grant_type: 'password' });
     expect(json.status).toBeGreaterThanOrEqual(400);
   });

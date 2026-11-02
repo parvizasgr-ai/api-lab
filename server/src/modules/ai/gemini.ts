@@ -1,4 +1,4 @@
-// Callbox AI — Google Gemini (@google/genai SDK) inteqrasiyası.
+// Relayo AI — Google Gemini (@google/genai SDK) inteqrasiyası.
 //   * API key yalnız serverdə (GEMINI_API_KEY) — portala, loga, request_log-a heç vaxt düşmür.
 //   * 429 (rate limit / kvota) və 503 (model yüklüdür) → exponential backoff + jitter ilə təkrar cəhd;
 //     Google cavabında RetryInfo.retryDelay varsa ona hörmət edilir (maksimum gözləmə məhdudlaşdırılır).
@@ -85,7 +85,7 @@ export class GeminiService {
 
   async chat(messages: ChatMessage[]): Promise<GeminiResult> {
     if (!this.generate) {
-      throw new ApiError(503, 'AI_NOT_CONFIGURED', 'Callbox AI qoşulmayıb: serverin .env faylında GEMINI_API_KEY yoxdur');
+      throw new ApiError(503, 'AI_NOT_CONFIGURED', 'Relayo AI qoşulmayıb: serverin .env faylında GEMINI_API_KEY yoxdur');
     }
     const all = [...new Set([this.options.model, ...this.options.fallbackModels])];
     const models = all.filter((m) => !this.unavailable.has(m));

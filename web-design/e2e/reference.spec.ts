@@ -1,9 +1,9 @@
-// API Reference (/reference) və Callbox GUI (/callbox): sənəd → "Callbox GUI-də sına" → sorğu;
+// API Reference (/reference) və Relayo GUI (/relayo): sənəd → "Relayo GUI-də sına" → sorğu;
 // token endpoint-i → token avtomatik Authorization-a düşür → bank API 200; OAuth 2.0 "Get New Access Token"; a11y + mobil.
 import { expect, test } from '@playwright/test'
 import { go, signIn } from './helpers'
 
-test('API Reference: bölmələr, parametrlər, kod nümunələri; "Callbox GUI-də sına" sorğunu hazır açır', async ({ page }) => {
+test('API Reference: bölmələr, parametrlər, kod nümunələri; "Relayo GUI-də sına" sorğunu hazır açır', async ({ page }) => {
   await signIn(page, 'student', 'student123')
   await go(page, 'reference')
   await expect(page.locator('.ref-nav')).toContainText('Bank Cards')
@@ -14,13 +14,13 @@ test('API Reference: bölmələr, parametrlər, kod nümunələri; "Callbox GUI-
   await section.getByRole('tab', { name: 'Python' }).click()
   await expect(section.locator('.ref-code').first()).toContainText('import requests')
   await section.locator('.ref-try').click()
-  await expect(page).toHaveURL(/\/callbox$/)
+  await expect(page).toHaveURL(/\/relayo$/)
   await expect(page.locator('.kv-row input[aria-label]').first()).toHaveValue('from')
   await page.locator('.explorer-send').click()
   await expect(page.locator('.response-panel .status-chip, .response-panel-heading')).toContainText('200')
 })
 
-test('Callbox GUI: token endpoint-i → token yadda saxlanılır → bank API Authorization-a avtomatik düşür', async ({ page }) => {
+test('Relayo GUI: token endpoint-i → token yadda saxlanılır → bank API Authorization-a avtomatik düşür', async ({ page }) => {
   await signIn(page, 'student', 'student123')
   await go(page, 'explorer')
   await page.locator('.endpoint-item', { hasText: 'OpenID Connect token endpoint' }).click()
@@ -36,7 +36,7 @@ test('Callbox GUI: token endpoint-i → token yadda saxlanılır → bank API Au
   await expect(page.locator('.response-panel-heading')).toContainText('200')
 })
 
-test('Callbox GUI: OAuth 2.0 → Get New Access Token (səhv parol → xəta, düzgün → token)', async ({ page }) => {
+test('Relayo GUI: OAuth 2.0 → Get New Access Token (səhv parol → xəta, düzgün → token)', async ({ page }) => {
   await signIn(page, 'student', 'student123')
   await go(page, 'explorer')
   await page.locator('.endpoint-item', { hasText: 'Kartların siyahısı' }).click()

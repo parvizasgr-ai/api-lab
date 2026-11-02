@@ -1,4 +1,4 @@
-# Callbox
+# Relayo
 
 Tələbələrin **Postman / curl** ilə real API sorğuları göndərdiyi və nəticəni **SQL** ilə yoxladığı təlim platforması.
 IT Business Analyst kursu üçün hazırlanıb (Div Academy, UNEC): Dərs 1 — API əsasları, Dərs 2 — HTTP və REST, Dərs 3 — Security, Design, API Specification.
@@ -23,7 +23,7 @@ npm run db:setup     # rollar + bazalar + migration + demo data
 npm run dev
 ```
 
-Terminalda `Callbox: http://localhost:3000` görünməlidir.
+Terminalda `Relayo: http://localhost:3000` görünməlidir.
 
 | Ünvan | Nə var |
 |---|---|
@@ -34,7 +34,7 @@ Terminalda `Callbox: http://localhost:3000` görünməlidir.
 ### 2. Postman-ı qoşun (2 dəq)
 
 Postman → **Import** → `postman/api-lab.postman_collection.json` və `postman/api-lab.postman_environment.json` faylları (və ya yuxarıdakı URL-lər).
-Sağ yuxarıda environment kimi **Callbox — Local** seçin. Əvvəlcə **Auth → POST /api/v1/auth/login** göndərin — token avtomatik `{{token}}`-a yazılır.
+Sağ yuxarıda environment kimi **Relayo — Local** seçin. Əvvəlcə **Auth → POST /api/v1/auth/login** göndərin — token avtomatik `{{token}}`-a yazılır.
 
 ### 3. İlk sorğular (4 dəq)
 
@@ -357,20 +357,20 @@ Tam təsvir, sxemlər və hər xətanın nümunəsi — **http://localhost:3000/
 
 ---
 
-## API Reference və Callbox GUI (API v2)
+## API Reference və Relayo GUI (API v2)
 
 Portalda **API Reference** (`/reference`) — Stripe API Reference üslubunda developer portal: hər endpoint üçün təsvir,
 parametrlər (tip, məcburi/könüllü, default, mümkün dəyərlər), request body atributları, cavab atributları, xəta kodları,
-cURL / JavaScript / Python nümunələri və cavab nümunəsi. Hamısı `openapi/openapi.yaml`-dan yaranır (`x-tagGroups: Callbox API v2`).
+cURL / JavaScript / Python nümunələri və cavab nümunəsi. Hamısı `openapi/openapi.yaml`-dan yaranır (`x-tagGroups: Relayo API v2`).
 Köhnə **Explorer**, **Auth Lab** və **Apps** menyusu birləşdi: Auth Lab və Demo tətbiqlər Reference-in "Laboratoriyalar" bölməsindədir.
 
-**Callbox GUI** (`/callbox`, köhnə `/explorer` linki də açılır) — Postman kimi klient: endpoint seçəndə Params, Authorization,
+**Relayo GUI** (`/relayo`, köhnə `/explorer` linki də açılır) — Postman kimi klient: endpoint seçəndə Params, Authorization,
 Headers və Body avtomatik dolur; `x-www-form-urlencoded` body; Authorization → **OAuth 2.0 → Get New Access Token**.
 Token endpoint-indən alınan token yadda saxlanılır və Bearer tələb edən bütün sorğulara **avtomatik** əlavə olunur.
 
 | Qrup | Endpoint-lər | Auth |
 |---|---|---|
-| Token (OpenID Connect) | `POST /realms/callbox/protocol/openid-connect/token` (`grant_type=password` / `refresh_token`, `client_id=callbox-api`) | — |
+| Token (OpenID Connect) | `POST /realms/relayo/protocol/openid-connect/token` (`grant_type=password` / `refresh_token`, `client_id=relayo-api`) | — |
 | Bank (10) | `GET /api/v2/accounts`, `GET /api/v2/accounts/{id}/transactions`, `GET·POST /api/v2/cards`, `GET /api/v2/cards/{id}`, `POST /api/v2/cards/{id}/block`, `GET·POST /api/v2/deposits`, `GET /api/v2/deposits/{id}`, `POST /api/v2/deposits/{id}/close` | Bearer |
 | Valyuta (2) | `GET /api/v2/currencies`, `GET /api/v2/exchange-rates?from=USD&to=AZN&date=&amount=` | — |
 | Aviareys (3) | `GET /api/v2/airports`, `GET /api/v2/flights/search`, `POST /api/v2/flights/bookings` | — |
@@ -399,7 +399,7 @@ dəyərlər (alias sərbəstdir), ORDER BY dərslərində sıra da. Server tər�
 ## Design (Google Stitch)
 
 Portalda **Design** (`/design`): tələbə chat-də ekran ideyasını yazır → server Google Stitch-də (MCP API) ekran yaradır →
-HTML serverdə sanitize olunur və Callbox daxilində `<iframe sandbox="allow-scripts" srcdoc>`-də göstərilir (Stitch saytına keçid yoxdur).
+HTML serverdə sanitize olunur və Relayo daxilində `<iframe sandbox="allow-scripts" srcdoc>`-də göstərilir (Stitch saytına keçid yoxdur).
 Növbəti mesajlar həmin ekranı redaktə edir (`edit_screens`). Hər dizayn sessiyası Stitch-də ayrıca layihədir.
 
 * Backend: `server/src/modules/design/` — `stitch.ts` (MCP JSON-RPC client, `X-Goog-Api-Key`), `service.ts` (sessiyalar, asinxron işlər,
@@ -416,9 +416,9 @@ Növbəti mesajlar həmin ekranı redaktə edir (`edit_screens`). Hər dizayn se
 SELECT user_id, kind, complexity, credits, status, error_code FROM design_jobs WHERE usage_day = to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD');
 ```
 
-## Callbox AI (Google Gemini)
+## Relayo AI (Google Gemini)
 
-Portalda **Callbox AI** (`/ai`) — tələbə köməkçisi chat (DeepSeek / ChatGPT üslubu): solda söhbətlər (aylara görə, axtarış,
+Portalda **Relayo AI** (`/ai`) — tələbə köməkçisi chat (DeepSeek / ChatGPT üslubu): solda söhbətlər (aylara görə, axtarış,
 silmə), ortada chat; cavablar Markdown (kod bloku, cədvəl). Söhbətlər yalnız tələbənin brauzerində saxlanılır.
 
 **Qoşmaq:** `.env` faylına açarı yazın (https://aistudio.google.com/apikey), serveri yenidən başladın:
@@ -584,7 +584,7 @@ Qeydiyyatdan sonra tələbə avtomatik daxil olur və **öz sandbox datasını**
 
 ## External APIs (RapidAPI)
 
-`/external/*` endpoint-ləri (portaldakı səhifə çıxarılıb — Callbox GUI-dən çağırmaq olar) RapidAPI Hub-dakı 7 real API-ni Callbox proxy-si ilə çağırır:
+`/external/*` endpoint-ləri (portaldakı səhifə çıxarılıb — Relayo GUI-dən çağırmaq olar) RapidAPI Hub-dakı 7 real API-ni Relayo proxy-si ilə çağırır:
 JokeAPI, GeoDB Cities, WeatherAPI.com, OMDb (Movie Database Alternative), Numbers API, Deep Translate, QR Code Factory.
 
 **Standart rejim: hər tələbə öz açarı ilə işləyir.** Açar `X-RapidAPI-Key` başlığında göndərilir. Server onu yalnız RapidAPI-yə ötürür: DB-yə, loglara və `/_history`-ə yazmır, cavabda əks olunsa `***` ilə əvəz edir. Portal açarı yalnız vərəqənin yaddaşında saxlayır (localStorage yoxdur), səhifə yenilənəndə açar silinir.

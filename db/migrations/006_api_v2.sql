@@ -1,4 +1,4 @@
--- 006_api_v2.sql — Callbox API v2 (developer portal / API Reference) üçün sxem dəyişiklikləri
+-- 006_api_v2.sql — Relayo API v2 (developer portal / API Reference) üçün sxem dəyişiklikləri
 --   * currencies: ISO 4217 rəqəm kodu və onluq rəqəm sayı (GET /api/v2/currencies)
 --   * cards: kart sifarişi sahələri (POST /api/v2/cards) — fiziki/virtual, kartdakı ad, çatdırılma
 --   * deposits: depozit rəsmiləşdirmə (POST /api/v2/deposits) — vəsait hesabdan çıxılır, bağlananda geri yazılır

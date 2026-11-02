@@ -1,4 +1,4 @@
-// Callbox AI (Gemini) inteqrasiyasını yoxlamaq: npm run ai:check -- "Sualınız"
+// Relayo AI (Gemini) inteqrasiyasını yoxlamaq: npm run ai:check -- "Sualınız"
 //   1. Birbaşa servis (GeminiService — server-in istifadə etdiyi eyni kod: retry/backoff, fallback)
 //   2. Server işləyirsə, HTTP ilə: token → POST /api/v1/ai/chat (portalın etdiyi kimi)
 import { config } from '../server/src/config.js';
@@ -29,7 +29,7 @@ try {
 // 2) HTTP (server işləyirsə)
 const base = config.publicUrl;
 try {
-  const tokenRes = await fetch(`${base}/realms/callbox/protocol/openid-connect/token`, {
+  const tokenRes = await fetch(`${base}/realms/relayo/protocol/openid-connect/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'password', client_id: config.publicClientId, username: 'student', password: 'student123' }),
@@ -38,7 +38,7 @@ try {
   const res = await fetch(`${base}/api/v1/ai/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${access_token}` },
-    body: JSON.stringify({ messages: [{ role: 'user', text: 'Salam! Callbox AI işləyir? Bir sözlə cavab ver.' }] }),
+    body: JSON.stringify({ messages: [{ role: 'user', text: 'Salam! Relayo AI işləyir? Bir sözlə cavab ver.' }] }),
   });
   const body = (await res.json()) as { reply?: { text: string }; model?: string; code?: string; message?: string };
   console.log(res.ok ? `✔ 2) HTTP POST /api/v1/ai/chat → ${res.status} (${body.model}): ${body.reply?.text}` : `✖ 2) HTTP → ${res.status} ${body.code}: ${body.message}`);

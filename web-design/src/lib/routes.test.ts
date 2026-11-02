@@ -4,8 +4,8 @@ import { parseRoute, pathOf, PROTECTED_PAGES } from "./routes";
 describe("routes (QA-M04)", () => {
   it("URL → səhifə və tətbiq; sonda / və naməlum yollar", () => {
     expect(parseRoute("/")).toEqual({ page: "home", app: null });
-    expect(parseRoute("/explorer")).toEqual({ page: "explorer", app: null }); // köhnə link → Callbox GUI
-    expect(parseRoute("/callbox")).toEqual({ page: "explorer", app: null });
+    expect(parseRoute("/explorer")).toEqual({ page: "explorer", app: null }); // köhnə link → Relayo GUI
+    expect(parseRoute("/relayo")).toEqual({ page: "explorer", app: null });
     expect(parseRoute("/reference")).toEqual({ page: "reference", app: null });
     expect(parseRoute("/sql/")).toEqual({ page: "sql", app: null });
     expect(parseRoute("/apps/bank")).toEqual({ page: "apps", app: "bank" });

@@ -6,7 +6,7 @@ export type AppId = "bank" | "currency" | "flights" | "hotels" | "books" | "musi
 const PAGE_PATHS: Record<Page, string> = {
   home: "/",
   reference: "/reference", // API Reference (developer portal)
-  explorer: "/callbox", // Callbox GUI (köhnə /explorer linki də bura açılır)
+  explorer: "/relayo", // Relayo GUI (köhnə /explorer və /callbox linkləri də bura açılır)
   apps: "/apps",
   auth: "/auth",
   sql: "/sql",
@@ -15,7 +15,7 @@ const PAGE_PATHS: Record<Page, string> = {
   register: "/register",
   admin: "/admin", // superadmin paneli (istifadəçilər, qruplar, nəticələr)
   infra: "/infra", // Redis / Kafka / MongoDB (?tab=kafka)
-  ai: "/ai", // Callbox AI (Gemini chat)
+  ai: "/ai", // Relayo AI (Gemini chat)
   design: "/design", // Design (Google Stitch)
 };
 const APP_IDS: readonly AppId[] = ["bank", "currency", "flights", "hotels", "books", "music", "google", "customers"];
@@ -26,7 +26,7 @@ export const PROTECTED_PAGES: readonly Page[] = ["explorer", "apps", "auth", "sq
 // "/apps/bank/" → { page: "apps", app: "bank" }; naməlum yol → home
 export function parseRoute(pathname: string): { page: Page; app: AppId | null } {
   const [first = "", second = ""] = pathname.replace(/^\/+|\/+$/g, "").split("/");
-  const page = first === "explorer" ? "explorer" : ((Object.keys(PAGE_PATHS) as Page[]).find((p) => PAGE_PATHS[p] === `/${first}`) ?? "home");
+  const page = first === "explorer" || first === "callbox" ? "explorer" : ((Object.keys(PAGE_PATHS) as Page[]).find((p) => PAGE_PATHS[p] === `/${first}`) ?? "home");
   const app = page === "apps" && (APP_IDS as readonly string[]).includes(second) ? (second as AppId) : null;
   return { page, app };
 }

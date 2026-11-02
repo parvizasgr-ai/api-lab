@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Callbox 1.0.0",
+    "name": "Relayo 1.0.0",
     "description": "OpenAPI-dən avtomatik yaradılıb. Əvvəlcə \"Auth → login\" sorğusunu göndərin — token environment-ə yazılacaq.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -9,7 +9,7 @@
       "name": "Authentication",
       "item": [
         {
-          "name": "POST /realms/callbox/protocol/openid-connect/token — Access token al (OpenID Connect token endpoint)",
+          "name": "POST /realms/relayo/protocol/openid-connect/token — Access token al (OpenID Connect token endpoint)",
           "request": {
             "method": "POST",
             "auth": {
@@ -17,13 +17,13 @@
             },
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/realms/callbox/protocol/openid-connect/token",
+              "raw": "{{baseUrl}}/realms/relayo/protocol/openid-connect/token",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "realms",
-                "callbox",
+                "relayo",
                 "protocol",
                 "openid-connect",
                 "token"
@@ -31,7 +31,7 @@
               "query": [],
               "variable": []
             },
-            "description": "Keycloak / OpenID Connect standartında **token endpoint**-i. Bank API-lərini (10 endpoint) çağırmaq üçün əvvəlcə buradan\n`access_token` alırsınız və onu sorğunun başlığına yazırsınız:\n\n```\nAuthorization: Bearer <access_token>\n```\n\nBody **`application/x-www-form-urlencoded`** formatındadır (JSON yox — OAuth 2.0 standartı, RFC 6749 §4.3).\n\n### Dəstəklənən grant növləri\n| `grant_type` | Məcburi sahələr | Nə vaxt istifadə olunur |\n|---|---|---|\n| `password` | `client_id`, `username`, `password` | İlk dəfə token almaq (istifadəçi adı + parol) |\n| `refresh_token` | `client_id`, `refresh_token` | `access_token`-in vaxtı (15 dəq) bitəndə yenisini almaq |\n\n* `client_id` həmişə **`callbox-api`**-dir (public client — `client_secret` lazım deyil).\n* `access_token` — JWT, **900 saniyə** (15 dəq) etibarlıdır. Məzmununa [jwt.io](https://jwt.io)-da baxa bilərsiniz.\n* `refresh_token` — **7 gün** etibarlıdır və **birdəfəlikdir** (rotation): hər istifadədə yenisi verilir, köhnəsi ləğv olunur.\n  Ləğv olunmuş refresh token yenidən göndərilsə, təhlükəsizlik üçün istifadəçinin bütün refresh token-ləri ləğv edilir.\n* 5 uğursuz parol cəhdindən sonra istifadəçi 15 dəqiqəlik bloklanır (**429**).\n\nXətalar RFC 6749 formatındadır: `{ \"error\": \"...\", \"error_description\": \"...\" }`.\n\nCallbox GUI-də **Authorization → OAuth 2.0 → Get New Access Token** düyməsi bu endpoint-i çağırır və alınan token\nBearer token tələb edən bütün sorğulara avtomatik əlavə olunur.\n",
+            "description": "Keycloak / OpenID Connect standartında **token endpoint**-i. Bank API-lərini (10 endpoint) çağırmaq üçün əvvəlcə buradan\n`access_token` alırsınız və onu sorğunun başlığına yazırsınız:\n\n```\nAuthorization: Bearer <access_token>\n```\n\nBody **`application/x-www-form-urlencoded`** formatındadır (JSON yox — OAuth 2.0 standartı, RFC 6749 §4.3).\n\n### Dəstəklənən grant növləri\n| `grant_type` | Məcburi sahələr | Nə vaxt istifadə olunur |\n|---|---|---|\n| `password` | `client_id`, `username`, `password` | İlk dəfə token almaq (istifadəçi adı + parol) |\n| `refresh_token` | `client_id`, `refresh_token` | `access_token`-in vaxtı (15 dəq) bitəndə yenisini almaq |\n\n* `client_id` həmişə **`relayo-api`**-dir (public client — `client_secret` lazım deyil).\n* `access_token` — JWT, **900 saniyə** (15 dəq) etibarlıdır. Məzmununa [jwt.io](https://jwt.io)-da baxa bilərsiniz.\n* `refresh_token` — **7 gün** etibarlıdır və **birdəfəlikdir** (rotation): hər istifadədə yenisi verilir, köhnəsi ləğv olunur.\n  Ləğv olunmuş refresh token yenidən göndərilsə, təhlükəsizlik üçün istifadəçinin bütün refresh token-ləri ləğv edilir.\n* 5 uğursuz parol cəhdindən sonra istifadəçi 15 dəqiqəlik bloklanır (**429**).\n\nXətalar RFC 6749 formatındadır: `{ \"error\": \"...\", \"error_description\": \"...\" }`.\n\nRelayo GUI-də **Authorization → OAuth 2.0 → Get New Access Token** düyməsi bu endpoint-i çağırır və alınan token\nBearer token tələb edən bütün sorğulara avtomatik əlavə olunur.\n",
             "body": {
               "mode": "urlencoded",
               "urlencoded": [
@@ -41,7 +41,7 @@
                 },
                 {
                   "key": "client_id",
-                  "value": "callbox-api"
+                  "value": "relayo-api"
                 },
                 {
                   "key": "username",
@@ -4577,10 +4577,10 @@
       ]
     },
     {
-      "name": "Callbox AI",
+      "name": "Relayo AI",
       "item": [
         {
-          "name": "GET /api/v1/ai/status — Callbox AI vəziyyəti (qoşulub-qoşulmayıb, model)",
+          "name": "GET /api/v1/ai/status — Relayo AI vəziyyəti (qoşulub-qoşulmayıb, model)",
           "request": {
             "method": "GET",
             "auth": {
@@ -4611,7 +4611,7 @@
           }
         },
         {
-          "name": "POST /api/v1/ai/chat — Callbox AI — mesaj göndər, Gemini cavabını al",
+          "name": "POST /api/v1/ai/chat — Relayo AI — mesaj göndər, Gemini cavabını al",
           "request": {
             "method": "POST",
             "auth": {
@@ -4830,7 +4830,7 @@
               "query": [],
               "variable": []
             },
-            "description": "Sessiya və onun işləri Callbox-dan silinir (kredit sayğacına təsir etmir — günlük limit dəyişmir). Generasiya gedirsə → 409."
+            "description": "Sessiya və onun işləri Relayo-dan silinir (kredit sayğacına təsir etmir — günlük limit dəyişmir). Generasiya gedirsə → 409."
           }
         },
         {
@@ -4953,7 +4953,7 @@
                 }
               ]
             },
-            "description": "Stitch-in HTML-i serverdə təmizlənib: yalnız Tailwind CDN skripti və onun konfiqurasiyası qalır, `on*` atributları,\n`javascript:` URL-ləri, iframe/object/embed silinir, linklər heç yerə aparmır, `Content-Security-Policy` əlavə olunur.\nPortal onu `<iframe sandbox=\"allow-scripts\" srcdoc>` daxilində göstərir (Callbox-un token və cookie-lərinə çıxışı yoxdur).\n"
+            "description": "Stitch-in HTML-i serverdə təmizlənib: yalnız Tailwind CDN skripti və onun konfiqurasiyası qalır, `on*` atributları,\n`javascript:` URL-ləri, iframe/object/embed silinir, linklər heç yerə aparmır, `Content-Security-Policy` əlavə olunur.\nPortal onu `<iframe sandbox=\"allow-scripts\" srcdoc>` daxilində göstərir (Relayo-nun token və cookie-lərinə çıxışı yoxdur).\n"
           }
         },
         {
@@ -4995,7 +4995,7 @@
                 }
               ]
             },
-            "description": "`<iframe sandbox=\"allow-scripts\" src>` üçün. iframe `Authorization` başlığı göndərə bilmədiyi üçün URL imzalıdır\n(`exp` + HMAC `sig`, 1 saat) — `GET /api/v1/design/jobs/{jobId}/html` cavabındakı `previewUrl`.\nCavabın öz `Content-Security-Policy`-si var: yalnız Tailwind CDN və Google Fonts, `connect-src 'none'`,\n`frame-ancestors 'self'` və `sandbox allow-scripts` (sənəd opaque origin-dədir — Callbox-un token/cookie-lərinə çıxışı yoxdur).\n"
+            "description": "`<iframe sandbox=\"allow-scripts\" src>` üçün. iframe `Authorization` başlığı göndərə bilmədiyi üçün URL imzalıdır\n(`exp` + HMAC `sig`, 1 saat) — `GET /api/v1/design/jobs/{jobId}/html` cavabındakı `previewUrl`.\nCavabın öz `Content-Security-Policy`-si var: yalnız Tailwind CDN və Google Fonts, `connect-src 'none'`,\n`frame-ancestors 'self'` və `sandbox allow-scripts` (sənəd opaque origin-dədir — Relayo-nun token/cookie-lərinə çıxışı yoxdur).\n"
           }
         }
       ]

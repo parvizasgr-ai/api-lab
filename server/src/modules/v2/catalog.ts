@@ -1,4 +1,4 @@
-// Callbox API v2 — açıq (auth-suz) endpoint-lər: valyuta, aviareys, otel, kitab + OpenID Connect token endpoint-i.
+// Relayo API v2 — açıq (auth-suz) endpoint-lər: valyuta, aviareys, otel, kitab + OpenID Connect token endpoint-i.
 import type { AppContext } from '../../app.js';
 import type { Handlers } from '../../openapi/router.js';
 import { ApiError, conflict, notFound, OAuthError } from '../../errors.js';

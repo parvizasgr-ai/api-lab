@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* ==== Rəng sxemi (Callbox) ====
+/* ==== Rəng sxemi (Relayo) ====
    Brend token-ləri (dizayn tələbi): --bg-*, --border, --text-*, --accent*, --success.
    Tək aksent: bütün interaktiv və dekorativ vurğular --accent-dir. Status rəngləri (uğur / xəbərdarlıq / xəta) məna daşıdığı üçün ayrıca qalır.
    Əlavə (törəmə) token-lər — WCAG AA kontrastı üçün:
@@ -9228,7 +9228,7 @@ footer {
   text-transform: uppercase;
 }
 
-/* Callbox GUI — OAuth 2.0, token mənbəyi, body rejimi */
+/* Relayo GUI — OAuth 2.0, token mənbəyi, body rejimi */
 .auth-source {
   margin: 0;
   padding: 10px 12px;
@@ -9376,7 +9376,7 @@ footer {
 }
 
 /* ======================================================================
-   Callbox AI (/ai) — chat: sol panel (söhbətlər) | mərkəz (salamlama / mesajlar + composer)
+   Relayo AI (/ai) — chat: sol panel (söhbətlər) | mərkəz (salamlama / mesajlar + composer)
    ====================================================================== */
 .ai-page {
   display: grid;

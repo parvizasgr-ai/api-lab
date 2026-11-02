@@ -1,4 +1,4 @@
-// Callbox AI (/ai): mesaj → cavab (Markdown), söhbət sol paneldə qalır (reload sonrası da), 429 → xəta + retry.
+// Relayo AI (/ai): mesaj → cavab (Markdown), söhbət sol paneldə qalır (reload sonrası da), 429 → xəta + retry.
 // Gemini kvotası xərclənməsin deyə POST /api/v1/ai/chat brauzerdə mock olunur (server tərəfi tests/ai.test.ts-də yoxlanır).
 import { expect, test, type Page } from '@playwright/test'
 import { go, signIn } from './helpers'
@@ -15,7 +15,7 @@ async function mockChat(page: Page, replies: { status: number; body: unknown; he
 
 const reply = (text: string) => ({ status: 200, body: { reply: { role: 'model', text }, model: 'gemini-3.5-flash', attempts: 1, usage: null, durationMs: 900 } })
 
-test('Callbox AI: sual → Markdown cavab, kontekst növbəti sorğuda göndərilir, söhbət reload-dan sonra qalır', async ({ page }) => {
+test('Relayo AI: sual → Markdown cavab, kontekst növbəti sorğuda göndərilir, söhbət reload-dan sonra qalır', async ({ page }) => {
   const sent = await mockChat(page, [reply('**PUT** — tam əvəz, **PATCH** — qismən.\n\n- PUT idempotentdir'), reply('Bəli, `PATCH` də idempotent ola bilər.')])
   await signIn(page, 'student', 'student123')
   await go(page, 'ai')
@@ -37,7 +37,7 @@ test('Callbox AI: sual → Markdown cavab, kontekst növbəti sorğuda göndəri
   await expect(page.locator('.ai-welcome')).toBeVisible()
 })
 
-test('Callbox AI: 429 → xəta mesajı və geri sayımlı "Yenidən cəhd et"; nümunə sualı düyməsi', async ({ page }) => {
+test('Relayo AI: 429 → xəta mesajı və geri sayımlı "Yenidən cəhd et"; nümunə sualı düyməsi', async ({ page }) => {
   await mockChat(page, [
     { status: 429, headers: { 'Retry-After': '2' }, body: { timestamp: '2026-10-30T09:00:00Z', status: 429, code: 'AI_RATE_LIMITED', message: 'limit', details: [], traceId: 'req_1' } },
     reply('İndi işləyir'),
@@ -53,7 +53,7 @@ test('Callbox AI: 429 → xəta mesajı və geri sayımlı "Yenidən cəhd et"; 
   await expect(page.locator('.ai-msg-model')).toContainText('İndi işləyir')
 })
 
-test('Callbox AI: a11y (axe), mobil 375px, dark mode, söhbət paneli menyu düyməsi ilə açılır', async ({ page }) => {
+test('Relayo AI: a11y (axe), mobil 375px, dark mode, söhbət paneli menyu düyməsi ilə açılır', async ({ page }) => {
   await mockChat(page, [reply('Cavab')])
   await page.emulateMedia({ colorScheme: 'dark' })
   await page.setViewportSize({ width: 375, height: 812 })

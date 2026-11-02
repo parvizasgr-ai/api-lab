@@ -99,7 +99,7 @@ const TEXT = {
 };
 type Text = (typeof TEXT)["az"];
 
-const DONE_KEY = "callbox.sql.done";
+const DONE_KEY = "relayo.sql.done";
 const loadDone = (): string[] => {
   try {
     return JSON.parse(localStorage.getItem(DONE_KEY) ?? "[]") as string[];

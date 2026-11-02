@@ -47,7 +47,7 @@ export const config = {
   jwtIssuer: 'api-lab',
   accessTokenTtlSec: 15 * 60,
   refreshTokenTtlSec: 7 * 24 * 60 * 60,
-  publicClientId: 'callbox-api', // POST /realms/callbox/protocol/openid-connect/token — public client (secret-siz)
+  publicClientId: 'relayo-api', // POST /realms/relayo/protocol/openid-connect/token — public client (secret-siz)
   oauthCodeTtlSec: 60,
 
   // Dərs 2-də customers tokensiz işləyir; Dərs 3-də AUTH_CUSTOMERS=true → Bearer tələb olunur.
@@ -91,7 +91,7 @@ export const config = {
     catalog: EXTERNAL_CATALOG as ExternalApi[], // testlərdə əvəz olunur (verified:true + mock upstream)
   },
 
-  // Callbox AI (Google Gemini). Açar yalnız serverdə. gemini-2.5-flash yeni hesablar üçün bağlanıbsa (404) fallback modelə keçilir.
+  // Relayo AI (Google Gemini). Açar yalnız serverdə. gemini-2.5-flash yeni hesablar üçün bağlanıbsa (404) fallback modelə keçilir.
   ai: {
     apiKey: env.GEMINI_API_KEY ?? '',
     model: env.GEMINI_MODEL ?? 'gemini-2.5-flash',

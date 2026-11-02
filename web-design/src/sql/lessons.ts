@@ -1,5 +1,5 @@
 // SQL dərsliyi (W3Schools üslubu): hər dərs — izah, sintaksis, "Özün sına" nümunələri və avtomatik yoxlanan tapşırıq.
-// Bütün nümunələr Callbox-un real (PostgreSQL) cədvəllərində işləyir; tests: sql/lessons.test.ts hər SQL-in
+// Bütün nümunələr Relayo-nun real (PostgreSQL) cədvəllərində işləyir; tests: sql/lessons.test.ts hər SQL-in
 // sintaksisinin və yalnız oxuma qaydasının pozulmadığını yoxlayır, e2e isə nümunələri real bazada icra edir.
 
 export type Example = { title: string; text?: string; sql: string };
@@ -27,7 +27,7 @@ export const LESSONS: Lesson[] = [
     group: "Əsaslar",
     body: `**SQL** (Structured Query Language) — verilənlər bazası ilə danışmaq üçün standart dildir. Biznes analitik üçün SQL ən vacib bacarıqlardan biridir: hesabat, tələb yoxlaması, data keyfiyyəti — hamısı SQL ilə edilir.
 
-Bu dərslikdə **Callbox-un real PostgreSQL bazası** üzərində işləyirik: API-də etdiyiniz hər əməliyyat (kart bloklama, bron, köçürmə) burada sətir kimi görünür. Sağdakı **Verilənlər bazası** panelində bütün cədvəllər və sətir sayları var.
+Bu dərslikdə **Relayo-nun real PostgreSQL bazası** üzərində işləyirik: API-də etdiyiniz hər əməliyyat (kart bloklama, bron, köçürmə) burada sətir kimi görünür. Sağdakı **Verilənlər bazası** panelində bütün cədvəllər və sətir sayları var.
 
 ### Bu səhifədə nə edə bilərsiniz
 | İcazə var | İcazə yoxdur |

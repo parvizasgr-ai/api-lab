@@ -1,6 +1,6 @@
 // Design (/design) — Google Stitch ilə mətndən UI ekranı. Tələbə chat-də ideyanı yazır, server Stitch-də ekran yaradır
 // (bir neçə dəqiqə — asinxron iş, 4 saniyədən bir polling), hazır HTML serverdə sanitize olunur və burada
-// <iframe sandbox="allow-scripts" src=imzalı-URL> daxilində göstərilir (srcdoc portalın CSP-sini miras alıb Tailwind-i bloklayırdı): Stitch saytına keçid yoxdur, skriptlər Callbox-un
+// <iframe sandbox="allow-scripts" src=imzalı-URL> daxilində göstərilir (srcdoc portalın CSP-sini miras alıb Tailwind-i bloklayırdı): Stitch saytına keçid yoxdur, skriptlər Relayo-nun
 // token/cookie-lərinə çata bilmir (allow-same-origin yoxdur), linklər və formlar heç yerə aparmır.
 // Növbəti mesajlar həmin ekranı redaktə edir (Stitch edit_screens).
 import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
